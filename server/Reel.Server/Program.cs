@@ -38,6 +38,7 @@ app.UseMiddleware<SecretKeyMiddleware>();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapConnectEndpoints();
 app.MapLibraryEndpoints();
+app.MapStreamEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
