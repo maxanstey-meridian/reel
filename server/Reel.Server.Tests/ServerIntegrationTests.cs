@@ -41,4 +41,58 @@ public sealed class ServerIntegrationTests : IClassFixture<WebApplicationFactory
         config.SecretKey.Should().Be("REEL-TEST");
         config.Port.Should().Be(8080);
     }
+
+    [Fact]
+    public void ReelConfig_PortFromConfig_IsUsedByDI()
+    {
+        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Reel:MediaRoot", "/tmp/reel-test-media");
+            builder.UseSetting("Reel:SecretKey", "REEL-TEST");
+            builder.UseSetting("Reel:Port", "9999");
+        });
+
+        using var scope = factory.Services.CreateScope();
+        var config = scope.ServiceProvider.GetRequiredService<ReelConfig>();
+
+        config.Port.Should().Be(9999);
+    }
+
+    [Fact]
+    public void Startup_ThrowsInvalidOperationException_WhenMediaRootMissing()
+    {
+        var act = () =>
+        {
+            var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("Reel:MediaRoot", "");
+                builder.UseSetting("Reel:SecretKey", "REEL-TEST");
+                builder.UseSetting("Reel:Port", "8080");
+            });
+
+            _ = factory.Services;
+        };
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*MediaRoot*required*");
+    }
+
+    [Fact]
+    public void Startup_ThrowsInvalidOperationException_WhenSecretKeyMissing()
+    {
+        var act = () =>
+        {
+            var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("Reel:MediaRoot", "/tmp/reel-test-media");
+                builder.UseSetting("Reel:SecretKey", "");
+                builder.UseSetting("Reel:Port", "8080");
+            });
+
+            _ = factory.Services;
+        };
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*SecretKey*required*");
+    }
 }
