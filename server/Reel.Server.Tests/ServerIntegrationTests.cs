@@ -21,9 +21,10 @@ public sealed class ServerIntegrationTests : IClassFixture<WebApplicationFactory
     }
 
     [Fact]
-    public async Task UnknownRoute_Returns404()
+    public async Task UnknownRoute_WithKey_Returns404()
     {
         var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
 
         var response = await client.GetAsync("/");
 

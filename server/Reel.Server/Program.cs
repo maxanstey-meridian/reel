@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using Reel.Server.Endpoints;
+using Reel.Server.Middleware;
 using Reel.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +23,11 @@ if (reelConfig.Port <= 0)
 builder.Services.AddSingleton(reelConfig);
 
 var app = builder.Build();
+
+app.UseMiddleware<SecretKeyMiddleware>();
+
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.MapConnectEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
