@@ -42,6 +42,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
 
+    // Material3 (theme parent for TV)
+    implementation(libs.androidx.material3)
+
     // Compose for TV
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
