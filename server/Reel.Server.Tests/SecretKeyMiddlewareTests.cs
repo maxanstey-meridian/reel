@@ -80,16 +80,40 @@ public sealed class SecretKeyMiddlewareTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
-    public async Task Health_ReturnsOk()
+    public async Task Health_ReturnsHealthyWithUptime()
     {
         var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/api/health");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
 
-        var body = await response.Content.ReadFromJsonAsync<StatusResponse>();
-        body!.Status.Should().Be("ok");
+        var body = await response.Content.ReadFromJsonAsync<HealthResponseDto>();
+        body!.Status.Should().Be("healthy");
+        body.Uptime.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Health_Uptime_IsFormattedCorrectly()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/health");
+
+        var body = await response.Content.ReadFromJsonAsync<HealthResponseDto>();
+        body!.Uptime.Should().MatchRegex(@"^\d+d \d{2}h \d{2}m \d{2}s$");
+    }
+
+    [Fact]
+    public async Task Health_WithIncorrectSecretKey_StillSucceeds()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "wrong-key");
+
+        var response = await client.GetAsync("/api/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -103,4 +127,6 @@ public sealed class SecretKeyMiddlewareTests : IClassFixture<WebApplicationFacto
     }
 
     private sealed record StatusResponse(string Status);
+
+    private sealed record HealthResponseDto(string Status, string Uptime);
 }

@@ -35,7 +35,7 @@ var app = builder.Build();
 
 app.UseMiddleware<SecretKeyMiddleware>();
 
-app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
+app.MapHealthEndpoints();
 app.MapConnectEndpoints();
 app.MapLibraryEndpoints();
 app.MapStreamEndpoints();
