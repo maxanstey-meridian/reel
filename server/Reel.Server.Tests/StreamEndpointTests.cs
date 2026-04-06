@@ -21,6 +21,7 @@ public sealed class StreamEndpointTests : IClassFixture<WebApplicationFactory<Pr
         Directory.CreateDirectory(filmsDir);
         File.WriteAllBytes(Path.Combine(filmsDir, "test.mp4"), "fake-mp4-content"u8.ToArray());
         File.WriteAllBytes(Path.Combine(_mediaRoot, "song.mp3"), "fake-mp3-content"u8.ToArray());
+        File.WriteAllBytes(Path.Combine(filmsDir, "movie.mkv"), "fake-mkv-content"u8.ToArray());
 
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -73,6 +74,17 @@ public sealed class StreamEndpointTests : IClassFixture<WebApplicationFactory<Pr
         var response = await client.GetAsync("/api/files/stream?path=song.mp3");
 
         response.Content.Headers.ContentType!.MediaType.Should().Be("audio/mpeg");
+    }
+
+    [Fact]
+    public async Task MkvFile_ReturnsCorrectContentType()
+    {
+        using var client = CreateAuthenticatedClient();
+
+        var response = await client.GetAsync("/api/files/stream?path=Films/movie.mkv");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("video/x-matroska");
     }
 
     [Fact]
