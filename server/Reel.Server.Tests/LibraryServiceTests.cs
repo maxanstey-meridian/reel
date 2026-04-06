@@ -144,4 +144,54 @@ public sealed class LibraryServiceTests : IDisposable
 
         file.RelativePath.Should().Be("Films/a.mp4");
     }
+
+    [Fact]
+    public void Symlinks_AreExcluded()
+    {
+        // Real file and directory
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "real.mp4"), new byte[10]);
+        var realDir = Path.Combine(_mediaRoot, "RealDir");
+        Directory.CreateDirectory(realDir);
+
+        // Symlinks to the real entries
+        File.CreateSymbolicLink(Path.Combine(_mediaRoot, "link.mp4"), Path.Combine(_mediaRoot, "real.mp4"));
+        Directory.CreateSymbolicLink(Path.Combine(_mediaRoot, "LinkDir"), realDir);
+
+        var root = _service.GetTree();
+        var names = root.Children!.Select(c => c.Name).ToList();
+
+        names.Should().Contain("real.mp4");
+        names.Should().Contain("RealDir");
+        names.Should().NotContain("link.mp4");
+        names.Should().NotContain("LinkDir");
+    }
+
+    [Fact]
+    public void PermissionDeniedDir_ReturnsEmptyDirectoryNode()
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+            return; // chmod semantics only reliable on Unix
+
+        var restrictedDir = Path.Combine(_mediaRoot, "restricted");
+        Directory.CreateDirectory(restrictedDir);
+        File.WriteAllBytes(Path.Combine(restrictedDir, "secret.mp4"), new byte[10]);
+
+        // Remove all permissions so enumeration throws UnauthorizedAccessException
+        File.SetUnixFileMode(restrictedDir, (UnixFileMode)0);
+
+        try
+        {
+            var root = _service.GetTree();
+
+            var dir = root.Children!.Single(c => c.Name == "restricted");
+            dir.Type.Should().Be(FileNodeType.Directory);
+            dir.Children.Should().NotBeNull();
+            dir.Children.Should().BeEmpty();
+        }
+        finally
+        {
+            // Restore permissions so Dispose() cleanup can delete
+            File.SetUnixFileMode(restrictedDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
 }
