@@ -11,6 +11,13 @@ var reelConfig = builder.Configuration
     ?? throw new InvalidOperationException(
         "Reel config section is missing from appsettings.json.");
 
+if (string.IsNullOrWhiteSpace(reelConfig.MediaRoot))
+    throw new InvalidOperationException("Reel:MediaRoot is required in appsettings.json.");
+if (string.IsNullOrWhiteSpace(reelConfig.SecretKey))
+    throw new InvalidOperationException("Reel:SecretKey is required in appsettings.json.");
+if (reelConfig.Port <= 0)
+    throw new InvalidOperationException("Reel:Port must be a positive integer in appsettings.json.");
+
 builder.Services.AddSingleton(reelConfig);
 
 var app = builder.Build();
