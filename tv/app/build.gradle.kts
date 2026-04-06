@@ -45,6 +45,9 @@ dependencies {
     // Material3 (theme parent for TV)
     implementation(libs.androidx.material3)
 
+    // Compose Material3 (text fields, progress indicators)
+    implementation(libs.androidx.compose.material3)
+
     // Compose for TV
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
