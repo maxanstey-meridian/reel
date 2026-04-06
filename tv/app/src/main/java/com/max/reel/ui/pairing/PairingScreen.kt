@@ -79,8 +79,7 @@ class PairingViewModel(
         _state.update { it.copy(isLoading = true, error = null) }
 
         viewModelScope.launch {
-            val port = current.port.toIntOrNull() ?: 8080
-            when (val result = apiClient.connect(current.ip, port, current.key)) {
+            when (val result = apiClient.connect(current.ip, current.port, current.key)) {
                 is ConnectResult.Success -> {
                     prefs.savePairing(current.ip, current.port, current.key)
                     _state.update { it.copy(isLoading = false) }

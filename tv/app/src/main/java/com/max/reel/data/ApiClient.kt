@@ -43,13 +43,17 @@ class ApiClient(private val prefs: PreferencesManager) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
+        engine {
+            connectTimeout = 5_000
+            socketTimeout = 10_000
+        }
         expectSuccess = false
     }
 
     private val baseUrl: String
         get() = "http://${prefs.serverIp}:${prefs.serverPort}"
 
-    suspend fun connect(ip: String, port: Int, key: String): ConnectResult {
+    suspend fun connect(ip: String, port: String, key: String): ConnectResult {
         return try {
             val response = client.post("http://$ip:$port/api/connect") {
                 contentType(ContentType.Application.Json)

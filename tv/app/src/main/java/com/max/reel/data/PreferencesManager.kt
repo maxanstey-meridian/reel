@@ -12,8 +12,8 @@ class PreferencesManager(context: Context) {
     val serverIp: String
         get() = prefs.getString("reel_server_ip", "") ?: ""
 
-    val serverPort: Int
-        get() = prefs.getString("reel_server_port", "8080")?.toIntOrNull() ?: 8080
+    val serverPort: String
+        get() = prefs.getString("reel_server_port", "8080") ?: "8080"
 
     val secretKey: String
         get() = prefs.getString("reel_secret_key", "") ?: ""
