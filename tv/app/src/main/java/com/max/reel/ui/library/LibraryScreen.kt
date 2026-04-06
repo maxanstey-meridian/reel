@@ -75,7 +75,7 @@ class LibraryViewModel(private val apiClient: ApiClient) : ViewModel() {
                     _state.value = LibraryUiState.Error("Invalid key — please re-pair")
                 }
                 is LibraryResult.NetworkError -> {
-                    _state.value = LibraryUiState.Error(result.message)
+                    _state.value = LibraryUiState.Error("Can't reach server")
                 }
             }
         }

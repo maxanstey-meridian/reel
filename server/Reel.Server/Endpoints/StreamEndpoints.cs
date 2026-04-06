@@ -15,7 +15,7 @@ public static class StreamEndpoints
             var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
 
             if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
+                return Results.Problem(detail: "Access denied.", statusCode: StatusCodes.Status403Forbidden);
 
             if (!File.Exists(fullPath))
                 return Results.NotFound(new { error = "File not found" });
