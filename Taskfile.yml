@@ -1,0 +1,26 @@
+version: '3'
+
+tasks:
+  server:build:
+    desc: Build server project
+    dir: server
+    cmds:
+      - dotnet build Reel.Server/Reel.Server.csproj
+
+  server:run:
+    desc: Run server
+    dir: server
+    cmds:
+      - dotnet run --project Reel.Server/Reel.Server.csproj
+
+  tv:build:
+    desc: Assemble debug APK
+    dir: tv
+    cmds:
+      - ./gradlew :app:assembleDebug
+
+  tv:install:
+    desc: Sideload debug APK to connected Fire TV via ADB
+    dir: tv
+    cmds:
+      - adb install -r app/build/outputs/apk/debug/app-debug.apk
