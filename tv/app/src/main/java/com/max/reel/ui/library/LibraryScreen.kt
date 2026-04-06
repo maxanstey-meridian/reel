@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,9 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -27,7 +31,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.max.reel.data.ApiClient
@@ -178,17 +185,12 @@ private fun LibrarySuccessContent(
 ) {
     val currentLevel = stack.last()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         LibraryHeader(stack)
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        LazyColumn(
+        TvLazyColumn(
             modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             items(currentLevel.items, key = { it.relativePath.ifEmpty { it.name } }) { node ->
@@ -209,12 +211,17 @@ private fun LibrarySuccessContent(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun LibraryHeader(stack: List<DirectoryLevel>) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 48.dp, vertical = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         stack.forEachIndexed { index, level ->
             if (index > 0) {
                 Text(
-                    text = " › ",
-                    color = Color.Gray,
+                    text = "  /  ",
+                    color = Color.Gray.copy(alpha = 0.4f),
                     fontSize = 18.sp,
                 )
             }
@@ -238,15 +245,21 @@ private fun LibraryItem(node: FileNode, onClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = if (node.type == NodeType.DIRECTORY) "\uD83D\uDCC1" else "\u25B6",
-                fontSize = 16.sp,
+            Icon(
+                imageVector = if (node.type == NodeType.DIRECTORY)
+                    Icons.Default.Folder
+                else
+                    Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = if (node.type == NodeType.DIRECTORY)
+                    MaterialTheme.colorScheme.primary
+                else
+                    Color.White.copy(alpha = 0.7f),
             )
-
-            Spacer(modifier = Modifier.width(12.dp))
 
             Text(
                 text = node.name,
@@ -255,33 +268,28 @@ private fun LibraryItem(node: FileNode, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
 
-            when (node.type) {
-                NodeType.FILE -> {
-                    node.sizeBytes?.let { size ->
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = formatFileSize(size),
-                            color = Color.Gray,
-                            fontSize = 14.sp,
-                        )
-                    }
-                }
-                NodeType.DIRECTORY -> {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "›",
-                        color = Color.Gray,
-                        fontSize = 18.sp,
-                    )
-                }
+            if (node.type == NodeType.FILE && node.sizeBytes != null) {
+                Text(
+                    text = formatFileSize(node.sizeBytes),
+                    color = Color.Gray,
+                    fontSize = 14.sp,
+                )
+            }
+
+            if (node.type == NodeType.DIRECTORY) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.Gray.copy(alpha = 0.4f),
+                )
             }
         }
     }
 }
 
 private fun formatFileSize(bytes: Long): String = when {
-    bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1_000_000_000.0)
-    bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)
-    bytes >= 1_000 -> "%.1f KB".format(bytes / 1_000.0)
+    bytes >= 1_073_741_824L -> "%.1f GB".format(bytes / 1_073_741_824.0)
+    bytes >= 1_048_576L -> "%.0f MB".format(bytes / 1_048_576.0)
+    bytes >= 1_024L -> "%.0f KB".format(bytes / 1_024.0)
     else -> "$bytes B"
 }

@@ -47,6 +47,7 @@ dependencies {
 
     // Compose Material3 (text fields, progress indicators)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.compose.icons.extended)
 
     // Compose for TV
     implementation(libs.androidx.tv.foundation)

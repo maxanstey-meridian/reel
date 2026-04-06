@@ -26,4 +26,13 @@ class PreferencesManager(context: Context) {
             .putString("reel_paired", "true")
             .apply()
     }
+
+    fun clearPairing() {
+        prefs.edit()
+            .remove("reel_server_ip")
+            .remove("reel_server_port")
+            .remove("reel_secret_key")
+            .putString("reel_paired", "false")
+            .apply()
+    }
 }

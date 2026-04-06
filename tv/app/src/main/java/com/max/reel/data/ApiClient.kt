@@ -43,6 +43,7 @@ class ApiClient(private val prefs: PreferencesManager) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
+        expectSuccess = false
     }
 
     private val baseUrl: String
