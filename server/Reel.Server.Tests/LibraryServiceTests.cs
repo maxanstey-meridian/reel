@@ -1,0 +1,147 @@
+namespace Reel.Server.Tests;
+
+using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Reel.Server.Models;
+using Reel.Server.Services;
+
+public sealed class LibraryServiceTests : IDisposable
+{
+    private readonly string _mediaRoot;
+    private readonly LibraryService _service;
+
+    public LibraryServiceTests()
+    {
+        _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(_mediaRoot);
+
+        var config = new ReelConfig
+        {
+            MediaRoot = _mediaRoot,
+            SecretKey = "TEST",
+            Port = 8080
+        };
+
+        _service = new LibraryService(config, NullLogger<LibraryService>.Instance);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_mediaRoot))
+            Directory.Delete(_mediaRoot, recursive: true);
+    }
+
+    [Fact]
+    public void SingleFile_ReturnsRootWithOneChild()
+    {
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "film.mp4"), new byte[1024]);
+
+        var root = _service.GetTree();
+
+        root.Type.Should().Be(FileNodeType.Directory);
+        root.Children.Should().HaveCount(1);
+
+        var file = root.Children![0];
+        file.Name.Should().Be("film.mp4");
+        file.Type.Should().Be(FileNodeType.File);
+        file.Extension.Should().Be(".mp4");
+        file.SizeBytes.Should().Be(1024);
+        file.Children.Should().BeNull();
+    }
+
+    [Fact]
+    public void NestedDirs_ReturnsCorrectTree()
+    {
+        var filmsDir = Path.Combine(_mediaRoot, "Films");
+        Directory.CreateDirectory(filmsDir);
+        File.WriteAllBytes(Path.Combine(filmsDir, "a.mp4"), new byte[512]);
+
+        var root = _service.GetTree();
+
+        root.Children.Should().HaveCount(1);
+        var dir = root.Children![0];
+        dir.Name.Should().Be("Films");
+        dir.Type.Should().Be(FileNodeType.Directory);
+        dir.SizeBytes.Should().BeNull();
+        dir.Extension.Should().BeNull();
+        dir.Children.Should().HaveCount(1);
+        dir.Children![0].Name.Should().Be("a.mp4");
+    }
+
+    [Fact]
+    public void EmptyDir_HasEmptyChildrenArray()
+    {
+        Directory.CreateDirectory(Path.Combine(_mediaRoot, "empty"));
+
+        var root = _service.GetTree();
+        var dir = root.Children!.Single();
+
+        dir.Children.Should().NotBeNull();
+        dir.Children.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Dotfile_IsExcluded()
+    {
+        File.WriteAllBytes(Path.Combine(_mediaRoot, ".DS_Store"), new byte[10]);
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "real.mp4"), new byte[10]);
+
+        var root = _service.GetTree();
+
+        root.Children.Should().HaveCount(1);
+        root.Children![0].Name.Should().Be("real.mp4");
+    }
+
+    [Fact]
+    public void DotDirectory_IsExcluded()
+    {
+        Directory.CreateDirectory(Path.Combine(_mediaRoot, ".hidden"));
+        Directory.CreateDirectory(Path.Combine(_mediaRoot, "visible"));
+
+        var root = _service.GetTree();
+
+        root.Children.Should().HaveCount(1);
+        root.Children![0].Name.Should().Be("visible");
+    }
+
+    [Fact]
+    public void ExtensionCasing_IsLowerCased()
+    {
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "FILM.MKV"), new byte[10]);
+
+        var root = _service.GetTree();
+        root.Children![0].Extension.Should().Be(".mkv");
+    }
+
+    [Fact]
+    public void AlphabeticalOrder_IsSorted()
+    {
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "b.mp4"), new byte[10]);
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "a.mp4"), new byte[10]);
+
+        var root = _service.GetTree();
+
+        root.Children![0].Name.Should().Be("a.mp4");
+        root.Children![1].Name.Should().Be("b.mp4");
+    }
+
+    [Fact]
+    public void RootRelativePath_IsEmptyString()
+    {
+        var root = _service.GetTree();
+        root.RelativePath.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void NestedRelativePath_UsesForwardSlash()
+    {
+        var filmsDir = Path.Combine(_mediaRoot, "Films");
+        Directory.CreateDirectory(filmsDir);
+        File.WriteAllBytes(Path.Combine(filmsDir, "a.mp4"), new byte[10]);
+
+        var root = _service.GetTree();
+        var file = root.Children![0].Children![0];
+
+        file.RelativePath.Should().Be("Films/a.mp4");
+    }
+}

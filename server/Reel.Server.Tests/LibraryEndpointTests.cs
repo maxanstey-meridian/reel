@@ -1,0 +1,94 @@
+namespace Reel.Server.Tests;
+
+using System.Net;
+using System.Text.Json;
+using FluentAssertions;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+{
+    private readonly string _mediaRoot;
+    private readonly WebApplicationFactory<Program> _factory;
+
+    public LibraryEndpointTests(WebApplicationFactory<Program> factory)
+    {
+        _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-lib-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(_mediaRoot);
+
+        // Create a test file
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "test.mp4"), new byte[2048]);
+
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Reel:MediaRoot", _mediaRoot);
+            builder.UseSetting("Reel:SecretKey", "REEL-TEST");
+            builder.UseSetting("Reel:Port", "8080");
+        });
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_mediaRoot))
+            Directory.Delete(_mediaRoot, recursive: true);
+    }
+
+    [Fact]
+    public async Task ValidKey_ReturnsTree()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+
+        var response = await client.GetAsync("/api/library");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        root.GetProperty("type").GetString().Should().Be("directory");
+        root.GetProperty("relativePath").GetString().Should().BeEmpty();
+        root.GetProperty("children").GetArrayLength().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task WithoutKey_Returns401()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/api/library");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task JsonProperties_AreCamelCase()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+
+        var response = await client.GetAsync("/api/library");
+        var json = await response.Content.ReadAsStringAsync();
+
+        json.Should().Contain("\"relativePath\"");
+        json.Should().Contain("\"sizeBytes\"");
+        json.Should().NotContain("\"RelativePath\"");
+        json.Should().NotContain("\"SizeBytes\"");
+    }
+
+    [Fact]
+    public async Task NullFields_AreSerialisedAsNull()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+
+        var response = await client.GetAsync("/api/library");
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        // Root directory should have null extension and sizeBytes
+        var root = doc.RootElement;
+        root.GetProperty("extension").ValueKind.Should().Be(JsonValueKind.Null);
+        root.GetProperty("sizeBytes").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+}

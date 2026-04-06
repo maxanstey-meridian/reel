@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Reel.Server.Endpoints;
 using Reel.Server.Middleware;
 using Reel.Server.Services;
@@ -21,6 +23,13 @@ if (reelConfig.Port <= 0)
     throw new InvalidOperationException("Reel:Port must be a positive integer in appsettings.json.");
 
 builder.Services.AddSingleton(reelConfig);
+builder.Services.AddSingleton<LibraryService>();
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
 
 var app = builder.Build();
 
@@ -28,6 +37,7 @@ app.UseMiddleware<SecretKeyMiddleware>();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapConnectEndpoints();
+app.MapLibraryEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
