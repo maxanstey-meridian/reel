@@ -1,4 +1,5 @@
-using Reel.Server.Models;
+using Reel.Server.Application.Models;
+using Reel.Server.Domain;
 using Rivet;
 
 namespace Reel.Server;
@@ -42,4 +43,16 @@ public static class ReelContract
 
     public static readonly InputRouteDefinition<FavouriteRemoveRequest> FavouritesRemove =
         Define.Delete("/api/favourites").Accepts<FavouriteRemoveRequest>();
+
+    public static readonly FileRouteDefinition<FileRequest> Stream =
+        Define.File<FileRequest>("/api/files/stream")
+            .QueryAuth();
+
+    public static readonly FileRouteDefinition<FileRequest> Thumbnail =
+        Define.File<FileRequest>("/api/files/thumbnail")
+            .ContentType("image/jpeg")
+            .QueryAuth();
+
+    public static readonly RouteDefinition<FileRequest, MetadataResponse> Metadata =
+        Define.Get<FileRequest, MetadataResponse>("/api/files/metadata");
 }

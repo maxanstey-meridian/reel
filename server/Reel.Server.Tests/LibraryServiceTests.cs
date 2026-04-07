@@ -2,13 +2,14 @@ namespace Reel.Server.Tests;
 
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Reel.Server.Models;
-using Reel.Server.Services;
+using Reel.Server.Domain;
+using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.FileSystem;
 
 public sealed class LibraryServiceTests : IDisposable
 {
     private readonly string _mediaRoot;
-    private readonly LibraryService _service;
+    private readonly FileSystemScanner _scanner;
 
     public LibraryServiceTests()
     {
@@ -22,7 +23,7 @@ public sealed class LibraryServiceTests : IDisposable
             Port = 8080
         };
 
-        _service = new LibraryService(config, NullLogger<LibraryService>.Instance);
+        _scanner = new FileSystemScanner(config, NullLogger<FileSystemScanner>.Instance);
     }
 
     public void Dispose()
@@ -36,7 +37,7 @@ public sealed class LibraryServiceTests : IDisposable
     {
         File.WriteAllBytes(Path.Combine(_mediaRoot, "film.mp4"), new byte[1024]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
 
         root.Type.Should().Be(FileNodeType.Directory);
         root.Children.Should().HaveCount(1);
@@ -56,7 +57,7 @@ public sealed class LibraryServiceTests : IDisposable
         Directory.CreateDirectory(filmsDir);
         File.WriteAllBytes(Path.Combine(filmsDir, "a.mp4"), new byte[512]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
 
         root.Children.Should().HaveCount(1);
         var dir = root.Children![0];
@@ -73,7 +74,7 @@ public sealed class LibraryServiceTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "empty"));
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
 
         root.Children.Should().NotBeNull();
         root.Children.Should().BeEmpty();
@@ -85,7 +86,7 @@ public sealed class LibraryServiceTests : IDisposable
         File.WriteAllBytes(Path.Combine(_mediaRoot, ".DS_Store"), new byte[10]);
         File.WriteAllBytes(Path.Combine(_mediaRoot, "real.mp4"), new byte[10]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
 
         root.Children.Should().HaveCount(1);
         root.Children![0].Name.Should().Be("real.mp4");
@@ -99,7 +100,7 @@ public sealed class LibraryServiceTests : IDisposable
         Directory.CreateDirectory(visibleDir);
         File.WriteAllBytes(Path.Combine(visibleDir, "movie.mp4"), new byte[10]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
 
         root.Children.Should().HaveCount(1);
         root.Children![0].Name.Should().Be("visible");
@@ -110,7 +111,7 @@ public sealed class LibraryServiceTests : IDisposable
     {
         File.WriteAllBytes(Path.Combine(_mediaRoot, "FILM.MKV"), new byte[10]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
         root.Children![0].Extension.Should().Be(".mkv");
     }
 
@@ -120,7 +121,7 @@ public sealed class LibraryServiceTests : IDisposable
         File.WriteAllBytes(Path.Combine(_mediaRoot, "b.mp4"), new byte[10]);
         File.WriteAllBytes(Path.Combine(_mediaRoot, "a.mp4"), new byte[10]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
 
         root.Children![0].Name.Should().Be("a.mp4");
         root.Children![1].Name.Should().Be("b.mp4");
@@ -129,7 +130,7 @@ public sealed class LibraryServiceTests : IDisposable
     [Fact]
     public void RootRelativePath_IsEmptyString()
     {
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
         root.RelativePath.Should().BeEmpty();
     }
 
@@ -140,7 +141,7 @@ public sealed class LibraryServiceTests : IDisposable
         Directory.CreateDirectory(filmsDir);
         File.WriteAllBytes(Path.Combine(filmsDir, "a.mp4"), new byte[10]);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
         var file = root.Children![0].Children![0];
 
         file.RelativePath.Should().Be("Films/a.mp4");
@@ -159,7 +160,7 @@ public sealed class LibraryServiceTests : IDisposable
         File.CreateSymbolicLink(Path.Combine(_mediaRoot, "link.mp4"), Path.Combine(_mediaRoot, "real.mp4"));
         Directory.CreateSymbolicLink(Path.Combine(_mediaRoot, "LinkDir"), realDir);
 
-        var root = _service.GetTree();
+        var root = _scanner.BuildTree();
         var names = root.Children!.Select(c => c.Name).ToList();
 
         names.Should().Contain("real.mp4");
@@ -183,7 +184,7 @@ public sealed class LibraryServiceTests : IDisposable
 
         try
         {
-            var root = _service.GetTree();
+            var root = _scanner.BuildTree();
 
             // Restricted dir has no accessible children, so it gets pruned
             root.Children.Should().NotBeNull();
