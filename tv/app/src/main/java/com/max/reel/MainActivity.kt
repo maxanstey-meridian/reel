@@ -12,13 +12,13 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
-import com.max.reel.ui.library.LibraryScreen
+import com.max.reel.ui.cast.WaitingForCastScreen
 import com.max.reel.ui.pairing.PairingScreen
 import com.max.reel.ui.player.PlayerScreen
 
 sealed interface Screen {
     data object Pairing : Screen
-    data object Library : Screen
+    data object WaitingForCast : Screen
     data class Player(val relativePath: String) : Screen
 }
 
@@ -57,7 +57,7 @@ private fun ReelApp(
 ) {
     var screen: Screen by remember {
         mutableStateOf(
-            if (startPaired) Screen.Library else Screen.Pairing
+            if (startPaired) Screen.WaitingForCast else Screen.Pairing
         )
     }
 
@@ -66,18 +66,19 @@ private fun ReelApp(
             is Screen.Pairing -> PairingScreen(
                 apiClient = apiClient,
                 prefs = prefs,
-                onPaired = { screen = Screen.Library },
+                onPaired = { screen = Screen.WaitingForCast },
             )
 
-            is Screen.Library -> LibraryScreen(
+            is Screen.WaitingForCast -> WaitingForCastScreen(
                 apiClient = apiClient,
+                prefs = prefs,
                 onPlayFile = { relativePath -> screen = Screen.Player(relativePath) },
             )
 
             is Screen.Player -> PlayerScreen(
                 prefs = prefs,
                 relativePath = current.relativePath,
-                onBack = { screen = Screen.Library },
+                onBack = { screen = Screen.WaitingForCast },
             )
         }
     }
