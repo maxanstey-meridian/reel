@@ -1,8 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
+import { parseFilename } from "~~/app/utils/parseFilename";
 
-defineProps<{ node: FileNode }>();
+const props = defineProps<{ node: FileNode }>();
 defineEmits<{ click: [] }>();
+
+const parsed = computed(() =>
+  props.node.type === "File" ? parseFilename(props.node.name) : null,
+);
+
+const displayName = computed(() =>
+  parsed.value ? parsed.value.title : props.node.name,
+);
 
 const VIDEO_EXTENSIONS = new Set([
   ".mp4",
@@ -45,7 +55,13 @@ const formatSize = (bytes: number | null): string => {
 
     <div class="p-2 flex flex-col gap-1 min-h-[72px]">
       <span class="text-xs font-medium leading-tight line-clamp-2">
-        {{ node.name }}
+        {{ displayName }}
+      </span>
+      <span
+        v-if="parsed?.year"
+        class="text-xs text-neutral-500"
+      >
+        {{ parsed.year }}
       </span>
 
       <div class="flex items-center gap-1 mt-auto">
