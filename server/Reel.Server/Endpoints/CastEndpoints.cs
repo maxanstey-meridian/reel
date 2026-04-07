@@ -18,9 +18,7 @@ public static class CastEndpoints
         app.MapGet("/api/cast/current", (CastService castService) =>
         {
             var command = castService.GetPending();
-            return command is not null
-                ? Results.Ok(new CastStatus(command))
-                : Results.NoContent();
+            return Results.Ok(new CastStatus(command));
         });
 
         app.MapPost("/api/cast/ack", (CastService castService) =>

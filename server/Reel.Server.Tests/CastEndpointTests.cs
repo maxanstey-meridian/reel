@@ -39,7 +39,7 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     [Fact]
-    public async Task GetCurrent_NoPending_Returns204()
+    public async Task GetCurrent_NoPending_Returns200WithNullCommand()
     {
         var client = CreateAuthenticatedClient();
 
@@ -47,7 +47,11 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         await client.PostAsync("/api/cast/ack", null);
 
         var response = await client.GetAsync("/api/cast/current");
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var status = await response.Content.ReadFromJsonAsync<CastStatusDto>();
+        status.Should().NotBeNull();
+        status!.Command.Should().BeNull();
     }
 
     [Fact]
@@ -59,7 +63,10 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         await client.PostAsync("/api/cast/ack", null);
 
         var response = await client.GetAsync("/api/cast/current");
-        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var status = await response.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command.Should().BeNull();
     }
 
     [Fact]

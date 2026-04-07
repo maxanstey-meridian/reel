@@ -12,7 +12,7 @@ public static class ConnectEndpoints
         {
             if (request.Key == config.SecretKey)
             {
-                return Results.Ok(new ConnectResponse("ok", Environment.MachineName));
+                return Results.Created((string?)null, new ConnectResponse("ok", Environment.MachineName));
             }
 
             return Results.Json(new ConnectResponse("unauthorized"), statusCode: StatusCodes.Status401Unauthorized);

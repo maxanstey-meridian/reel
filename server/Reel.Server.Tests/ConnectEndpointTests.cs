@@ -29,7 +29,7 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
 
         var response = await client.PostAsJsonAsync("/api/connect", new { key = TestSecretKey });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
 
         var body = await response.Content.ReadFromJsonAsync<ConnectResponseDto>();
@@ -70,7 +70,7 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
         // No X-Secret-Key header — middleware should not block /api/connect
         var response = await client.PostAsJsonAsync("/api/connect", new { key = TestSecretKey });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
     private sealed record ConnectResponseDto(
