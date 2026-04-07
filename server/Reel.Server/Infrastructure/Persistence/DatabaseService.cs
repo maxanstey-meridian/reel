@@ -1,21 +1,29 @@
 namespace Reel.Server.Infrastructure.Persistence;
 
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
 
 public sealed class DatabaseService
 {
     private readonly string _connectionString;
+    private readonly string _reelDirectory;
     private readonly ILogger<DatabaseService> _logger;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     public DatabaseService(ReelConfig config, ILogger<DatabaseService> logger)
     {
         _logger = logger;
 
-        var directory = Path.Combine(config.NormalisedMediaRoot, ".reel");
-        Directory.CreateDirectory(directory);
+        _reelDirectory = Path.Combine(config.NormalisedMediaRoot, ".reel");
+        Directory.CreateDirectory(_reelDirectory);
 
-        var dbPath = Path.Combine(directory, "reel.db");
+        var dbPath = Path.Combine(_reelDirectory, "reel.db");
         _connectionString = $"Data Source={dbPath}";
 
         Initialise();
@@ -53,6 +61,8 @@ public sealed class DatabaseService
             RunMigrationV1(connection);
             _logger.LogInformation("Database migrated to version 1");
         }
+
+        MigrateJsonData(connection);
     }
 
     private static int GetUserVersion(SqliteConnection connection)
@@ -81,6 +91,98 @@ public sealed class DatabaseService
         transaction.Commit();
 
         SetUserVersion(connection, 1);
+    }
+
+    private void MigrateJsonData(SqliteConnection connection)
+    {
+        MigrateProgressJson(connection);
+        MigrateFavouritesJson(connection);
+    }
+
+    private void MigrateProgressJson(SqliteConnection connection)
+    {
+        var filePath = Path.Combine(_reelDirectory, "progress.json");
+        if (!File.Exists(filePath))
+            return;
+
+        var json = File.ReadAllText(filePath);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            File.Delete(filePath);
+            return;
+        }
+
+        var entries = JsonSerializer.Deserialize<List<WatchProgress>>(json, JsonOptions) ?? [];
+
+        using var transaction = connection.BeginTransaction();
+
+        foreach (var entry in entries)
+        {
+            using var mediaCmd = connection.CreateCommand();
+            mediaCmd.Transaction = transaction;
+            mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+            mediaCmd.Parameters.AddWithValue("@path", entry.RelativePath);
+            mediaCmd.ExecuteNonQuery();
+
+            using var progressCmd = connection.CreateCommand();
+            progressCmd.Transaction = transaction;
+            progressCmd.CommandText = """
+                INSERT OR IGNORE INTO progress (user_id, relative_path, position_seconds, duration_seconds, last_watched)
+                VALUES (1, @path, @pos, @dur, @lastWatched);
+                """;
+            progressCmd.Parameters.AddWithValue("@path", entry.RelativePath);
+            progressCmd.Parameters.AddWithValue("@pos", entry.PositionSeconds);
+            progressCmd.Parameters.AddWithValue("@dur", entry.DurationSeconds);
+            progressCmd.Parameters.AddWithValue("@lastWatched", entry.LastWatched.ToString("o"));
+            progressCmd.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+        File.Delete(filePath);
+
+        _logger.LogInformation("Migrated {Count} progress entries from JSON to SQLite", entries.Count);
+    }
+
+    private void MigrateFavouritesJson(SqliteConnection connection)
+    {
+        var filePath = Path.Combine(_reelDirectory, "favourites.json");
+        if (!File.Exists(filePath))
+            return;
+
+        var json = File.ReadAllText(filePath);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            File.Delete(filePath);
+            return;
+        }
+
+        var entries = JsonSerializer.Deserialize<List<Favourite>>(json, JsonOptions) ?? [];
+
+        using var transaction = connection.BeginTransaction();
+
+        foreach (var entry in entries)
+        {
+            using var mediaCmd = connection.CreateCommand();
+            mediaCmd.Transaction = transaction;
+            mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+            mediaCmd.Parameters.AddWithValue("@path", entry.RelativePath);
+            mediaCmd.ExecuteNonQuery();
+
+            using var favCmd = connection.CreateCommand();
+            favCmd.Transaction = transaction;
+            favCmd.CommandText = """
+                INSERT OR IGNORE INTO favourites (user_id, relative_path, added_at)
+                VALUES (1, @path, @addedAt);
+                """;
+            favCmd.Parameters.AddWithValue("@path", entry.RelativePath);
+            favCmd.Parameters.AddWithValue("@addedAt", entry.AddedAt.ToString("o"));
+            favCmd.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+        File.Delete(filePath);
+
+        _logger.LogInformation("Migrated {Count} favourites entries from JSON to SQLite", entries.Count);
     }
 
     private const string MigrationV1Sql = """
