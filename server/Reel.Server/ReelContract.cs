@@ -109,4 +109,13 @@ public static class ReelContract
     public static readonly RouteDefinition<FileRequest, FileNode> NextFile = Define.Get<FileRequest, FileNode>(
         "/api/files/next"
     );
+
+    public static readonly RouteDefinition<FileRequest, SubtitleTrack[]> SubtitlesList = Define.Get<
+        FileRequest,
+        SubtitleTrack[]
+    >("/api/files/subtitles");
+
+    public static readonly FileRouteDefinition<SubtitleContentRequest> SubtitlesContent = Define
+        .File<SubtitleContentRequest>("/api/files/subtitles/content")
+        .QueryAuth();
 }

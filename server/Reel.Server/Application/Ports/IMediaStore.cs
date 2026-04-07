@@ -26,4 +26,6 @@ public interface IMediaStore
     Task<IReadOnlyList<TagCount>> GetAllTagsAsync(int userId, CancellationToken ct);
     Task<IReadOnlyList<FileNode>> SearchAsync(int userId, SearchQuery query, CancellationToken ct);
     Task<string?> GetDisplayTitleAsync(string relativePath, CancellationToken ct);
+    Task SaveSubtitlesAsync(string relativePath, IReadOnlyList<SubtitleTrack> tracks, CancellationToken ct);
+    Task<IReadOnlyList<SubtitleTrack>> GetSubtitlesAsync(string relativePath, CancellationToken ct);
 }

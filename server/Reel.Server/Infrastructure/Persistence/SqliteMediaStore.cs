@@ -428,4 +428,75 @@ public sealed class SqliteMediaStore : IMediaStore
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is string displayTitle ? displayTitle : null;
     }
+
+    public async Task SaveSubtitlesAsync(string relativePath, IReadOnlyList<SubtitleTrack> tracks, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+        using var transaction = conn.BeginTransaction();
+
+        // Ensure media row exists
+        using var mediaCmd = conn.CreateCommand();
+        mediaCmd.Transaction = transaction;
+        mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+        mediaCmd.Parameters.AddWithValue("@path", relativePath);
+        await mediaCmd.ExecuteNonQueryAsync(ct);
+
+        // Delete existing subtitles for this path
+        using var deleteCmd = conn.CreateCommand();
+        deleteCmd.Transaction = transaction;
+        deleteCmd.CommandText = "DELETE FROM subtitles WHERE relative_path = @path;";
+        deleteCmd.Parameters.AddWithValue("@path", relativePath);
+        await deleteCmd.ExecuteNonQueryAsync(ct);
+
+        // Insert new tracks
+        foreach (var track in tracks)
+        {
+            using var insertCmd = conn.CreateCommand();
+            insertCmd.Transaction = transaction;
+            insertCmd.CommandText = """
+                INSERT INTO subtitles (relative_path, track_index, label, language, format, source, external_path)
+                VALUES (@path, @trackIndex, @label, @language, @format, @source, @externalPath);
+                """;
+            insertCmd.Parameters.AddWithValue("@path", relativePath);
+            insertCmd.Parameters.AddWithValue("@trackIndex", (object?)track.Index ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@label", (object?)track.Label ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@language", (object?)track.Language ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@format", track.Format);
+            insertCmd.Parameters.AddWithValue("@source", track.Source);
+            insertCmd.Parameters.AddWithValue("@externalPath", (object?)track.ExternalPath ?? DBNull.Value);
+            await insertCmd.ExecuteNonQueryAsync(ct);
+        }
+
+        transaction.Commit();
+    }
+
+    public async Task<IReadOnlyList<SubtitleTrack>> GetSubtitlesAsync(string relativePath, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT track_index, label, language, format, source, external_path
+            FROM subtitles
+            WHERE relative_path = @path
+            ORDER BY track_index;
+            """;
+        cmd.Parameters.AddWithValue("@path", relativePath);
+
+        var tracks = new List<SubtitleTrack>();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            tracks.Add(new SubtitleTrack(
+                reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
+                reader.IsDBNull(1) ? "" : reader.GetString(1),
+                reader.IsDBNull(2) ? "" : reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5)
+            ));
+        }
+
+        return tracks;
+    }
 }

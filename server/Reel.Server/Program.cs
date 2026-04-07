@@ -36,6 +36,8 @@ builder.Services.AddSingleton<IFavouritesStore, SqliteFavouritesStore>();
 builder.Services.AddSingleton<IMediaStore, SqliteMediaStore>();
 builder.Services.AddSingleton<IFileStreamer, FileSystemStreamer>();
 builder.Services.AddSingleton<IUserStore, SqliteUserStore>();
+builder.Services.AddSingleton<ISubtitleDiscovery, FfprobeSubtitleDiscovery>();
+builder.Services.AddSingleton<ISubtitleExtractor, FfmpegSubtitleExtractor>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IMetadataLookup, TmdbMetadataLookup>();
 builder.Services.AddCors();
@@ -73,6 +75,7 @@ app.MapFavouritesEndpoints();
 app.MapUserEndpoints();
 app.MapMediaEndpoints();
 app.MapSearchEndpoints();
+app.MapSubtitleEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");

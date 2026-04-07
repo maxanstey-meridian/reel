@@ -254,5 +254,14 @@ public sealed class LibraryServiceTests : IDisposable
 
         public Task<string?> GetDisplayTitleAsync(string relativePath, CancellationToken ct) =>
             Task.FromResult<string?>(null);
+
+        public Task SaveSubtitlesAsync(
+            string relativePath,
+            IReadOnlyList<SubtitleTrack> tracks,
+            CancellationToken ct
+        ) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<SubtitleTrack>> GetSubtitlesAsync(string relativePath, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<SubtitleTrack>>([]);
     }
 }
