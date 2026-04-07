@@ -108,7 +108,7 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
         var response = await client.GetAsync("/api/progress");
         var entries = await response.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
 
-        entries.Should().HaveCountGreaterOrEqualTo(2);
+        entries.Should().HaveCountGreaterThanOrEqualTo(2);
         var olderIdx = entries!.FindIndex(e => e.RelativePath == "Films/older.mp4");
         var newerIdx = entries.FindIndex(e => e.RelativePath == "Films/newer.mp4");
         newerIdx.Should().BeLessThan(olderIdx, "newer entry should appear first (descending order)");
