@@ -25,6 +25,7 @@ if (reelConfig.Port <= 0)
 builder.Services.AddSingleton(reelConfig);
 builder.Services.AddSingleton<LibraryService>();
 builder.Services.AddSingleton<CastService>();
+builder.Services.AddSingleton<ThumbnailService>();
 builder.Services.AddCors();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -50,6 +51,7 @@ app.MapConnectEndpoints();
 app.MapLibraryEndpoints();
 app.MapStreamEndpoints();
 app.MapCastEndpoints();
+app.MapThumbnailEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
