@@ -22,6 +22,27 @@ public static class StreamEndpoints
             }
         );
 
+        app.MapGet(
+            ReelContract.NextFile.Route,
+            async (string? path, ILibraryScanner scanner, CancellationToken ct) =>
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    return Results.BadRequest(new { error = "Missing required query parameter: path" });
+
+                var next = await scanner.GetNextFileAsync(path, ct);
+
+                if (next is null)
+                    return Results.NoContent();
+
+                return (
+                    await ReelContract.NextFile.Invoke(
+                        new Application.Models.FileRequest(path),
+                        _ => Task.FromResult(next)
+                    )
+                ).ToResult();
+            }
+        );
+
         return app;
     }
 }

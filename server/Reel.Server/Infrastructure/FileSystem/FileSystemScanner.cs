@@ -43,6 +43,75 @@ public sealed class FileSystemScanner : ILibraryScanner
         return await UpsertAndEnrichAsync(root, ct);
     }
 
+    public async Task<FileNode?> GetNextFileAsync(string relativePath, CancellationToken ct)
+    {
+        var fullPath = Path.GetFullPath(Path.Combine(_mediaRoot, relativePath));
+        if (!fullPath.StartsWith(_mediaRoot, StringComparison.Ordinal))
+            return null;
+
+        if (!File.Exists(fullPath))
+            return null;
+
+        var directory = Path.GetDirectoryName(fullPath)!;
+        var playableFiles = new List<string>();
+
+        foreach (var entry in Directory.EnumerateFiles(directory))
+        {
+            var name = Path.GetFileName(entry);
+            if (name.StartsWith('.'))
+                continue;
+
+            var ext = Path.GetExtension(name);
+            if (!_playableExtensions.Contains(ext))
+                continue;
+
+            var fileInfo = new FileInfo(entry);
+            if (fileInfo.LinkTarget is not null)
+                continue;
+
+            playableFiles.Add(entry);
+        }
+
+        playableFiles.Sort(new NaturalSortComparer());
+
+        var currentIndex = playableFiles.FindIndex(f =>
+            string.Equals(f, fullPath, StringComparison.Ordinal));
+
+        if (currentIndex < 0 || currentIndex >= playableFiles.Count - 1)
+            return null;
+
+        var nextPath = playableFiles[currentIndex + 1];
+        var nextName = Path.GetFileName(nextPath);
+        var nextFileInfo = new FileInfo(nextPath);
+        var directoryRelative = Path.GetRelativePath(_mediaRoot, directory);
+        var nextRelative = directoryRelative == "."
+            ? nextName
+            : $"{directoryRelative}/{nextName}";
+        var nextExtension = Path.GetExtension(nextName).ToLowerInvariant();
+        var parsed = Application.FilenameParser.Parse(nextName);
+        var thumbnailUrl = $"/api/files/thumbnail?path={Uri.EscapeDataString(nextRelative)}";
+
+        var node = new FileNode(
+            nextName,
+            FileNodeType.File,
+            nextRelative,
+            string.IsNullOrEmpty(nextExtension) ? null : nextExtension,
+            nextFileInfo.Length,
+            null,
+            parsed.Title,
+            parsed.Year,
+            thumbnailUrl,
+            Watched: null,
+            DisplayTitle: null
+        );
+
+        await _mediaStore.UpsertFromScanAsync(node.RelativePath, node.ParsedTitle, node.Year, ct);
+        var dbDisplayTitle = await _mediaStore.GetDisplayTitleAsync(node.RelativePath, ct);
+        var displayTitle = dbDisplayTitle ?? node.ParsedTitle ?? node.Name;
+
+        return node with { DisplayTitle = displayTitle };
+    }
+
     private async Task<FileNode> UpsertAndEnrichAsync(FileNode node, CancellationToken ct)
     {
         if (node.Type == FileNodeType.File)

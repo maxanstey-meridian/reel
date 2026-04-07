@@ -105,4 +105,8 @@ public static class ReelContract
     public static readonly RouteDefinition<TagCount[]> TagsAll = Define.Get<TagCount[]>("/api/tags");
 
     public static readonly RouteDefinition<FileNode[]> Search = Define.Get<FileNode[]>("/api/search");
+
+    public static readonly RouteDefinition<FileRequest, FileNode> NextFile = Define.Get<FileRequest, FileNode>(
+        "/api/files/next"
+    );
 }
