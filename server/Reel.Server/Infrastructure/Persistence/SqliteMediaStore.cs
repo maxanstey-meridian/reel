@@ -28,6 +28,80 @@ public sealed class SqliteMediaStore : IMediaStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    public async Task SetWatchStateAsync(int userId, string relativePath, string? state, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        // Ensure media row exists
+        using var mediaCmd = conn.CreateCommand();
+        mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+        mediaCmd.Parameters.AddWithValue("@path", relativePath);
+        await mediaCmd.ExecuteNonQueryAsync(ct);
+
+        if (state is null)
+        {
+            using var deleteCmd = conn.CreateCommand();
+            deleteCmd.CommandText = """
+                DELETE FROM watch_state
+                WHERE user_id = @userId AND relative_path = @path;
+                """;
+            deleteCmd.Parameters.AddWithValue("@userId", userId);
+            deleteCmd.Parameters.AddWithValue("@path", relativePath);
+            await deleteCmd.ExecuteNonQueryAsync(ct);
+        }
+        else
+        {
+            using var upsertCmd = conn.CreateCommand();
+            upsertCmd.CommandText = """
+                INSERT OR REPLACE INTO watch_state (user_id, relative_path, state)
+                VALUES (@userId, @path, @state);
+                """;
+            upsertCmd.Parameters.AddWithValue("@userId", userId);
+            upsertCmd.Parameters.AddWithValue("@path", relativePath);
+            upsertCmd.Parameters.AddWithValue("@state", state);
+            await upsertCmd.ExecuteNonQueryAsync(ct);
+        }
+    }
+
+    public async Task<bool?> IsWatchedAsync(int userId, string relativePath, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        // Check explicit override first
+        using var overrideCmd = conn.CreateCommand();
+        overrideCmd.CommandText = """
+            SELECT state FROM watch_state
+            WHERE user_id = @userId AND relative_path = @path;
+            """;
+        overrideCmd.Parameters.AddWithValue("@userId", userId);
+        overrideCmd.Parameters.AddWithValue("@path", relativePath);
+
+        var overrideResult = await overrideCmd.ExecuteScalarAsync(ct);
+        if (overrideResult is string overrideState)
+            return overrideState == "watched";
+
+        // Fall back to progress-based derivation
+        using var progressCmd = conn.CreateCommand();
+        progressCmd.CommandText = """
+            SELECT position_seconds, duration_seconds FROM progress
+            WHERE user_id = @userId AND relative_path = @path;
+            """;
+        progressCmd.Parameters.AddWithValue("@userId", userId);
+        progressCmd.Parameters.AddWithValue("@path", relativePath);
+
+        using var reader = await progressCmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        var position = reader.GetDouble(0);
+        var duration = reader.GetDouble(1);
+
+        if (duration <= 0)
+            return null;
+
+        return position / duration >= 0.90;
+    }
+
     public async Task<MediaRecord?> GetAsync(string relativePath, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
@@ -61,6 +135,7 @@ public sealed class SqliteMediaStore : IMediaStore
             reader.IsDBNull(11) ? null : reader.GetString(11),
             reader.IsDBNull(12) ? null : reader.GetString(12),
             DateTime.Parse(reader.GetString(13), null, DateTimeStyles.RoundtripKind),
-            DateTime.Parse(reader.GetString(14), null, DateTimeStyles.RoundtripKind));
+            DateTime.Parse(reader.GetString(14), null, DateTimeStyles.RoundtripKind)
+        );
     }
 }

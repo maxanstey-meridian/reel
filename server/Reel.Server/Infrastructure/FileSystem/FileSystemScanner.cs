@@ -8,8 +8,21 @@ public sealed class FileSystemScanner : ILibraryScanner
 {
     private static readonly HashSet<string> _playableExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts",
-        ".mp3", ".flac", ".aac", ".m4a", ".ogg", ".wav",
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".m4v",
+        ".ts",
+        ".mp3",
+        ".flac",
+        ".aac",
+        ".m4a",
+        ".ogg",
+        ".wav",
     };
 
     private readonly string _mediaRoot;
@@ -55,9 +68,7 @@ public sealed class FileSystemScanner : ILibraryScanner
 
         try
         {
-            var entries = Directory.EnumerateFileSystemEntries(absolutePath)
-                .Order()
-                .ToList();
+            var entries = Directory.EnumerateFileSystemEntries(absolutePath).Order().ToList();
 
             foreach (var entryPath in entries)
             {
@@ -65,9 +76,7 @@ public sealed class FileSystemScanner : ILibraryScanner
                 if (name.StartsWith('.'))
                     continue;
 
-                var childRelative = string.IsNullOrEmpty(relativePath)
-                    ? name
-                    : $"{relativePath}/{name}";
+                var childRelative = string.IsNullOrEmpty(relativePath) ? name : $"{relativePath}/{name}";
 
                 try
                 {
@@ -95,16 +104,20 @@ public sealed class FileSystemScanner : ILibraryScanner
 
                         var parsed = Application.FilenameParser.Parse(name);
                         var thumbnailUrl = $"/api/files/thumbnail?path={Uri.EscapeDataString(childRelative)}";
-                        children.Add(new FileNode(
-                            name,
-                            FileNodeType.File,
-                            childRelative,
-                            string.IsNullOrEmpty(extension) ? null : extension,
-                            fileInfo.Length,
-                            null,
-                            parsed.Title,
-                            parsed.Year,
-                            thumbnailUrl));
+                        children.Add(
+                            new FileNode(
+                                name,
+                                FileNodeType.File,
+                                childRelative,
+                                string.IsNullOrEmpty(extension) ? null : extension,
+                                fileInfo.Length,
+                                null,
+                                parsed.Title,
+                                parsed.Year,
+                                thumbnailUrl,
+                                null
+                            )
+                        );
                     }
                 }
                 catch (UnauthorizedAccessException ex)
@@ -126,15 +139,6 @@ public sealed class FileSystemScanner : ILibraryScanner
             _logger.LogWarning(ex, "I/O error enumerating {Path}", absolutePath);
         }
 
-        return new FileNode(
-            dirInfo.Name,
-            FileNodeType.Directory,
-            relativePath,
-            null,
-            null,
-            children,
-            null,
-            null,
-            null);
+        return new FileNode(dirInfo.Name, FileNodeType.Directory, relativePath, null, null, children, null, null, null, null);
     }
 }

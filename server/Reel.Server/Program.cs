@@ -15,11 +15,9 @@ using Reel.Server.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var reelConfig = builder.Configuration
-    .GetSection("Reel")
-    .Get<ReelConfig>()
-    ?? throw new InvalidOperationException(
-        "Reel config section is missing from appsettings.json.");
+var reelConfig =
+    builder.Configuration.GetSection("Reel").Get<ReelConfig>()
+    ?? throw new InvalidOperationException("Reel config section is missing from appsettings.json.");
 
 if (string.IsNullOrWhiteSpace(reelConfig.MediaRoot))
     throw new InvalidOperationException("Reel:MediaRoot is required in appsettings.json.");
@@ -41,6 +39,8 @@ builder.Services.AddSingleton<IUserStore, SqliteUserStore>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IMetadataLookup, TmdbMetadataLookup>();
 builder.Services.AddCors();
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -54,12 +54,10 @@ app.Services.GetRequiredService<DatabaseService>();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseCors(policy => policy
-        .AllowAnyOrigin()
-        .AllowAnyMethod()
-        .AllowAnyHeader());
+    app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 }
 
+app.UseExceptionHandler();
 app.UseMiddleware<SecretKeyMiddleware>();
 app.UseMiddleware<UserMiddleware>();
 
@@ -73,6 +71,7 @@ app.MapMetadataEndpoints();
 app.MapProgressEndpoints();
 app.MapFavouritesEndpoints();
 app.MapUserEndpoints();
+app.MapMediaEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
@@ -92,13 +91,12 @@ static string? GetLocalIpAddress()
     return NetworkInterface
         .GetAllNetworkInterfaces()
         .Where(n =>
-            n.OperationalStatus == OperationalStatus.Up &&
-            n.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
-            n.NetworkInterfaceType != NetworkInterfaceType.Tunnel)
+            n.OperationalStatus == OperationalStatus.Up
+            && n.NetworkInterfaceType != NetworkInterfaceType.Loopback
+            && n.NetworkInterfaceType != NetworkInterfaceType.Tunnel
+        )
         .SelectMany(n => n.GetIPProperties().UnicastAddresses)
-        .Where(a =>
-            a.Address.AddressFamily == AddressFamily.InterNetwork &&
-            !IPAddress.IsLoopback(a.Address))
+        .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a.Address))
         .Select(a => a.Address.ToString())
         .FirstOrDefault();
 }

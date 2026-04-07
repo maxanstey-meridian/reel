@@ -21,7 +21,7 @@ public sealed class LibraryServiceTests : IDisposable
         {
             MediaRoot = _mediaRoot,
             SecretKey = "TEST",
-            Port = 8080
+            Port = 8080,
         };
 
         _scanner = new FileSystemScanner(config, new NullMediaStore(), NullLogger<FileSystemScanner>.Instance);
@@ -194,16 +194,25 @@ public sealed class LibraryServiceTests : IDisposable
         finally
         {
             // Restore permissions so Dispose() cleanup can delete
-            File.SetUnixFileMode(restrictedDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(
+                restrictedDir,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+            );
         }
     }
 
     private sealed class NullMediaStore : IMediaStore
     {
-        public Task UpsertFromScanAsync(string relativePath, string? parsedTitle, int? year, CancellationToken ct)
-            => Task.CompletedTask;
+        public Task UpsertFromScanAsync(string relativePath, string? parsedTitle, int? year, CancellationToken ct) =>
+            Task.CompletedTask;
 
-        public Task<MediaRecord?> GetAsync(string relativePath, CancellationToken ct)
-            => Task.FromResult<MediaRecord?>(null);
+        public Task<MediaRecord?> GetAsync(string relativePath, CancellationToken ct) =>
+            Task.FromResult<MediaRecord?>(null);
+
+        public Task SetWatchStateAsync(int userId, string relativePath, string? state, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task<bool?> IsWatchedAsync(int userId, string relativePath, CancellationToken ct) =>
+            Task.FromResult<bool?>(null);
     }
 }

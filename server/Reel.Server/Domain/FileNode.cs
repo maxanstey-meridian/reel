@@ -9,4 +9,6 @@ public sealed record FileNode(
     IReadOnlyList<FileNode>? Children,
     string? ParsedTitle,
     int? Year,
-    string? ThumbnailUrl);
+    string? ThumbnailUrl,
+    bool? Watched
+);
