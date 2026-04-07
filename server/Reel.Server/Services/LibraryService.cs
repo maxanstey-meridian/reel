@@ -55,13 +55,16 @@ public sealed class LibraryService
                             continue;
 
                         var extension = Path.GetExtension(name).ToLowerInvariant();
+                        var parsed = FilenameParser.Parse(name);
                         children.Add(new FileNode(
                             name,
                             FileNodeType.File,
                             childRelative,
                             string.IsNullOrEmpty(extension) ? null : extension,
                             fileInfo.Length,
-                            null));
+                            null,
+                            parsed.Title,
+                            parsed.Year));
                     }
                 }
                 catch (UnauthorizedAccessException ex)
@@ -89,6 +92,8 @@ public sealed class LibraryService
             relativePath,
             null,
             null,
-            children);
+            children,
+            null,
+            null);
     }
 }

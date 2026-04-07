@@ -15,4 +15,6 @@ public sealed record FileNode(
     string RelativePath,
     string? Extension,
     long? SizeBytes,
-    IReadOnlyList<FileNode>? Children);
+    IReadOnlyList<FileNode>? Children,
+    string? ParsedTitle,
+    int? Year);

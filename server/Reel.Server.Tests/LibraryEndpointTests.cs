@@ -15,8 +15,9 @@ public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<P
         _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-lib-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(_mediaRoot);
 
-        // Create a test file
+        // Create test files
         File.WriteAllBytes(Path.Combine(_mediaRoot, "test.mp4"), new byte[2048]);
+        File.WriteAllBytes(Path.Combine(_mediaRoot, "The.Matrix.1999.1080p.BluRay.x264.mkv"), new byte[1024]);
 
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -74,6 +75,39 @@ public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<P
         json.Should().Contain("\"sizeBytes\"");
         json.Should().NotContain("\"RelativePath\"");
         json.Should().NotContain("\"SizeBytes\"");
+    }
+
+    [Fact]
+    public async Task FileNodes_ContainParsedTitleAndYear()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+
+        var response = await client.GetAsync("/api/library");
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        var children = doc.RootElement.GetProperty("children");
+        var matrixNode = children.EnumerateArray()
+            .First(c => c.GetProperty("name").GetString() == "The.Matrix.1999.1080p.BluRay.x264.mkv");
+
+        matrixNode.GetProperty("parsedTitle").GetString().Should().Be("The Matrix");
+        matrixNode.GetProperty("year").GetInt32().Should().Be(1999);
+    }
+
+    [Fact]
+    public async Task DirectoryNodes_HaveNullParsedTitleAndYear()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+
+        var response = await client.GetAsync("/api/library");
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        // Root node is a directory
+        doc.RootElement.GetProperty("parsedTitle").ValueKind.Should().Be(JsonValueKind.Null);
+        doc.RootElement.GetProperty("year").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
