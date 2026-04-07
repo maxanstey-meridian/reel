@@ -27,6 +27,7 @@ builder.Services.AddSingleton<LibraryService>();
 builder.Services.AddSingleton<CastService>();
 builder.Services.AddSingleton<ThumbnailService>();
 builder.Services.AddSingleton<ProgressService>();
+builder.Services.AddSingleton<FavouritesService>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<TmdbService>();
 builder.Services.AddCors();
@@ -57,6 +58,7 @@ app.MapCastEndpoints();
 app.MapThumbnailEndpoints();
 app.MapMetadataEndpoints();
 app.MapProgressEndpoints();
+app.MapFavouritesEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
