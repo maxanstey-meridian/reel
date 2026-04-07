@@ -90,6 +90,36 @@ class ApiClient(private val prefs: PreferencesManager) {
         }
     }
 
+    suspend fun fetchCastCurrent(): CastPollResult {
+        return try {
+            val response = client.get("$baseUrl/api/cast/current") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            when (response.status.value) {
+                200 -> {
+                    val status = response.body<CastStatus>()
+                    CastPollResult.Success(status)
+                }
+                204 -> CastPollResult.Success(null)
+                401 -> CastPollResult.Unauthorized
+                else -> CastPollResult.NetworkError("Unexpected status: ${response.status.value}")
+            }
+        } catch (e: Exception) {
+            CastPollResult.NetworkError(e.message ?: "Unknown error")
+        }
+    }
+
+    suspend fun acknowledgeCast(): Boolean {
+        return try {
+            val response = client.post("$baseUrl/api/cast/ack") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            response.status.value == 200
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun close() {
         client.close()
     }
