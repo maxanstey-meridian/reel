@@ -360,7 +360,7 @@ public sealed class SqliteMediaStore : IMediaStore
             parameters.Add(("@genre", query.Genre));
         }
 
-        var sql = "SELECT relative_path, parsed_title, year FROM media";
+        var sql = "SELECT relative_path, parsed_title, year, display_title FROM media";
         if (whereClauses.Count > 0)
             sql += " WHERE " + string.Join(" AND ", whereClauses);
         sql += " ORDER BY relative_path;";
@@ -371,19 +371,20 @@ public sealed class SqliteMediaStore : IMediaStore
         foreach (var (name, value) in parameters)
             cmd.Parameters.AddWithValue(name, value);
 
-        var candidates = new List<(string RelativePath, string? ParsedTitle, int? Year)>();
+        var candidates = new List<(string RelativePath, string? ParsedTitle, int? Year, string? DbDisplayTitle)>();
         using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
             candidates.Add((
                 reader.GetString(0),
                 reader.IsDBNull(1) ? null : reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetInt32(2)
+                reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3)
             ));
         }
 
         var results = new List<FileNode>();
-        foreach (var (relativePath, parsedTitle, year) in candidates)
+        foreach (var (relativePath, parsedTitle, year, dbDisplayTitle) in candidates)
         {
             var watched = await IsWatchedAsync(userId, relativePath, ct);
 
@@ -396,6 +397,7 @@ public sealed class SqliteMediaStore : IMediaStore
 
             var name = Path.GetFileName(relativePath);
             var extension = Path.GetExtension(relativePath);
+            var displayTitle = dbDisplayTitle ?? parsedTitle ?? name;
 
             results.Add(new FileNode(
                 name,
@@ -407,10 +409,23 @@ public sealed class SqliteMediaStore : IMediaStore
                 parsedTitle,
                 year,
                 ThumbnailUrl: null,
-                watched
+                watched,
+                displayTitle
             ));
         }
 
         return results;
+    }
+
+    public async Task<string?> GetDisplayTitleAsync(string relativePath, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT display_title FROM media WHERE relative_path = @path;";
+        cmd.Parameters.AddWithValue("@path", relativePath);
+
+        var result = await cmd.ExecuteScalarAsync(ct);
+        return result is string displayTitle ? displayTitle : null;
     }
 }

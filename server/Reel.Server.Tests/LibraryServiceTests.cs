@@ -251,5 +251,8 @@ public sealed class LibraryServiceTests : IDisposable
             Application.Models.SearchQuery query,
             CancellationToken ct
         ) => Task.FromResult<IReadOnlyList<FileNode>>([]);
+
+        public Task<string?> GetDisplayTitleAsync(string relativePath, CancellationToken ct) =>
+            Task.FromResult<string?>(null);
     }
 }

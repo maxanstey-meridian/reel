@@ -40,25 +40,31 @@ public sealed class FileSystemScanner : ILibraryScanner
     {
         var root = BuildNode(_mediaRoot, string.Empty);
 
-        await UpsertFileNodesAsync(root, ct);
-
-        return root;
+        return await UpsertAndEnrichAsync(root, ct);
     }
 
-    private async Task UpsertFileNodesAsync(FileNode node, CancellationToken ct)
+    private async Task<FileNode> UpsertAndEnrichAsync(FileNode node, CancellationToken ct)
     {
         if (node.Type == FileNodeType.File)
         {
             await _mediaStore.UpsertFromScanAsync(node.RelativePath, node.ParsedTitle, node.Year, ct);
+
+            var dbDisplayTitle = await _mediaStore.GetDisplayTitleAsync(node.RelativePath, ct);
+            var displayTitle = dbDisplayTitle ?? node.ParsedTitle ?? node.Name;
+
+            return node with { DisplayTitle = displayTitle };
         }
 
-        if (node.Children is not null)
+        if (node.Children is not { Count: > 0 })
+            return node;
+
+        var enrichedChildren = new List<FileNode>(node.Children.Count);
+        foreach (var child in node.Children)
         {
-            foreach (var child in node.Children)
-            {
-                await UpsertFileNodesAsync(child, ct);
-            }
+            enrichedChildren.Add(await UpsertAndEnrichAsync(child, ct));
         }
+
+        return node with { Children = enrichedChildren };
     }
 
     private FileNode BuildNode(string absolutePath, string relativePath)
@@ -115,7 +121,8 @@ public sealed class FileSystemScanner : ILibraryScanner
                                 parsed.Title,
                                 parsed.Year,
                                 thumbnailUrl,
-                                null
+                                Watched: null,
+                                DisplayTitle: null
                             )
                         );
                     }
@@ -149,7 +156,8 @@ public sealed class FileSystemScanner : ILibraryScanner
             null,
             null,
             null,
-            null
+            Watched: null,
+            DisplayTitle: null
         );
     }
 }

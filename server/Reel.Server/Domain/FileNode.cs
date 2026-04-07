@@ -10,5 +10,6 @@ public sealed record FileNode(
     string? ParsedTitle,
     int? Year,
     string? ThumbnailUrl,
-    bool? Watched
+    bool? Watched,
+    string? DisplayTitle
 );
