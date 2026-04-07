@@ -25,6 +25,7 @@ if (reelConfig.Port <= 0)
 builder.Services.AddSingleton(reelConfig);
 builder.Services.AddSingleton<LibraryService>();
 builder.Services.AddSingleton<CastService>();
+builder.Services.AddCors();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -33,6 +34,14 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors(policy => policy
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+}
 
 app.UseMiddleware<SecretKeyMiddleware>();
 
