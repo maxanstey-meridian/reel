@@ -59,10 +59,9 @@ public sealed class DatabaseService
         if (currentVersion < 1)
         {
             RunMigrationV1(connection);
+            MigrateJsonData(connection);
             _logger.LogInformation("Database migrated to version 1");
         }
-
-        MigrateJsonData(connection);
     }
 
     private static int GetUserVersion(SqliteConnection connection)
@@ -70,13 +69,6 @@ public sealed class DatabaseService
         using var cmd = connection.CreateCommand();
         cmd.CommandText = "PRAGMA user_version;";
         return Convert.ToInt32(cmd.ExecuteScalar());
-    }
-
-    private static void SetUserVersion(SqliteConnection connection, int version)
-    {
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"PRAGMA user_version = {version};";
-        cmd.ExecuteNonQuery();
     }
 
     private static void RunMigrationV1(SqliteConnection connection)
@@ -88,9 +80,12 @@ public sealed class DatabaseService
         cmd.CommandText = MigrationV1Sql;
         cmd.ExecuteNonQuery();
 
-        transaction.Commit();
+        using var versionCmd = connection.CreateCommand();
+        versionCmd.Transaction = transaction;
+        versionCmd.CommandText = "PRAGMA user_version = 1;";
+        versionCmd.ExecuteNonQuery();
 
-        SetUserVersion(connection, 1);
+        transaction.Commit();
     }
 
     private void MigrateJsonData(SqliteConnection connection)

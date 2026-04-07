@@ -48,6 +48,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var app = builder.Build();
 
+app.Services.GetRequiredService<DatabaseService>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseCors(policy => policy
