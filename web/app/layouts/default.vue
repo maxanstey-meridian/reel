@@ -12,8 +12,10 @@ const isActive = (path: string) => route.path.startsWith(path);
 
 <template>
   <div class="h-dvh flex flex-col bg-neutral-950 text-white">
-    <main class="flex-1 overflow-y-auto p-4">
-      <slot />
+    <main class="flex-1 overflow-y-auto">
+      <div class="mx-auto w-full max-w-md p-4">
+        <slot />
+      </div>
     </main>
 
     <nav
