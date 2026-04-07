@@ -1,0 +1,33 @@
+{
+  "name": "reel-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxi dev",
+    "build": "nuxi build",
+    "preview": "nuxi preview",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "nuxi typecheck",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "rivet": "dotnet rivet --project ../server/Reel.Server/Reel.Server.csproj --output generated/rivet"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^3.1.0",
+    "nuxt": "^3.17.0",
+    "rivet-ts": "github:maxanstey-meridian/rivet-ts#v0.4",
+    "vue": "^3.5.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.4.0",
+    "@nuxt/test-utils": "^3.21.0",
+    "@playwright/test": "^1.50.0",
+    "typescript": "^5.8.0",
+    "typia": "^12.0.2",
+    "vitest": "^3.1.0"
+  },
+  "packageManager": "pnpm@10.8.0"
+}

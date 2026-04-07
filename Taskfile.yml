@@ -24,3 +24,33 @@ tasks:
     dir: tv
     cmds:
       - adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+  web:rivet:
+    desc: Regenerate Rivet API client from server contracts
+    dir: web
+    cmds:
+      - pnpm rivet
+
+  web:dev:
+    desc: Start web UI dev server
+    dir: web
+    cmds:
+      - pnpm dev
+
+  web:build:
+    desc: Build web UI for production
+    dir: web
+    cmds:
+      - pnpm build
+
+  web:test:
+    desc: Run web unit tests
+    dir: web
+    cmds:
+      - pnpm test
+
+  web:e2e:
+    desc: Run web e2e tests (Playwright)
+    dir: web
+    cmds:
+      - pnpm e2e

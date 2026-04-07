@@ -1,2 +1,6 @@
 .plans
 .orch
+.DS_Store
+.orchrc.json
+.kotlin
+.orchrc.json

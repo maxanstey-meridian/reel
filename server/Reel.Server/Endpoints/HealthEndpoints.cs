@@ -1,8 +1,7 @@
 namespace Reel.Server.Endpoints;
 
 using System.Diagnostics;
-
-file sealed record HealthResponse(string Status, string Uptime);
+using Reel.Server.Models;
 
 public static class HealthEndpoints
 {

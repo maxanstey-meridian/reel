@@ -1,0 +1,28 @@
+/*
+ * Custom utilities and component classes.
+ * Tailwind and @nuxt/ui base styles are handled by the module — no @import needed here.
+ */
+
+:root {
+  --ui-radius: 0.25rem;
+  --ui-text-dimmed: var(--ui-color-neutral-500);
+}
+
+.page-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.content-canvas {
+  border-radius: 0.5rem;
+  border: 1px solid var(--ui-color-neutral-200);
+  background: var(--ui-bg);
+  padding: 1.5rem;
+}
