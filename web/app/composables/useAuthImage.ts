@@ -5,7 +5,7 @@ import { useConnection } from "./useConnection";
  * Fetches an image from an authenticated endpoint and returns a blob URL.
  * Cleans up the object URL on unmount or when the source changes.
  */
-// TODO: Replace with a Rivet call once it supports streaming/downloads.
+// TODO: Replace with a Rivet call once it supports streaming/downloads!
 export const useAuthImage = (urlPath: Ref<string | null>) => {
   const { serverUrl, secretKey } = useConnection();
   const src = ref<string | null>(null);

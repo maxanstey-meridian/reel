@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ref, computed } from "vue";
-import type { FileNode } from "~~/generated/rivet/types/models";
+import type { FileNode } from "~~/generated/rivet/types/domain";
 
 // Mock Nuxt auto-imports
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
@@ -21,21 +21,21 @@ const { useLibrary } = await import("../useLibrary");
 
 const fixtureTree: FileNode = {
   name: "root",
-  type: "Directory",
+  type: "directory",
   relativePath: "",
   extension: null,
   sizeBytes: null,
   children: [
     {
       name: "Films",
-      type: "Directory",
+      type: "directory",
       relativePath: "Films",
       extension: null,
       sizeBytes: null,
       children: [
         {
           name: "movie.mp4",
-          type: "File",
+          type: "file",
           relativePath: "Films/movie.mp4",
           extension: ".mp4",
           sizeBytes: 1024000,
@@ -46,14 +46,14 @@ const fixtureTree: FileNode = {
         },
         {
           name: "Sci-Fi",
-          type: "Directory",
+          type: "directory",
           relativePath: "Films/Sci-Fi",
           extension: null,
           sizeBytes: null,
           children: [
             {
               name: "blade-runner.mkv",
-              type: "File",
+              type: "file",
               relativePath: "Films/Sci-Fi/blade-runner.mkv",
               extension: ".mkv",
               sizeBytes: 5000000,
@@ -74,7 +74,7 @@ const fixtureTree: FileNode = {
     },
     {
       name: "readme.txt",
-      type: "File",
+      type: "file",
       relativePath: "readme.txt",
       extension: ".txt",
       sizeBytes: 512,
@@ -108,8 +108,8 @@ describe("useLibrary", () => {
 
     expect(mockLibrary).toHaveBeenCalledOnce();
     expect(currentChildren.value).toHaveLength(2);
-    expect(currentChildren.value[0].name).toBe("Films");
-    expect(currentChildren.value[1].name).toBe("readme.txt");
+    expect(currentChildren.value[0]!.name).toBe("Films");
+    expect(currentChildren.value[1]!.name).toBe("readme.txt");
   });
 
   it("enterDirectory navigates into a child directory", async () => {
@@ -122,8 +122,8 @@ describe("useLibrary", () => {
     enterDirectory("Films");
 
     expect(currentChildren.value).toHaveLength(2);
-    expect(currentChildren.value[0].name).toBe("movie.mp4");
-    expect(currentChildren.value[1].name).toBe("Sci-Fi");
+    expect(currentChildren.value[0]!.name).toBe("movie.mp4");
+    expect(currentChildren.value[1]!.name).toBe("Sci-Fi");
   });
 
   it("navigateUp returns to parent directory", async () => {
@@ -134,11 +134,11 @@ describe("useLibrary", () => {
     });
 
     enterDirectory("Films");
-    expect(currentChildren.value[0].name).toBe("movie.mp4");
+    expect(currentChildren.value[0]!.name).toBe("movie.mp4");
 
     navigateUp();
     expect(currentChildren.value).toHaveLength(2);
-    expect(currentChildren.value[0].name).toBe("Films");
+    expect(currentChildren.value[0]!.name).toBe("Films");
   });
 
   it("navigateUp at root level is a no-op", async () => {
@@ -183,7 +183,7 @@ describe("useLibrary", () => {
     enterDirectory("Sci-Fi");
 
     expect(currentChildren.value).toHaveLength(1);
-    expect(currentChildren.value[0].name).toBe("blade-runner.mkv");
+    expect(currentChildren.value[0]!.name).toBe("blade-runner.mkv");
   });
 
   it("handles fetch error and allows retry", async () => {

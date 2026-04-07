@@ -10,17 +10,12 @@ vi.stubGlobal("computed", computed);
 // Mock Rivet client
 const mockFavouritesAll = vi.fn();
 const mockFavouritesAdd = vi.fn();
+const mockFavouritesRemove = vi.fn();
 
 vi.mock("~~/generated/rivet/client/reel", () => ({
   favouritesAll: (...args: unknown[]) => mockFavouritesAll(...args),
   favouritesAdd: (...args: unknown[]) => mockFavouritesAdd(...args),
-}));
-
-// Mock rivetFetch for DELETE (query-param endpoint)
-const mockRivetFetch = vi.fn();
-
-vi.mock("~~/generated/rivet/rivet", () => ({
-  rivetFetch: (...args: unknown[]) => mockRivetFetch(...args),
+  favouritesRemove: (...args: unknown[]) => mockFavouritesRemove(...args),
 }));
 
 // Import after mocks
@@ -80,7 +75,7 @@ describe("useFavourites", () => {
     mockFavouritesAll.mockResolvedValue([
       { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" },
     ]);
-    mockRivetFetch.mockResolvedValue(undefined);
+    mockFavouritesRemove.mockResolvedValue(undefined);
 
     const { favourites, toggle, fetch } = useFavourites();
     await fetch();
@@ -92,13 +87,7 @@ describe("useFavourites", () => {
     // Optimistic update should have removed it
     expect(favourites.value.some((f) => f.relativePath === "Films/a.mp4")).toBe(false);
 
-    // DELETE was called via rivetFetch with query param
-    expect(mockRivetFetch).toHaveBeenCalledWith(
-      "DELETE",
-      "/api/favourites",
-      expect.objectContaining({
-        query: { path: "Films/a.mp4" },
-      }),
-    );
+    // DELETE was called via generated Rivet client
+    expect(mockFavouritesRemove).toHaveBeenCalledWith("Films/a.mp4");
   });
 });

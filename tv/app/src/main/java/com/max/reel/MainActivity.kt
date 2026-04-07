@@ -4,10 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import com.max.reel.data.ApiClient
@@ -61,25 +66,53 @@ private fun ReelApp(
         )
     }
 
-    Surface {
-        when (val current = screen) {
-            is Screen.Pairing -> PairingScreen(
+    val castPoller: CastPoller = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return CastPoller(apiClient) as T
+            }
+        }
+    )
+
+    // Start polling once paired, keep polling across all screens
+    LaunchedEffect(screen) {
+        if (screen is Screen.Pairing) {
+            castPoller.stopPolling()
+        } else {
+            castPoller.startPolling()
+        }
+    }
+
+    // React to play commands from any screen
+    LaunchedEffect(Unit) {
+        castPoller.playCommand.collect { relativePath ->
+            screen = Screen.Player(relativePath)
+        }
+    }
+
+    val connectionOk by castPoller.connectionOk.collectAsStateWithLifecycle()
+
+    when (val current = screen) {
+        is Screen.Pairing -> Surface {
+            PairingScreen(
                 apiClient = apiClient,
                 prefs = prefs,
                 onPaired = { screen = Screen.WaitingForCast },
             )
+        }
 
-            is Screen.WaitingForCast -> WaitingForCastScreen(
-                apiClient = apiClient,
+        is Screen.WaitingForCast -> Surface {
+            WaitingForCastScreen(
+                connectionOk = connectionOk,
                 prefs = prefs,
-                onPlayFile = { relativePath -> screen = Screen.Player(relativePath) },
-            )
-
-            is Screen.Player -> PlayerScreen(
-                prefs = prefs,
-                relativePath = current.relativePath,
-                onBack = { screen = Screen.WaitingForCast },
             )
         }
+
+        is Screen.Player -> PlayerScreen(
+            prefs = prefs,
+            relativePath = current.relativePath,
+            onBack = { screen = Screen.WaitingForCast },
+        )
     }
 }

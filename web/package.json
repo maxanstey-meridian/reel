@@ -17,23 +17,25 @@
     "rivet": "dotnet rivet --project ../server/Reel.Server/Reel.Server.csproj --output generated/rivet"
   },
   "dependencies": {
-    "@nuxt/ui": "^3.1.0",
-    "nuxt": "^3.17.0",
+    "@nuxt/ui": "^3.3.7",
+    "nuxt": "^4.4.2",
     "rivet-ts": "github:maxanstey-meridian/rivet-ts#v0.4",
-    "vue": "^3.5.0",
-    "zod": "^3.24.0"
+    "tailwindcss": "^4.2.2",
+    "vue": "^3.5.32",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@nuxt/eslint": "^1.4.0",
-    "@nuxt/test-utils": "^3.21.0",
-    "@playwright/test": "^1.50.0",
-    "eslint": "^10.0.3",
+    "@nuxt/eslint": "^1.15.2",
+    "@nuxt/test-utils": "^3.23.0",
+    "@parcel/watcher": "^2.5.6",
+    "@playwright/test": "^1.59.1",
+    "eslint": "^10.2.0",
     "jsdom": "^29.0.2",
     "oxfmt": "^0.43.0",
-    "oxlint": "^1.58.0",
-    "typescript": "^5.8.0",
+    "oxlint": "^1.59.0",
+    "typescript": "^5.9.3",
     "typia": "^12.0.2",
-    "vitest": "^3.1.0"
+    "vitest": "^3.2.4"
   },
   "packageManager": "pnpm@10.8.0"
 }

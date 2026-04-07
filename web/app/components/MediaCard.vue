@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useAuthImage } from "~~/app/composables/useAuthImage";
+import { useConnection } from "~~/app/composables/useConnection";
 import { useFavourites } from "~~/app/composables/useFavourites";
 import { parseFilename } from "~~/app/utils/parseFilename";
-import type { FileNode } from "~~/generated/rivet/types/models";
+import { thumbnailUrl } from "~~/generated/rivet/client/reel";
+import type { FileNode } from "~~/generated/rivet/types/domain";
 
 const props = defineProps<{
   node: FileNode;
@@ -11,25 +12,29 @@ const props = defineProps<{
 }>();
 defineEmits<{ select: [node: FileNode] }>();
 
+const { secretKey } = useConnection();
 const { isFavourite, toggle } = useFavourites();
 
-const showHeart = computed(() => props.node.type === "File");
+const showHeart = computed(() => props.node.type === "file");
 const favourited = computed(() => isFavourite(props.node.relativePath));
 
-const parsed = computed(() => (props.node.type === "File" ? parseFilename(props.node.name) : null));
+const parsed = computed(() => (props.node.type === "file" ? parseFilename(props.node.name) : null));
 
 const displayName = computed(() => (parsed.value ? parsed.value.title : props.node.name));
 
-const thumbnailPath = computed(() => props.node.thumbnailUrl ?? null);
-const { src: thumbnailSrc, error: thumbnailError } = useAuthImage(thumbnailPath);
+const thumbnailSrc = computed(() =>
+  props.node.relativePath && secretKey.value
+    ? thumbnailUrl(props.node.relativePath, secretKey.value)
+    : null,
+);
 
 const imgFailed = ref(false);
-const showImage = computed(() => thumbnailSrc.value && !imgFailed.value && !thumbnailError.value);
+const showImage = computed(() => thumbnailSrc.value && !imgFailed.value);
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]);
 
 const iconFor = (node: FileNode) => {
-  if (node.type === "Directory") {
+  if (node.type === "directory") {
     return "i-lucide-folder";
   }
   if (node.extension && VIDEO_EXTENSIONS.has(node.extension.toLowerCase())) {
@@ -101,14 +106,14 @@ const formatSize = (bytes: number | null): string => {
 
       <div class="flex items-center gap-1 mt-auto">
         <UBadge
-          v-if="node.extension && node.type === 'File'"
+          v-if="node.extension && node.type === 'file'"
           size="xs"
           color="neutral"
           variant="subtle"
         >
           {{ node.extension }}
         </UBadge>
-        <span v-if="node.sizeBytes && node.type === 'File'" class="text-[10px] text-neutral-500">
+        <span v-if="node.sizeBytes && node.type === 'file'" class="text-[10px] text-neutral-500">
           {{ formatSize(node.sizeBytes) }}
         </span>
       </div>

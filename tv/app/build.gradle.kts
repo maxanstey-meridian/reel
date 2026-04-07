@@ -56,6 +56,7 @@ dependencies {
     // Media3 / ExoPlayer
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
+    implementation(libs.media3.ui.compose)
 
     // Ktor HTTP client
     implementation(libs.ktor.client.android)

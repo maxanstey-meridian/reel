@@ -1,5 +1,5 @@
 import { library as fetchLibrary } from "~~/generated/rivet/client/reel";
-import type { FileNode } from "~~/generated/rivet/types/models";
+import type { FileNode } from "~~/generated/rivet/types/domain";
 
 export const useLibrary = () => {
   const tree = ref<FileNode | null>(null);
@@ -14,7 +14,7 @@ export const useLibrary = () => {
 
     let node = tree.value;
     for (const segment of currentPath.value) {
-      const child = node.children?.find((c) => c.name === segment && c.type === "Directory");
+      const child = node.children?.find((c) => c.name === segment && c.type === "directory");
       if (!child?.children) {
         return [];
       }

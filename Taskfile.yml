@@ -25,6 +25,12 @@ tasks:
     cmds:
       - adb install -r app/build/outputs/apk/debug/app-debug.apk
 
+  dev:
+    desc: Run server and web UI concurrently
+    deps:
+      - server:run
+      - web:dev
+
   web:rivet:
     desc: Regenerate Rivet API client from server contracts
     dir: web
@@ -35,7 +41,7 @@ tasks:
     desc: Start web UI dev server
     dir: web
     cmds:
-      - pnpm dev
+      - pnpm dev --host
 
   web:build:
     desc: Build web UI for production

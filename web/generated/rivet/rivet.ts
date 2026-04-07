@@ -29,6 +29,8 @@ export const configureRivet = (config: RivetConfig): void => {
   _config = config;
 };
 
+export const getBaseUrl = (): string => _config.baseUrl;
+
 const parseBody = async (res: Response): Promise<unknown> => {
   const text = await res.text().catch(() => "");
   if (!text) return undefined;
@@ -42,19 +44,24 @@ const parseBody = async (res: Response): Promise<unknown> => {
 export const rivetFetch = async <T>(
   method: string,
   path: string,
-  options?: { body?: unknown; query?: Record<string, unknown>; unwrap?: boolean },
+  options?: { body?: unknown; query?: Record<string, unknown>; unwrap?: boolean; blob?: boolean },
 ): Promise<T> => {
   const url = new URL(`${_config.baseUrl}${path}`);
   if (options?.query) {
     for (const [k, v] of Object.entries(options.query)) {
-      if (v != null) url.searchParams.set(k, String(v));
+      if (v == null) continue;
+      if (Array.isArray(v)) {
+        for (const item of v) url.searchParams.append(k, String(item));
+      } else {
+        url.searchParams.set(k, String(v));
+      }
     }
   }
   const headers: Record<string, string> = {
     ...(await _config.headers?.()),
   };
   const isFormData = typeof FormData !== "undefined" && options?.body instanceof FormData;
-  if (options?.body && !isFormData) {
+  if (options?.body != null && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
   const f = _config.fetch ?? fetch;
@@ -63,7 +70,7 @@ export const rivetFetch = async <T>(
     res = await f(url.toString(), {
       method,
       headers,
-      body: options?.body ? (isFormData ? options.body as BodyInit : JSON.stringify(options.body)) : undefined,
+      body: options?.body != null ? (isFormData ? options.body as BodyInit : JSON.stringify(options.body)) : undefined,
     });
   } catch (err) {
     const error = new RivetError(method, path, 0, undefined, undefined, { cause: err });
@@ -71,7 +78,7 @@ export const rivetFetch = async <T>(
     throw error;
   }
   if (options?.unwrap === false) {
-    const body = await parseBody(res);
+    const body = options?.blob && res.ok ? await res.blob() : await parseBody(res);
     return { status: res.status, data: body, response: res } as T;
   }
   if (!res.ok) {
@@ -82,8 +89,6 @@ export const rivetFetch = async <T>(
     if (_config.onError) _config.onError(error);
     throw error;
   }
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return (await res.json()) as T;
+  if (options?.blob) return (await res.blob()) as T;
+  return (await parseBody(res)) as T;
 };

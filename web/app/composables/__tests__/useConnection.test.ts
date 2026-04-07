@@ -62,7 +62,7 @@ describe("useConnection", () => {
     expect(isConnected.value).toBe(true);
 
     // Verify headers function returns correct header
-    const headersArg = mockConfigureRivet.mock.calls[0][0];
+    const headersArg = mockConfigureRivet.mock.calls[0]![0];
     expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123" });
   });
 
@@ -95,7 +95,7 @@ describe("useConnection", () => {
     expect(isConnected.value).toBe(true);
 
     // Verify headers function returns correct header
-    const headersArg = mockConfigureRivet.mock.calls[0][0];
+    const headersArg = mockConfigureRivet.mock.calls[0]![0];
     expect(headersArg.headers()).toEqual({ "X-Secret-Key": "saved-key" });
   });
 

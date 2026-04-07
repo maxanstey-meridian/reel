@@ -2,11 +2,12 @@
 // This file is compiled by tsc + typia transformer to produce build/validators.js
 
 import typia from "typia";
-import type { CastStatus, ConnectResponse, Favourite, FileNode, HealthResponse, WatchProgress } from "./types/models.js";
+import type { CastStatus, ConnectResponse, Favourite, FileNode, HealthResponse, MetadataResponse, WatchProgress } from "./types/models.js";
 
 export const assertCastStatus = typia.createAssert<CastStatus>();
 export const assertConnectResponse = typia.createAssert<ConnectResponse>();
 export const assertFavouriteArray = typia.createAssert<Favourite[]>();
 export const assertFileNode = typia.createAssert<FileNode>();
 export const assertHealthResponse = typia.createAssert<HealthResponse>();
+export const assertMetadataResponse = typia.createAssert<MetadataResponse>();
 export const assertWatchProgressArray = typia.createAssert<WatchProgress[]>();

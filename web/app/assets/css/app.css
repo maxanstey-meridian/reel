@@ -1,7 +1,5 @@
-/*
- * Custom utilities and component classes.
- * Tailwind and @nuxt/ui base styles are handled by the module — no @import needed here.
- */
+@import "tailwindcss";
+@import "@nuxt/ui";
 
 :root {
   --ui-radius: 0.25rem;

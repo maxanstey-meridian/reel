@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="MimeTypesMap" Version="1.0.9" />
-    <PackageReference Include="Rivet.Attributes" Version="0.31.0" />
+    <PackageReference Include="Rivet.Attributes" Version="0.32.0" />
   </ItemGroup>
 
   <ItemGroup>

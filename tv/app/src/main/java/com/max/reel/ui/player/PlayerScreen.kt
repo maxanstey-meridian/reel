@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -30,7 +29,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
-import androidx.media3.ui.PlayerView
+import androidx.media3.ui.compose.ContentFrame
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -45,7 +45,6 @@ sealed interface PlayerError {
 
 private fun classifyError(error: PlaybackException): PlayerError {
     val cause = error.cause
-    // Check for HTTP error response codes
     if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
         return when (cause.responseCode) {
             401 -> PlayerError.Unauthorized
@@ -53,7 +52,6 @@ private fun classifyError(error: PlaybackException): PlayerError {
             else -> PlayerError.Unknown("HTTP ${cause.responseCode}")
         }
     }
-    // Check for network-level errors
     if (cause is androidx.media3.datasource.HttpDataSource.HttpDataSourceException) {
         return PlayerError.CannotReachServer
     }
@@ -107,11 +105,7 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
         onBack()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         val error = playerError
         if (error != null) {
             PlayerErrorView(
@@ -119,14 +113,9 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
                 onBack = onBack,
             )
         } else {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        this.player = player
-                        useController = true
-                        setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-                    }
-                },
+            ContentFrame(
+                player = player,
+                surfaceType = SURFACE_TYPE_SURFACE_VIEW,
                 modifier = Modifier.fillMaxSize(),
             )
         }

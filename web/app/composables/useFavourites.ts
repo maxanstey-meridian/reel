@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { favouritesAll, favouritesAdd, favouritesRemove } from "~~/generated/rivet/client/reel";
-import type { Favourite } from "~~/generated/rivet/types/models";
+import type { Favourite } from "~~/generated/rivet/types/domain";
 
 export type { Favourite };
 

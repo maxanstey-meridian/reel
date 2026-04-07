@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { FileNode } from "~~/generated/rivet/types/models";
+import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useFavourites } from "../composables/useFavourites";
 import { useLibrary } from "../composables/useLibrary";
@@ -28,7 +28,7 @@ const selectedFile = ref<FileNode | null>(null);
 const detailOpen = ref(false);
 
 const openDetail = (node: FileNode) => {
-  if (node.type === "File") {
+  if (node.type === "file") {
     selectedFile.value = node;
     detailOpen.value = true;
   }

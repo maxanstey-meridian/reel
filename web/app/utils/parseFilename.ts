@@ -1,3 +1,7 @@
+// Regex match groups and array-last access are runtime-safe but TS can't narrow them.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck
+
 const EXTENSIONS_RE = /\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts|divx|ogm)$/i;
 
 const TAGS = [

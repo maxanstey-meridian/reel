@@ -2,7 +2,19 @@ export default defineNuxtConfig({
   ssr: false,
   compatibilityDate: "2025-01-01",
   modules: ["@nuxt/ui", "@nuxt/eslint"],
-  css: ["./app/assets/css/app.css"],
+
+  app: {
+    head: {
+      viewport: "width=device-width, initial-scale=1, viewport-fit=cover",
+    },
+  },
+  css: ["~/assets/css/app.css"],
+
+  vite: {
+    optimizeDeps: {
+      include: ["zod"],
+    },
+  },
 
   runtimeConfig: {
     public: {

@@ -1,20 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { z } from "zod";
 import { useCast } from "~~/app/composables/useCast";
-import { useConnection } from "~~/app/composables/useConnection";
 import { parseFilename } from "~~/app/utils/parseFilename";
-import type { FileNode } from "~~/generated/rivet/types/models";
-
-const MetadataSchema = z.object({
-  tmdbId: z.number(),
-  posterUrl: z.string().nullable(),
-  backdropUrl: z.string().nullable(),
-  overview: z.string().nullable(),
-  releaseDate: z.string().nullable(),
-});
-
-type MetadataResponse = z.infer<typeof MetadataSchema>;
+import { metadata as fetchMetadataApi } from "~~/generated/rivet/client/reel";
+import type { FileNode } from "~~/generated/rivet/types/domain";
+import type { MetadataResponse } from "~~/generated/rivet/types/models";
 
 const props = defineProps<{
   node: FileNode | null;
@@ -24,7 +14,6 @@ const props = defineProps<{
 const emit = defineEmits<{ close: [] }>();
 
 const { casting, error, cast } = useCast();
-const { serverUrl, secretKey } = useConnection();
 
 const parsed = computed(() => (props.node ? parseFilename(props.node.name) : null));
 
@@ -35,13 +24,7 @@ const fetchMetadata = async (node: FileNode) => {
   metadata.value = null;
   metadataLoading.value = true;
   try {
-    const url = `${serverUrl.value}/api/files/metadata?path=${encodeURIComponent(node.relativePath)}`;
-    const response = await fetch(url, {
-      headers: { "X-Secret-Key": secretKey.value },
-    });
-    if (response.ok) {
-      metadata.value = MetadataSchema.parse(await response.json());
-    }
+    metadata.value = await fetchMetadataApi(node.relativePath);
   } catch {
     // Metadata is optional — silently ignore
   } finally {
@@ -89,69 +72,47 @@ const handleCast = async () => {
 </script>
 
 <template>
-  <UDrawer
+  <USlideover
     :open="open"
-    handle
+    side="bottom"
+    :ui="{ content: 'bg-neutral-950 text-white', header: 'bg-neutral-950', body: 'bg-neutral-950' }"
     @update:open="
       (val: boolean) => {
         if (!val) $emit('close');
       }
     "
   >
-    <div v-if="node" class="p-6 space-y-4">
-      <!-- Poster -->
-      <div v-if="metadata?.posterUrl" class="flex justify-center">
-        <img
-          :src="metadata.posterUrl"
-          loading="lazy"
-          class="rounded max-h-64 object-contain"
-          alt="Movie poster"
-        />
+    <template v-if="node" #header>
+      <div class="flex items-center gap-3 w-full">
+        <div class="flex-1 min-w-0">
+          <h2 class="text-base font-semibold truncate">{{ parsed?.title ?? node.name }}</h2>
+          <div class="flex items-center gap-2 mt-0.5">
+            <UBadge v-if="node.extension" size="xs" color="neutral" variant="subtle">
+              {{ node.extension }}
+            </UBadge>
+            <span v-if="node.sizeBytes" class="text-xs text-neutral-500">
+              {{ formatSize(node.sizeBytes) }}
+            </span>
+            <span v-if="parsed?.year" class="text-xs text-neutral-500">
+              {{ parsed.year }}
+            </span>
+          </div>
+        </div>
       </div>
+    </template>
 
-      <!-- Title -->
-      <div class="space-y-1">
-        <h2 class="text-lg font-semibold">
-          {{ parsed?.title ?? node.name }}
-        </h2>
-        <p v-if="parsed?.year" class="text-sm text-neutral-400">
-          {{ parsed.year }}
+    <template #body>
+      <div class="px-6 pb-6 space-y-3">
+        <p v-if="metadata?.overview" class="text-sm text-neutral-400 leading-relaxed">
+          {{ metadata.overview }}
         </p>
+
+        <UAlert v-if="error" color="error" icon="i-lucide-alert-circle" :title="error" />
+
+        <UButton block size="lg" icon="i-lucide-cast" :loading="casting" @click="handleCast">
+          Cast to TV
+        </UButton>
       </div>
-
-      <!-- Metadata badges -->
-      <div class="flex items-center gap-2">
-        <UBadge v-if="node.extension" size="sm" color="neutral" variant="subtle">
-          {{ node.extension }}
-        </UBadge>
-        <span v-if="node.sizeBytes" class="text-sm text-neutral-500">
-          {{ formatSize(node.sizeBytes) }}
-        </span>
-      </div>
-
-      <!-- Overview from TMDB -->
-      <p v-if="metadata?.overview" class="text-sm text-neutral-400 leading-relaxed">
-        {{ metadata.overview }}
-      </p>
-
-      <!-- Loading metadata -->
-      <div v-if="metadataLoading" class="flex items-center gap-2 text-sm text-neutral-500">
-        <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
-        Loading metadata...
-      </div>
-
-      <!-- Path -->
-      <p class="text-xs text-neutral-600 break-all">
-        {{ node.relativePath }}
-      </p>
-
-      <!-- Error -->
-      <UAlert v-if="error" color="error" icon="i-lucide-alert-circle" :title="error" />
-
-      <!-- Cast button -->
-      <UButton block size="lg" icon="i-lucide-cast" :loading="casting" @click="handleCast">
-        Cast to TV
-      </UButton>
-    </div>
-  </UDrawer>
+    </template>
+  </USlideover>
 </template>

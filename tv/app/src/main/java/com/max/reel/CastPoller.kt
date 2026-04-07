@@ -1,4 +1,4 @@
-package com.max.reel.ui.cast
+package com.max.reel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,16 +13,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-data class WaitingForCastState(
-    val connectionOk: Boolean = true,
-)
-
-class WaitingForCastViewModel(
+class CastPoller(
     private val apiClient: ApiClient,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(WaitingForCastState())
-    val state: StateFlow<WaitingForCastState> = _state.asStateFlow()
+    private val _connectionOk = MutableStateFlow(true)
+    val connectionOk: StateFlow<Boolean> = _connectionOk.asStateFlow()
 
     private val _playCommand = Channel<String>(Channel.BUFFERED)
     val playCommand = _playCommand.receiveAsFlow()
@@ -47,29 +43,24 @@ class WaitingForCastViewModel(
     private suspend fun poll() {
         when (val result = apiClient.fetchCastCurrent()) {
             is CastPollResult.Success -> {
-                val command = result.status?.command
-                if (command == null) {
-                    _state.value = WaitingForCastState(connectionOk = true)
-                    return
-                }
+                _connectionOk.value = true
+                val command = result.status?.command ?: return
                 when (command.type) {
                     "play" -> {
                         val path = command.relativePath ?: return
                         apiClient.acknowledgeCast()
-                        stopPolling()
                         _playCommand.send(path)
                     }
                     "stop" -> {
                         apiClient.acknowledgeCast()
                     }
                 }
-                _state.value = WaitingForCastState(connectionOk = true)
             }
             is CastPollResult.Unauthorized -> {
-                _state.value = WaitingForCastState(connectionOk = false)
+                _connectionOk.value = false
             }
             is CastPollResult.NetworkError -> {
-                _state.value = WaitingForCastState(connectionOk = false)
+                _connectionOk.value = false
             }
         }
     }

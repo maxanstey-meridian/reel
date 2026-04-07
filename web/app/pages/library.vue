@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { FileNode } from "~~/generated/rivet/types/models";
+import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
@@ -45,10 +45,14 @@ onMounted(() => {
 });
 
 const directories = computed(() =>
-  currentChildren.value.filter((n: FileNode) => n.type === "Directory"),
+  currentChildren.value.filter((n: FileNode) => n.type === "directory"),
 );
 
-const files = computed(() => currentChildren.value.filter((n: FileNode) => n.type === "File"));
+const files = computed(() => currentChildren.value.filter((n: FileNode) => n.type === "file"));
+
+// Navigation level = mostly directories, few/no loose files.
+// Show a clickable folder grid instead of expanding every dir into a MediaRow.
+const isNavigationLevel = computed(() => directories.value.length > 0 && files.value.length === 0);
 
 const selectedFile = ref<FileNode | null>(null);
 const detailOpen = ref(false);
@@ -58,20 +62,22 @@ const openDetail = (node: FileNode) => {
   detailOpen.value = true;
 };
 
+const { cast } = useCast();
+
 const handleSelect = (node: FileNode) => {
-  if (node.type === "Directory") {
+  if (node.type === "directory") {
     enterDirectory(node.name);
   } else {
-    openDetail(node);
+    cast(node.relativePath);
   }
 };
 
 const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
-  if (node.type === "File") {
+  if (node.type === "file") {
     openDetail(node);
   } else {
     enterDirectory(parentDir.name);
-    if (node.type === "Directory") {
+    if (node.type === "directory") {
       enterDirectory(node.name);
     }
   }
@@ -145,9 +151,19 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
         </div>
       </div>
 
-      <!-- Directory rows -->
+      <!-- Navigation level: folder grid -->
+      <div v-if="isNavigationLevel" class="grid grid-cols-2 gap-3 [&>button]:w-full">
+        <MediaCard
+          v-for="dir in directories"
+          :key="dir.relativePath"
+          :node="dir"
+          @select="enterDirectory(dir.name)"
+        />
+      </div>
+
+      <!-- Content level: directory rows expanded -->
       <MediaRow
-        v-for="dir in directories"
+        v-for="dir in isNavigationLevel ? [] : directories"
         :key="dir.relativePath"
         :title="dir.name"
         :items="dir.children ?? []"
@@ -157,7 +173,7 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
       <!-- Loose files grid -->
       <div v-if="files.length > 0" class="space-y-2">
         <h3 v-if="directories.length > 0" class="text-sm font-medium text-neutral-400">Files</h3>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3 [&>button]:w-full">
           <MediaCard
             v-for="file in files"
             :key="file.relativePath"

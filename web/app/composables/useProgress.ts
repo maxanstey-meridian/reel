@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { progressAll } from "~~/generated/rivet/client/reel";
-import type { WatchProgress } from "~~/generated/rivet/types/models";
+import type { WatchProgress } from "~~/generated/rivet/types/domain";
 
 export type { WatchProgress };
 
