@@ -45,14 +45,15 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
             if (File.Exists(cachedPath))
                 return cachedPath;
 
-            var seekSeconds = await GetSeekPosition(fullPath);
-            var success = await ExtractThumbnail(fullPath, cachedPath, seekSeconds);
+            var seekSeconds = await GetSeekPosition(fullPath, ct);
+            var success = await ExtractThumbnail(fullPath, cachedPath, seekSeconds, ct);
 
             return success ? cachedPath : null;
         }
         finally
         {
             fileLock.Release();
+            _locks.TryRemove(relativePath, out _);
         }
     }
 
@@ -62,7 +63,7 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private async Task<double> GetSeekPosition(string fullPath)
+    private async Task<double> GetSeekPosition(string fullPath, CancellationToken ct)
     {
         const double fallbackSeconds = 5.0;
 
@@ -84,8 +85,8 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
                 return fallbackSeconds;
             }
 
-            var output = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
+            var output = await process.StandardOutput.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
 
             if (process.ExitCode != 0)
             {
@@ -105,7 +106,7 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
         }
     }
 
-    private async Task<bool> ExtractThumbnail(string fullPath, string outputPath, double seekSeconds)
+    private async Task<bool> ExtractThumbnail(string fullPath, string outputPath, double seekSeconds, CancellationToken ct)
     {
         try
         {
@@ -127,8 +128,8 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
                 return false;
             }
 
-            var stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync();
+            var stderr = await process.StandardError.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
 
             if (process.ExitCode != 0)
             {

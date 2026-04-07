@@ -62,12 +62,13 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
             if (TryReadCache(cachePath, out cached))
                 return ToResponse(cached!);
 
-            var result = await FetchAndCache(title, year, cachePath);
+            var result = await FetchAndCache(title, year, cachePath, ct);
             return result is not null ? ToResponse(result) : null;
         }
         finally
         {
             fileLock.Release();
+            _locks.TryRemove(cacheKey, out _);
         }
     }
 
@@ -111,16 +112,16 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
         }
     }
 
-    private async Task<TmdbResult?> FetchAndCache(string title, int? year, string cachePath)
+    private async Task<TmdbResult?> FetchAndCache(string title, int? year, string cachePath, CancellationToken ct)
     {
         try
         {
-            var result = await FetchFromApi(title, year, retryOnRateLimit: true);
+            var result = await FetchFromApi(title, year, retryOnRateLimit: true, ct);
 
             if (result is not null)
             {
                 var json = JsonSerializer.Serialize(result, JsonOptions);
-                await File.WriteAllTextAsync(cachePath, json);
+                await File.WriteAllTextAsync(cachePath, json, ct);
             }
 
             return result;
@@ -132,12 +133,12 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
         }
     }
 
-    private async Task<TmdbResult?> FetchFromApi(string title, int? year, bool retryOnRateLimit)
+    private async Task<TmdbResult?> FetchFromApi(string title, int? year, bool retryOnRateLimit, CancellationToken ct)
     {
         var client = _httpClientFactory.CreateClient();
 
         var url = BuildSearchUrl(title, year);
-        var response = await client.GetAsync(url);
+        var response = await client.GetAsync(url, ct);
 
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
@@ -151,14 +152,14 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
                 ?? TimeSpan.FromSeconds(2);
 
             _logger.LogWarning("TMDB rate limit hit, retrying after {Delay}", retryAfter);
-            await Task.Delay(retryAfter);
+            await Task.Delay(retryAfter, ct);
 
-            return await FetchFromApi(title, year, retryOnRateLimit: false);
+            return await FetchFromApi(title, year, retryOnRateLimit: false, ct);
         }
 
         response.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(ct);
         var searchResponse = JsonSerializer.Deserialize<TmdbSearchResponse>(body, JsonOptions);
 
         if (searchResponse?.Results is not { Count: > 0 })

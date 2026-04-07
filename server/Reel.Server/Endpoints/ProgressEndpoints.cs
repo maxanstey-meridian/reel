@@ -14,16 +14,8 @@ public static class ProgressEndpoints
             return Results.Ok();
         });
 
-        app.MapGet("/api/progress", async ([FromQuery] string? path, IProgressStore store, CancellationToken ct) =>
+        app.MapGet("/api/progress", async (IProgressStore store, CancellationToken ct) =>
         {
-            if (path is not null)
-            {
-                var entry = await store.GetAsync(path, ct);
-                return entry is not null
-                    ? Results.Ok(entry)
-                    : Results.NotFound();
-            }
-
             return Results.Ok(await store.GetAllAsync(ct));
         });
 

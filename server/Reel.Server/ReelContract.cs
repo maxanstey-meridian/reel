@@ -41,8 +41,8 @@ public static class ReelContract
     public static readonly RouteDefinition<Favourite[]> FavouritesAll =
         Define.Get<Favourite[]>("/api/favourites");
 
-    public static readonly InputRouteDefinition<FavouriteRemoveRequest> FavouritesRemove =
-        Define.Delete("/api/favourites").Accepts<FavouriteRemoveRequest>();
+    public static readonly InputRouteDefinition<FileRequest> FavouritesRemove =
+        Define.Delete("/api/favourites").Accepts<FileRequest>();
 
     public static readonly FileRouteDefinition<FileRequest> Stream =
         Define.File<FileRequest>("/api/files/stream")

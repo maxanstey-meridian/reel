@@ -78,9 +78,10 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
             durationSeconds = 3600.0
         });
 
-        var response = await client.GetAsync("/api/progress?path=Films/upsert.mp4");
-        var entry = await response.Content.ReadFromJsonAsync<WatchProgressDto>();
-        entry!.PositionSeconds.Should().Be(300.0);
+        var response = await client.GetAsync("/api/progress");
+        var entries = await response.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
+        var entry = entries!.First(e => e.RelativePath == "Films/upsert.mp4");
+        entry.PositionSeconds.Should().Be(300.0);
     }
 
     [Fact]
@@ -112,42 +113,6 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
         var olderIdx = entries!.FindIndex(e => e.RelativePath == "Films/older.mp4");
         var newerIdx = entries.FindIndex(e => e.RelativePath == "Films/newer.mp4");
         newerIdx.Should().BeLessThan(olderIdx, "newer entry should appear first (descending order)");
-    }
-
-    [Fact]
-    public async Task GetByPath_ReturnsSpecificEntry()
-    {
-        var client = CreateAuthenticatedClient();
-
-        await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/a.mp4",
-            positionSeconds = 10.0,
-            durationSeconds = 100.0
-        });
-
-        await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/b.mp4",
-            positionSeconds = 20.0,
-            durationSeconds = 200.0
-        });
-
-        var response = await client.GetAsync("/api/progress?path=Films/a.mp4");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var entry = await response.Content.ReadFromJsonAsync<WatchProgressDto>();
-        entry!.RelativePath.Should().Be("Films/a.mp4");
-        entry.PositionSeconds.Should().Be(10.0);
-    }
-
-    [Fact]
-    public async Task GetByPath_NotFound_Returns404()
-    {
-        var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/progress?path=nonexistent.mp4");
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Theory]
