@@ -1,6 +1,7 @@
 namespace Reel.Server.Infrastructure.Persistence;
 
 using System.Globalization;
+using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
 
@@ -137,5 +138,83 @@ public sealed class SqliteMediaStore : IMediaStore
             DateTime.Parse(reader.GetString(13), null, DateTimeStyles.RoundtripKind),
             DateTime.Parse(reader.GetString(14), null, DateTimeStyles.RoundtripKind)
         );
+    }
+
+    public async Task UpdateMetaAsync(string relativePath, MediaUpdateRequest update, CancellationToken ct)
+    {
+        var setClauses = new List<string>();
+        var parameters = new List<(string Name, object? Value)>();
+
+        if (update.Genre is not null)
+        {
+            setClauses.Add("genre = @genre");
+            parameters.Add(("@genre", update.Genre));
+        }
+
+        if (update.Rating is not null)
+        {
+            setClauses.Add("rating = @rating");
+            parameters.Add(("@rating", update.Rating));
+        }
+
+        if (update.Language is not null)
+        {
+            setClauses.Add("language = @language");
+            parameters.Add(("@language", update.Language));
+        }
+
+        if (update.Notes is not null)
+        {
+            setClauses.Add("notes = @notes");
+            parameters.Add(("@notes", update.Notes));
+        }
+
+        if (update.DisplayTitle is not null)
+        {
+            setClauses.Add("display_title = @displayTitle");
+            parameters.Add(("@displayTitle", update.DisplayTitle));
+        }
+
+        if (setClauses.Count == 0)
+            return;
+
+        setClauses.Add("updated_at = datetime('now')");
+
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"UPDATE media SET {string.Join(", ", setClauses)} WHERE relative_path = @path;";
+        cmd.Parameters.AddWithValue("@path", relativePath);
+
+        foreach (var (name, value) in parameters)
+            cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
+
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task UpdateTmdbCacheAsync(
+        string relativePath,
+        int tmdbId,
+        string? posterUrl,
+        string? backdropUrl,
+        string? overview,
+        string? releaseDate,
+        CancellationToken ct
+    )
+    {
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE media
+            SET tmdb_id = @tmdbId, poster_url = @posterUrl, backdrop_url = @backdropUrl,
+                overview = @overview, release_date = @releaseDate, updated_at = datetime('now')
+            WHERE relative_path = @path;
+            """;
+        cmd.Parameters.AddWithValue("@path", relativePath);
+        cmd.Parameters.AddWithValue("@tmdbId", tmdbId);
+        cmd.Parameters.AddWithValue("@posterUrl", (object?)posterUrl ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@backdropUrl", (object?)backdropUrl ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@overview", (object?)overview ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@releaseDate", (object?)releaseDate ?? DBNull.Value);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 }

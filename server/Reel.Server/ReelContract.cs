@@ -70,6 +70,16 @@ public static class ReelContract
 
     public static readonly RouteDefinition UserDelete = Define.Delete("/api/users/{id}");
 
+    public static readonly RouteDefinition<FileRequest, MediaDetailResponse> MediaDetail = Define.Get<
+        FileRequest,
+        MediaDetailResponse
+    >("/api/media/detail");
+
+    public static readonly InputRouteDefinition<MediaUpdateRequest> MediaUpdate = Define
+        .Patch("/api/media/detail")
+        .Accepts<MediaUpdateRequest>()
+        .Status(204);
+
     public static readonly RouteDefinition MediaSetWatched = Define.Put("/api/media/watched").Status(204);
 
     public static readonly RouteDefinition MediaSetUnwatched = Define.Put("/api/media/unwatched").Status(204);

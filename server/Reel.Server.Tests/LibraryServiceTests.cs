@@ -214,5 +214,21 @@ public sealed class LibraryServiceTests : IDisposable
 
         public Task<bool?> IsWatchedAsync(int userId, string relativePath, CancellationToken ct) =>
             Task.FromResult<bool?>(null);
+
+        public Task UpdateMetaAsync(
+            string relativePath,
+            Application.Models.MediaUpdateRequest update,
+            CancellationToken ct
+        ) => Task.CompletedTask;
+
+        public Task UpdateTmdbCacheAsync(
+            string relativePath,
+            int tmdbId,
+            string? posterUrl,
+            string? backdropUrl,
+            string? overview,
+            string? releaseDate,
+            CancellationToken ct
+        ) => Task.CompletedTask;
     }
 }
