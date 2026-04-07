@@ -230,5 +230,20 @@ public sealed class LibraryServiceTests : IDisposable
             string? releaseDate,
             CancellationToken ct
         ) => Task.CompletedTask;
+
+        public Task SetTagsAsync(int userId, string relativePath, IReadOnlyList<string> tags, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task AddTagAsync(int userId, string relativePath, string tag, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task RemoveTagAsync(int userId, string relativePath, string tag, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task<IReadOnlyList<string>> GetTagsAsync(int userId, string relativePath, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<IReadOnlyList<TagCount>> GetAllTagsAsync(int userId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<TagCount>>([]);
     }
 }

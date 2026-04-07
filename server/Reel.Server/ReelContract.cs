@@ -85,4 +85,22 @@ public static class ReelContract
     public static readonly RouteDefinition MediaSetUnwatched = Define.Put("/api/media/unwatched").Status(204);
 
     public static readonly RouteDefinition MediaClearWatched = Define.Delete("/api/media/watched").Status(204);
+
+    public static readonly RouteDefinition<FileRequest, string[]> TagsList = Define.Get<FileRequest, string[]>(
+        "/api/media/tags"
+    );
+
+    public static readonly InputRouteDefinition<SetTagsRequest> TagsReplace = Define
+        .Put("/api/media/tags")
+        .Accepts<SetTagsRequest>()
+        .Status(204);
+
+    public static readonly InputRouteDefinition<AddTagRequest> TagsAdd = Define
+        .Post("/api/media/tags")
+        .Accepts<AddTagRequest>()
+        .Status(204);
+
+    public static readonly RouteDefinition TagsRemove = Define.Delete("/api/media/tags").Status(204);
+
+    public static readonly RouteDefinition<TagCount[]> TagsAll = Define.Get<TagCount[]>("/api/tags");
 }

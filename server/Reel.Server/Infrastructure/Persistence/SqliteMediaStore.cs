@@ -209,4 +209,120 @@ public sealed class SqliteMediaStore : IMediaStore
         cmd.Parameters.AddWithValue("@releaseDate", (object?)releaseDate ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(ct);
     }
+
+    public async Task SetTagsAsync(int userId, string relativePath, IReadOnlyList<string> tags, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+        using var transaction = conn.BeginTransaction();
+
+        // Ensure media row exists
+        using var mediaCmd = conn.CreateCommand();
+        mediaCmd.Transaction = transaction;
+        mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+        mediaCmd.Parameters.AddWithValue("@path", relativePath);
+        await mediaCmd.ExecuteNonQueryAsync(ct);
+
+        // Delete existing tags for this user+path
+        using var deleteCmd = conn.CreateCommand();
+        deleteCmd.Transaction = transaction;
+        deleteCmd.CommandText = "DELETE FROM tags WHERE user_id = @userId AND relative_path = @path;";
+        deleteCmd.Parameters.AddWithValue("@userId", userId);
+        deleteCmd.Parameters.AddWithValue("@path", relativePath);
+        await deleteCmd.ExecuteNonQueryAsync(ct);
+
+        // Insert new tags
+        foreach (var tag in tags)
+        {
+            using var insertCmd = conn.CreateCommand();
+            insertCmd.Transaction = transaction;
+            insertCmd.CommandText = """
+                INSERT OR IGNORE INTO tags (user_id, relative_path, tag)
+                VALUES (@userId, @path, @tag);
+                """;
+            insertCmd.Parameters.AddWithValue("@userId", userId);
+            insertCmd.Parameters.AddWithValue("@path", relativePath);
+            insertCmd.Parameters.AddWithValue("@tag", tag);
+            await insertCmd.ExecuteNonQueryAsync(ct);
+        }
+
+        transaction.Commit();
+    }
+
+    public async Task AddTagAsync(int userId, string relativePath, string tag, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        // Ensure media row exists
+        using var mediaCmd = conn.CreateCommand();
+        mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+        mediaCmd.Parameters.AddWithValue("@path", relativePath);
+        await mediaCmd.ExecuteNonQueryAsync(ct);
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT OR IGNORE INTO tags (user_id, relative_path, tag)
+            VALUES (@userId, @path, @tag);
+            """;
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@path", relativePath);
+        cmd.Parameters.AddWithValue("@tag", tag);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task RemoveTagAsync(int userId, string relativePath, string tag, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM tags
+            WHERE user_id = @userId AND relative_path = @path AND tag = @tag;
+            """;
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@path", relativePath);
+        cmd.Parameters.AddWithValue("@tag", tag);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<string>> GetTagsAsync(int userId, string relativePath, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT tag FROM tags
+            WHERE user_id = @userId AND relative_path = @path
+            ORDER BY tag;
+            """;
+        cmd.Parameters.AddWithValue("@userId", userId);
+        cmd.Parameters.AddWithValue("@path", relativePath);
+
+        var tags = new List<string>();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            tags.Add(reader.GetString(0));
+
+        return tags;
+    }
+
+    public async Task<IReadOnlyList<TagCount>> GetAllTagsAsync(int userId, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT tag, COUNT(*) as count FROM tags
+            WHERE user_id = @userId
+            GROUP BY tag
+            ORDER BY tag;
+            """;
+        cmd.Parameters.AddWithValue("@userId", userId);
+
+        var results = new List<TagCount>();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            results.Add(new TagCount(reader.GetString(0), reader.GetInt32(1)));
+
+        return results;
+    }
 }
