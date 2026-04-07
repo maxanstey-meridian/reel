@@ -36,6 +36,7 @@ builder.Services.AddSingleton<IThumbnailGenerator, FfmpegThumbnailGenerator>();
 builder.Services.AddSingleton<IProgressStore, JsonProgressStore>();
 builder.Services.AddSingleton<IFavouritesStore, JsonFavouritesStore>();
 builder.Services.AddSingleton<IFileStreamer, FileSystemStreamer>();
+builder.Services.AddSingleton<IUserStore, SqliteUserStore>();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IMetadataLookup, TmdbMetadataLookup>();
 builder.Services.AddCors();
@@ -59,6 +60,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<SecretKeyMiddleware>();
+app.UseMiddleware<UserMiddleware>();
 
 app.MapHealthEndpoints();
 app.MapConnectEndpoints();
@@ -69,6 +71,7 @@ app.MapThumbnailEndpoints();
 app.MapMetadataEndpoints();
 app.MapProgressEndpoints();
 app.MapFavouritesEndpoints();
+app.MapUserEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");

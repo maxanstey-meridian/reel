@@ -55,4 +55,19 @@ public static class ReelContract
 
     public static readonly RouteDefinition<FileRequest, MetadataResponse> Metadata =
         Define.Get<FileRequest, MetadataResponse>("/api/files/metadata");
+
+    public static readonly RouteDefinition<UserRequest, User> UserCreate =
+        Define.Post<UserRequest, User>("/api/users");
+
+    public static readonly RouteDefinition<User[]> UserList =
+        Define.Get<User[]>("/api/users");
+
+    public static readonly RouteDefinition<User> UserGet =
+        Define.Get<User>("/api/users/{id}");
+
+    public static readonly RouteDefinition<UserRequest, User> UserUpdate =
+        Define.Patch<UserRequest, User>("/api/users/{id}");
+
+    public static readonly RouteDefinition UserDelete =
+        Define.Delete("/api/users/{id}");
 }
