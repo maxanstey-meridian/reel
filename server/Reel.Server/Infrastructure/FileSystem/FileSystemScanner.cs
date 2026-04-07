@@ -2,7 +2,7 @@ namespace Reel.Server.Infrastructure.FileSystem;
 
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
-using Reel.Server.Services;
+using Reel.Server.Infrastructure.Configuration;
 
 public sealed class FileSystemScanner : ILibraryScanner
 {

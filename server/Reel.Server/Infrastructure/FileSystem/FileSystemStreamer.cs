@@ -2,7 +2,7 @@ namespace Reel.Server.Infrastructure.FileSystem;
 
 using HeyRed.Mime;
 using Reel.Server.Application.Ports;
-using Reel.Server.Services;
+using Reel.Server.Infrastructure.Configuration;
 
 public sealed class FileSystemStreamer : IFileStreamer
 {

@@ -3,7 +3,7 @@ namespace Reel.Server.Infrastructure.Persistence;
 using System.Text.Json;
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
-using Reel.Server.Services;
+using Reel.Server.Infrastructure.Configuration;
 
 public sealed class JsonProgressStore : IProgressStore
 {
