@@ -24,6 +24,7 @@ if (reelConfig.Port <= 0)
 
 builder.Services.AddSingleton(reelConfig);
 builder.Services.AddSingleton<LibraryService>();
+builder.Services.AddSingleton<CastService>();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -39,6 +40,7 @@ app.MapHealthEndpoints();
 app.MapConnectEndpoints();
 app.MapLibraryEndpoints();
 app.MapStreamEndpoints();
+app.MapCastEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
