@@ -73,19 +73,23 @@ public static class MediaEndpoints
                 ReelConfig config,
                 CancellationToken ct
             ) =>
-                (
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    throw new BadRequestException("Missing required query parameter: path");
+
+                var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
+                if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
+                    throw new ForbiddenException("Access denied.");
+
+                var validatedPath = path;
+
+                return (
                     await ReelContract.MediaUpdate.Invoke(request, async req =>
                     {
-                        if (string.IsNullOrWhiteSpace(path))
-                            throw new BadRequestException("Missing required query parameter: path");
-
-                        var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
-                        if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
-                            throw new ForbiddenException("Access denied.");
-
-                        await mediaStore.UpdateMetaAsync(path, req, ct);
+                        await mediaStore.UpdateMetaAsync(validatedPath, req, ct);
                     })
-                ).ToResult()
+                ).ToResult();
+            }
         );
 
         app.MapPut(

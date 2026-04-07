@@ -241,6 +241,60 @@ public sealed class SqliteMediaStoreMetaTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateMetaAsync_EmptyStringClearsFieldToNull()
+    {
+        await _store.UpsertFromScanAsync("Films/clear.mp4", "Clear Test", 2024, CancellationToken.None);
+
+        // Set genre and rating first
+        await _store.UpdateMetaAsync(
+            "Films/clear.mp4",
+            new MediaUpdateRequest(Genre: "Action", Rating: "R", Language: null, Notes: null, DisplayTitle: null),
+            CancellationToken.None
+        );
+
+        var before = await _store.GetAsync("Films/clear.mp4", CancellationToken.None);
+        before!.Genre.Should().Be("Action");
+        before.Rating.Should().Be("R");
+
+        // Send empty string for genre to clear it, leave rating untouched (null = skip)
+        await _store.UpdateMetaAsync(
+            "Films/clear.mp4",
+            new MediaUpdateRequest(Genre: "", Rating: null, Language: null, Notes: null, DisplayTitle: null),
+            CancellationToken.None
+        );
+
+        var after = await _store.GetAsync("Films/clear.mp4", CancellationToken.None);
+        after!.Genre.Should().BeNull();
+        after.Rating.Should().Be("R");
+    }
+
+    [Fact]
+    public async Task UpdateMetaAsync_EmptyStringClearsDisplayTitle()
+    {
+        await _store.UpsertFromScanAsync("Films/cleartitle.mp4", "Parsed Title", 2024, CancellationToken.None);
+
+        await _store.UpdateMetaAsync(
+            "Films/cleartitle.mp4",
+            new MediaUpdateRequest(Genre: null, Rating: null, Language: null, Notes: null, DisplayTitle: "Custom"),
+            CancellationToken.None
+        );
+
+        var before = await _store.GetAsync("Films/cleartitle.mp4", CancellationToken.None);
+        before!.DisplayTitle.Should().Be("Custom");
+
+        // Clear display_title back to null
+        await _store.UpdateMetaAsync(
+            "Films/cleartitle.mp4",
+            new MediaUpdateRequest(Genre: null, Rating: null, Language: null, Notes: null, DisplayTitle: ""),
+            CancellationToken.None
+        );
+
+        var after = await _store.GetAsync("Films/cleartitle.mp4", CancellationToken.None);
+        after!.DisplayTitle.Should().BeNull();
+        after.ParsedTitle.Should().Be("Parsed Title");
+    }
+
+    [Fact]
     public async Task UpdateMetaAsync_UpdatesTimestamp()
     {
         await _store.UpsertFromScanAsync("Films/ts.mp4", "Timestamp", 2024, CancellationToken.None);

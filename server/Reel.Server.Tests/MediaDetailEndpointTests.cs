@@ -165,6 +165,44 @@ public sealed class MediaDetailEndpointTests : IClassFixture<WebApplicationFacto
     }
 
     [Fact]
+    public async Task PatchMedia_EmptyStringClearsField()
+    {
+        await EnsureMediaRowExists();
+
+        // Set genre first
+        var setReq = new HttpRequestMessage(HttpMethod.Patch, "/api/media/detail?path=test.mp4")
+        {
+            Content = JsonContent.Create(
+                new MediaUpdateRequest(Genre: "Action", Rating: null, Language: null, Notes: null, DisplayTitle: null),
+                options: JsonOptions
+            ),
+        };
+        await _client.SendAsync(setReq);
+
+        // Verify it's set
+        var before = await _client.GetAsync("/api/media/detail?path=test.mp4");
+        var beforeJson = await before.Content.ReadAsStringAsync();
+        using var beforeDoc = JsonDocument.Parse(beforeJson);
+        beforeDoc.RootElement.GetProperty("genre").GetString().Should().Be("Action");
+
+        // Clear genre by sending empty string
+        var clearReq = new HttpRequestMessage(HttpMethod.Patch, "/api/media/detail?path=test.mp4")
+        {
+            Content = JsonContent.Create(
+                new MediaUpdateRequest(Genre: "", Rating: null, Language: null, Notes: null, DisplayTitle: null),
+                options: JsonOptions
+            ),
+        };
+        await _client.SendAsync(clearReq);
+
+        // Verify it's cleared to null
+        var after = await _client.GetAsync("/api/media/detail?path=test.mp4");
+        var afterJson = await after.Content.ReadAsStringAsync();
+        using var afterDoc = JsonDocument.Parse(afterJson);
+        afterDoc.RootElement.GetProperty("genre").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task PatchMedia_PathTraversalBlocked()
     {
         var update = new MediaUpdateRequest(

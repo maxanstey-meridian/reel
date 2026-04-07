@@ -143,37 +143,13 @@ public sealed class SqliteMediaStore : IMediaStore
     public async Task UpdateMetaAsync(string relativePath, MediaUpdateRequest update, CancellationToken ct)
     {
         var setClauses = new List<string>();
-        var parameters = new List<(string Name, object? Value)>();
+        var parameters = new List<(string Name, object Value)>();
 
-        if (update.Genre is not null)
-        {
-            setClauses.Add("genre = @genre");
-            parameters.Add(("@genre", update.Genre));
-        }
-
-        if (update.Rating is not null)
-        {
-            setClauses.Add("rating = @rating");
-            parameters.Add(("@rating", update.Rating));
-        }
-
-        if (update.Language is not null)
-        {
-            setClauses.Add("language = @language");
-            parameters.Add(("@language", update.Language));
-        }
-
-        if (update.Notes is not null)
-        {
-            setClauses.Add("notes = @notes");
-            parameters.Add(("@notes", update.Notes));
-        }
-
-        if (update.DisplayTitle is not null)
-        {
-            setClauses.Add("display_title = @displayTitle");
-            parameters.Add(("@displayTitle", update.DisplayTitle));
-        }
+        AddField(update.Genre, "genre", "@genre", setClauses, parameters);
+        AddField(update.Rating, "rating", "@rating", setClauses, parameters);
+        AddField(update.Language, "language", "@language", setClauses, parameters);
+        AddField(update.Notes, "notes", "@notes", setClauses, parameters);
+        AddField(update.DisplayTitle, "display_title", "@displayTitle", setClauses, parameters);
 
         if (setClauses.Count == 0)
             return;
@@ -186,9 +162,25 @@ public sealed class SqliteMediaStore : IMediaStore
         cmd.Parameters.AddWithValue("@path", relativePath);
 
         foreach (var (name, value) in parameters)
-            cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
+            cmd.Parameters.AddWithValue(name, value);
 
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    // null = skip (not provided), "" = clear to NULL, other = set value
+    private static void AddField(
+        string? value,
+        string column,
+        string paramName,
+        List<string> setClauses,
+        List<(string Name, object Value)> parameters
+    )
+    {
+        if (value is null)
+            return;
+
+        setClauses.Add($"{column} = {paramName}");
+        parameters.Add((paramName, value.Length == 0 ? DBNull.Value : value));
     }
 
     public async Task UpdateTmdbCacheAsync(
