@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { FileNode } from "~~/generated/rivet/types/models";
+import { useConnection } from "../composables/useConnection";
+import { useLibrary } from "../composables/useLibrary";
 
 const { isConnected } = useConnection();
 const {
@@ -20,11 +22,11 @@ onMounted(() => {
 });
 
 const directories = computed(() =>
-  currentChildren.value.filter((n) => n.type === "Directory"),
+  currentChildren.value.filter((n: FileNode) => n.type === "Directory"),
 );
 
 const files = computed(() =>
-  currentChildren.value.filter((n) => n.type === "File"),
+  currentChildren.value.filter((n: FileNode) => n.type === "File"),
 );
 
 const handleSelect = (node: FileNode) => {
@@ -106,7 +108,7 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
         :key="dir.relativePath"
         :title="dir.name"
         :items="dir.children ?? []"
-        @select="(node) => handleRowSelect(dir, node)"
+        @select="(node: FileNode) => handleRowSelect(dir, node)"
       />
 
       <!-- Loose files grid -->
