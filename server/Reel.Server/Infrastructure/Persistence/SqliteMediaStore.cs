@@ -251,14 +251,17 @@ public sealed class SqliteMediaStore : IMediaStore
     public async Task AddTagAsync(int userId, string relativePath, string tag, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
+        using var transaction = conn.BeginTransaction();
 
         // Ensure media row exists
         using var mediaCmd = conn.CreateCommand();
+        mediaCmd.Transaction = transaction;
         mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
         mediaCmd.Parameters.AddWithValue("@path", relativePath);
         await mediaCmd.ExecuteNonQueryAsync(ct);
 
         using var cmd = conn.CreateCommand();
+        cmd.Transaction = transaction;
         cmd.CommandText = """
             INSERT OR IGNORE INTO tags (user_id, relative_path, tag)
             VALUES (@userId, @path, @tag);
@@ -267,6 +270,8 @@ public sealed class SqliteMediaStore : IMediaStore
         cmd.Parameters.AddWithValue("@path", relativePath);
         cmd.Parameters.AddWithValue("@tag", tag);
         await cmd.ExecuteNonQueryAsync(ct);
+
+        transaction.Commit();
     }
 
     public async Task RemoveTagAsync(int userId, string relativePath, string tag, CancellationToken ct)
