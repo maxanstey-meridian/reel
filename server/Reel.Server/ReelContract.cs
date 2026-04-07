@@ -68,7 +68,7 @@ public static class ReelContract
         "/api/users/{id}"
     );
 
-    public static readonly RouteDefinition UserDelete = Define.Delete("/api/users/{id}");
+    public static readonly RouteDefinition UserDelete = Define.Delete("/api/users/{id}").Status(204);
 
     public static readonly RouteDefinition<FileRequest, MediaDetailResponse> MediaDetail = Define.Get<
         FileRequest,
@@ -117,5 +117,15 @@ public static class ReelContract
 
     public static readonly FileRouteDefinition<SubtitleContentRequest> SubtitlesContent = Define
         .File<SubtitleContentRequest>("/api/files/subtitles/content")
+        .QueryAuth();
+
+    public static readonly RouteDefinition<FileRequest, TrickplayMetadata> TrickplayInfo = Define.Get<
+        FileRequest,
+        TrickplayMetadata
+    >("/api/files/trickplay");
+
+    public static readonly FileRouteDefinition<TrickplaySpriteRequest> TrickplaySprite = Define
+        .File<TrickplaySpriteRequest>("/api/files/trickplay/sprite")
+        .ContentType("image/jpeg")
         .QueryAuth();
 }

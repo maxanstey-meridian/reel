@@ -263,5 +263,11 @@ public sealed class LibraryServiceTests : IDisposable
 
         public Task<IReadOnlyList<SubtitleTrack>> GetSubtitlesAsync(string relativePath, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<SubtitleTrack>>([]);
+
+        public Task SaveTrickplayAsync(string relativePath, TrickplayMetadata metadata, CancellationToken ct) =>
+            Task.CompletedTask;
+
+        public Task<TrickplayMetadata?> GetTrickplayAsync(string relativePath, CancellationToken ct) =>
+            Task.FromResult<TrickplayMetadata?>(null);
     }
 }

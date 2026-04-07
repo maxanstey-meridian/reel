@@ -499,4 +499,62 @@ public sealed class SqliteMediaStore : IMediaStore
 
         return tracks;
     }
+
+    public async Task SaveTrickplayAsync(string relativePath, TrickplayMetadata metadata, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+        using var transaction = conn.BeginTransaction();
+
+        // Ensure media row exists
+        using var mediaCmd = conn.CreateCommand();
+        mediaCmd.Transaction = transaction;
+        mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
+        mediaCmd.Parameters.AddWithValue("@path", relativePath);
+        await mediaCmd.ExecuteNonQueryAsync(ct);
+
+        using var cmd = conn.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = """
+            INSERT OR REPLACE INTO trickplay (relative_path, interval_ms, columns, rows, thumb_width, thumb_height, total_thumbs, sprite_path)
+            VALUES (@path, @intervalMs, @columns, @rows, @thumbWidth, @thumbHeight, @totalThumbs, @spritePath);
+            """;
+        cmd.Parameters.AddWithValue("@path", relativePath);
+        cmd.Parameters.AddWithValue("@intervalMs", metadata.IntervalMs);
+        cmd.Parameters.AddWithValue("@columns", metadata.Columns);
+        cmd.Parameters.AddWithValue("@rows", metadata.Rows);
+        cmd.Parameters.AddWithValue("@thumbWidth", metadata.ThumbWidth);
+        cmd.Parameters.AddWithValue("@thumbHeight", metadata.ThumbHeight);
+        cmd.Parameters.AddWithValue("@totalThumbs", metadata.TotalThumbs);
+        cmd.Parameters.AddWithValue("@spritePath", metadata.SpritePath);
+        await cmd.ExecuteNonQueryAsync(ct);
+
+        transaction.Commit();
+    }
+
+    public async Task<TrickplayMetadata?> GetTrickplayAsync(string relativePath, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT interval_ms, columns, rows, thumb_width, thumb_height, total_thumbs, sprite_path
+            FROM trickplay
+            WHERE relative_path = @path;
+            """;
+        cmd.Parameters.AddWithValue("@path", relativePath);
+
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        return new TrickplayMetadata(
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            reader.GetInt32(2),
+            reader.GetInt32(3),
+            reader.GetInt32(4),
+            reader.GetInt32(5),
+            reader.GetString(6)
+        );
+    }
 }

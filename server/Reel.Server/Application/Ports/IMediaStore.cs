@@ -28,4 +28,6 @@ public interface IMediaStore
     Task<string?> GetDisplayTitleAsync(string relativePath, CancellationToken ct);
     Task SaveSubtitlesAsync(string relativePath, IReadOnlyList<SubtitleTrack> tracks, CancellationToken ct);
     Task<IReadOnlyList<SubtitleTrack>> GetSubtitlesAsync(string relativePath, CancellationToken ct);
+    Task SaveTrickplayAsync(string relativePath, TrickplayMetadata metadata, CancellationToken ct);
+    Task<TrickplayMetadata?> GetTrickplayAsync(string relativePath, CancellationToken ct);
 }
