@@ -2,6 +2,7 @@ namespace Reel.Server.Tests;
 
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
 using Reel.Server.Infrastructure.FileSystem;
@@ -23,7 +24,7 @@ public sealed class LibraryServiceTests : IDisposable
             Port = 8080
         };
 
-        _scanner = new FileSystemScanner(config, NullLogger<FileSystemScanner>.Instance);
+        _scanner = new FileSystemScanner(config, new NullMediaStore(), NullLogger<FileSystemScanner>.Instance);
     }
 
     public void Dispose()
@@ -33,11 +34,11 @@ public sealed class LibraryServiceTests : IDisposable
     }
 
     [Fact]
-    public void SingleFile_ReturnsRootWithOneChild()
+    public async Task SingleFile_ReturnsRootWithOneChild()
     {
         File.WriteAllBytes(Path.Combine(_mediaRoot, "film.mp4"), new byte[1024]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
         root.Type.Should().Be(FileNodeType.Directory);
         root.Children.Should().HaveCount(1);
@@ -51,13 +52,13 @@ public sealed class LibraryServiceTests : IDisposable
     }
 
     [Fact]
-    public void NestedDirs_ReturnsCorrectTree()
+    public async Task NestedDirs_ReturnsCorrectTree()
     {
         var filmsDir = Path.Combine(_mediaRoot, "Films");
         Directory.CreateDirectory(filmsDir);
         File.WriteAllBytes(Path.Combine(filmsDir, "a.mp4"), new byte[512]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
         root.Children.Should().HaveCount(1);
         var dir = root.Children![0];
@@ -70,85 +71,85 @@ public sealed class LibraryServiceTests : IDisposable
     }
 
     [Fact]
-    public void EmptyDir_IsPruned()
+    public async Task EmptyDir_IsPruned()
     {
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "empty"));
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
         root.Children.Should().NotBeNull();
         root.Children.Should().BeEmpty();
     }
 
     [Fact]
-    public void Dotfile_IsExcluded()
+    public async Task Dotfile_IsExcluded()
     {
         File.WriteAllBytes(Path.Combine(_mediaRoot, ".DS_Store"), new byte[10]);
         File.WriteAllBytes(Path.Combine(_mediaRoot, "real.mp4"), new byte[10]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
         root.Children.Should().HaveCount(1);
         root.Children![0].Name.Should().Be("real.mp4");
     }
 
     [Fact]
-    public void DotDirectory_IsExcluded()
+    public async Task DotDirectory_IsExcluded()
     {
         Directory.CreateDirectory(Path.Combine(_mediaRoot, ".hidden"));
         var visibleDir = Path.Combine(_mediaRoot, "visible");
         Directory.CreateDirectory(visibleDir);
         File.WriteAllBytes(Path.Combine(visibleDir, "movie.mp4"), new byte[10]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
         root.Children.Should().HaveCount(1);
         root.Children![0].Name.Should().Be("visible");
     }
 
     [Fact]
-    public void ExtensionCasing_IsLowerCased()
+    public async Task ExtensionCasing_IsLowerCased()
     {
         File.WriteAllBytes(Path.Combine(_mediaRoot, "FILM.MKV"), new byte[10]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
         root.Children![0].Extension.Should().Be(".mkv");
     }
 
     [Fact]
-    public void AlphabeticalOrder_IsSorted()
+    public async Task AlphabeticalOrder_IsSorted()
     {
         File.WriteAllBytes(Path.Combine(_mediaRoot, "b.mp4"), new byte[10]);
         File.WriteAllBytes(Path.Combine(_mediaRoot, "a.mp4"), new byte[10]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
         root.Children![0].Name.Should().Be("a.mp4");
         root.Children![1].Name.Should().Be("b.mp4");
     }
 
     [Fact]
-    public void RootRelativePath_IsEmptyString()
+    public async Task RootRelativePath_IsEmptyString()
     {
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
         root.RelativePath.Should().BeEmpty();
     }
 
     [Fact]
-    public void NestedRelativePath_UsesForwardSlash()
+    public async Task NestedRelativePath_UsesForwardSlash()
     {
         var filmsDir = Path.Combine(_mediaRoot, "Films");
         Directory.CreateDirectory(filmsDir);
         File.WriteAllBytes(Path.Combine(filmsDir, "a.mp4"), new byte[10]);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
         var file = root.Children![0].Children![0];
 
         file.RelativePath.Should().Be("Films/a.mp4");
     }
 
     [Fact]
-    public void Symlinks_AreExcluded()
+    public async Task Symlinks_AreExcluded()
     {
         // Real file and directory (directory needs content to avoid pruning)
         File.WriteAllBytes(Path.Combine(_mediaRoot, "real.mp4"), new byte[10]);
@@ -160,7 +161,7 @@ public sealed class LibraryServiceTests : IDisposable
         File.CreateSymbolicLink(Path.Combine(_mediaRoot, "link.mp4"), Path.Combine(_mediaRoot, "real.mp4"));
         Directory.CreateSymbolicLink(Path.Combine(_mediaRoot, "LinkDir"), realDir);
 
-        var root = _scanner.BuildTree();
+        var root = await _scanner.BuildTreeAsync(CancellationToken.None);
         var names = root.Children!.Select(c => c.Name).ToList();
 
         names.Should().Contain("real.mp4");
@@ -170,7 +171,7 @@ public sealed class LibraryServiceTests : IDisposable
     }
 
     [Fact]
-    public void PermissionDeniedDir_IsPruned()
+    public async Task PermissionDeniedDir_IsPruned()
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
             return; // chmod semantics only reliable on Unix
@@ -184,7 +185,7 @@ public sealed class LibraryServiceTests : IDisposable
 
         try
         {
-            var root = _scanner.BuildTree();
+            var root = await _scanner.BuildTreeAsync(CancellationToken.None);
 
             // Restricted dir has no accessible children, so it gets pruned
             root.Children.Should().NotBeNull();
@@ -195,5 +196,14 @@ public sealed class LibraryServiceTests : IDisposable
             // Restore permissions so Dispose() cleanup can delete
             File.SetUnixFileMode(restrictedDir, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         }
+    }
+
+    private sealed class NullMediaStore : IMediaStore
+    {
+        public Task UpsertFromScanAsync(string relativePath, string? parsedTitle, int? year, CancellationToken ct)
+            => Task.CompletedTask;
+
+        public Task<MediaRecord?> GetAsync(string relativePath, CancellationToken ct)
+            => Task.FromResult<MediaRecord?>(null);
     }
 }

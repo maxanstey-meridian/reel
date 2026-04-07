@@ -6,7 +6,8 @@ public static class LibraryEndpoints
 {
     public static WebApplication MapLibraryEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/library", (ILibraryScanner scanner) => Results.Ok(scanner.BuildTree()));
+        app.MapGet("/api/library", async (ILibraryScanner scanner, CancellationToken ct) =>
+            Results.Ok(await scanner.BuildTreeAsync(ct)));
 
         return app;
     }

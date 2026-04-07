@@ -13,15 +13,40 @@ public sealed class FileSystemScanner : ILibraryScanner
     };
 
     private readonly string _mediaRoot;
+    private readonly IMediaStore _mediaStore;
     private readonly ILogger<FileSystemScanner> _logger;
 
-    public FileSystemScanner(ReelConfig config, ILogger<FileSystemScanner> logger)
+    public FileSystemScanner(ReelConfig config, IMediaStore mediaStore, ILogger<FileSystemScanner> logger)
     {
         _mediaRoot = config.NormalisedMediaRoot;
+        _mediaStore = mediaStore;
         _logger = logger;
     }
 
-    public FileNode BuildTree() => BuildNode(_mediaRoot, string.Empty);
+    public async Task<FileNode> BuildTreeAsync(CancellationToken ct)
+    {
+        var root = BuildNode(_mediaRoot, string.Empty);
+
+        await UpsertFileNodesAsync(root, ct);
+
+        return root;
+    }
+
+    private async Task UpsertFileNodesAsync(FileNode node, CancellationToken ct)
+    {
+        if (node.Type == FileNodeType.File)
+        {
+            await _mediaStore.UpsertFromScanAsync(node.RelativePath, node.ParsedTitle, node.Year, ct);
+        }
+
+        if (node.Children is not null)
+        {
+            foreach (var child in node.Children)
+            {
+                await UpsertFileNodesAsync(child, ct);
+            }
+        }
+    }
 
     private FileNode BuildNode(string absolutePath, string relativePath)
     {

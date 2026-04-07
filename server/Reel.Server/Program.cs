@@ -35,6 +35,7 @@ builder.Services.AddSingleton<CastService>();
 builder.Services.AddSingleton<IThumbnailGenerator, FfmpegThumbnailGenerator>();
 builder.Services.AddSingleton<IProgressStore, SqliteProgressStore>();
 builder.Services.AddSingleton<IFavouritesStore, SqliteFavouritesStore>();
+builder.Services.AddSingleton<IMediaStore, SqliteMediaStore>();
 builder.Services.AddSingleton<IFileStreamer, FileSystemStreamer>();
 builder.Services.AddSingleton<IUserStore, SqliteUserStore>();
 builder.Services.AddHttpClient();

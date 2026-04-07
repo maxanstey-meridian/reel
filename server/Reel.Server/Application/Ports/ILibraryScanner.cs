@@ -4,5 +4,5 @@ using Reel.Server.Domain;
 
 public interface ILibraryScanner
 {
-    FileNode BuildTree();
+    Task<FileNode> BuildTreeAsync(CancellationToken ct);
 }
