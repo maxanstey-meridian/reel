@@ -8,15 +8,17 @@ public static class ProgressEndpoints
 {
     public static WebApplication MapProgressEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/progress", async ([FromBody] ProgressRequest request, IProgressStore store, CancellationToken ct) =>
+        app.MapPost("/api/progress", async (HttpContext context, [FromBody] ProgressRequest request, IProgressStore store, CancellationToken ct) =>
         {
-            await store.UpdateAsync(request.RelativePath, request.PositionSeconds, request.DurationSeconds, ct);
+            var userId = (int)context.Items["UserId"]!;
+            await store.UpdateAsync(userId, request.RelativePath, request.PositionSeconds, request.DurationSeconds, ct);
             return Results.Ok();
         });
 
-        app.MapGet("/api/progress", async (IProgressStore store, CancellationToken ct) =>
+        app.MapGet("/api/progress", async (HttpContext context, IProgressStore store, CancellationToken ct) =>
         {
-            return Results.Ok(await store.GetAllAsync(ct));
+            var userId = (int)context.Items["UserId"]!;
+            return Results.Ok(await store.GetAllAsync(userId, ct));
         });
 
         return app;
