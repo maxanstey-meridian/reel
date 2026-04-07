@@ -4,6 +4,12 @@ using Reel.Server.Models;
 
 public sealed class LibraryService
 {
+    private static readonly HashSet<string> _playableExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v",
+        ".mp3", ".flac", ".aac", ".m4a", ".ogg", ".wav",
+    };
+
     private readonly string _mediaRoot;
     private readonly ILogger<LibraryService> _logger;
 
@@ -46,7 +52,9 @@ public sealed class LibraryService
                         if (childDirInfo.LinkTarget is not null)
                             continue;
 
-                        children.Add(BuildNode(entryPath, childRelative));
+                        var childNode = BuildNode(entryPath, childRelative);
+                        if (childNode.Children is { Count: > 0 } || childNode.Type == FileNodeType.File)
+                            children.Add(childNode);
                     }
                     else
                     {
@@ -55,6 +63,9 @@ public sealed class LibraryService
                             continue;
 
                         var extension = Path.GetExtension(name).ToLowerInvariant();
+                        if (!_playableExtensions.Contains(extension))
+                            continue;
+
                         var parsed = FilenameParser.Parse(name);
                         var thumbnailUrl = $"/api/files/thumbnail?path={Uri.EscapeDataString(childRelative)}";
                         children.Add(new FileNode(

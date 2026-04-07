@@ -11,7 +11,7 @@ public static class CastEndpoints
         app.MapPost("/api/cast", ([FromBody] CastRequest request, CastService castService) =>
         {
             castService.SetPlay(request.RelativePath);
-            return Results.Ok();
+            return Results.NoContent();
         });
 
         app.MapGet("/api/cast/current", (CastService castService) =>
@@ -25,13 +25,13 @@ public static class CastEndpoints
         app.MapPost("/api/cast/ack", (CastService castService) =>
         {
             castService.Acknowledge();
-            return Results.Ok();
+            return Results.NoContent();
         });
 
         app.MapPost("/api/cast/stop", (CastService castService) =>
         {
             castService.SetStop();
-            return Results.Ok();
+            return Results.NoContent();
         });
 
         return app;
