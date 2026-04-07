@@ -14,7 +14,7 @@ defineEmits<{ select: [node: FileNode] }>();
         v-for="item in items"
         :key="item.relativePath"
         :node="item"
-        @click="$emit('select', item)"
+        @select="$emit('select', item)"
       />
     </div>
   </div>

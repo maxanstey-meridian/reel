@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
 import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
@@ -29,16 +30,30 @@ const files = computed(() =>
   currentChildren.value.filter((n: FileNode) => n.type === "File"),
 );
 
+const selectedFile = ref<FileNode | null>(null);
+const detailOpen = ref(false);
+
+const openDetail = (node: FileNode) => {
+  selectedFile.value = node;
+  detailOpen.value = true;
+};
+
 const handleSelect = (node: FileNode) => {
   if (node.type === "Directory") {
     enterDirectory(node.name);
+  } else {
+    openDetail(node);
   }
 };
 
 const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
-  enterDirectory(parentDir.name);
-  if (node.type === "Directory") {
-    enterDirectory(node.name);
+  if (node.type === "File") {
+    openDetail(node);
+  } else {
+    enterDirectory(parentDir.name);
+    if (node.type === "Directory") {
+      enterDirectory(node.name);
+    }
   }
 };
 </script>
@@ -124,7 +139,7 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
             v-for="file in files"
             :key="file.relativePath"
             :node="file"
-            @click="handleSelect(file)"
+            @select="handleSelect(file)"
           />
         </div>
       </div>
@@ -138,5 +153,12 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
         <p class="text-sm">This folder is empty</p>
       </div>
     </div>
+
+    <!-- File detail drawer -->
+    <FileDetail
+      :node="selectedFile"
+      :open="detailOpen"
+      @close="detailOpen = false"
+    />
   </div>
 </template>

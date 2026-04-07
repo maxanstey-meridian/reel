@@ -4,7 +4,7 @@ import type { FileNode } from "~~/generated/rivet/types/models";
 import { parseFilename } from "~~/app/utils/parseFilename";
 
 const props = defineProps<{ node: FileNode }>();
-defineEmits<{ click: [] }>();
+defineEmits<{ select: [node: FileNode] }>();
 
 const parsed = computed(() =>
   props.node.type === "File" ? parseFilename(props.node.name) : null,
@@ -45,7 +45,7 @@ const formatSize = (bytes: number | null): string => {
 <template>
   <button
     class="w-[140px] shrink-0 flex flex-col rounded bg-neutral-900 overflow-hidden text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
-    @click="$emit('click')"
+    @click="$emit('select', node)"
   >
     <div
       class="h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500"
