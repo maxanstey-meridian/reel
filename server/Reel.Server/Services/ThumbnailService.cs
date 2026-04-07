@@ -12,7 +12,7 @@ public sealed class ThumbnailService
     private readonly ILogger<ThumbnailService> _logger;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
-    public ThumbnailService(ReelConfig config, ILogger<ThumbnailService> logger)
+    public ThumbnailService(ILogger<ThumbnailService> logger)
     {
         _logger = logger;
         _cacheDirectory = Path.Combine(Path.GetTempPath(), "reel-thumbnails");
@@ -64,7 +64,7 @@ public sealed class ThumbnailService
                 FileName = "ffprobe",
                 Arguments = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{fullPath}\"",
                 RedirectStandardOutput = true,
-                RedirectStandardError = true,
+                RedirectStandardError = false,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             });
@@ -106,7 +106,7 @@ public sealed class ThumbnailService
             {
                 FileName = "ffmpeg",
                 Arguments = $"-ss {seekArg} -i \"{fullPath}\" -vframes 1 -vf scale=320:-1 -q:v 5 -y \"{outputPath}\"",
-                RedirectStandardOutput = true,
+                RedirectStandardOutput = false,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
