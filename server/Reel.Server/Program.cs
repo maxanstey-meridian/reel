@@ -29,6 +29,7 @@ if (reelConfig.Port <= 0)
     throw new InvalidOperationException("Reel:Port must be a positive integer in appsettings.json.");
 
 builder.Services.AddSingleton(reelConfig);
+builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton<ILibraryScanner, FileSystemScanner>();
 builder.Services.AddSingleton<CastService>();
 builder.Services.AddSingleton<IThumbnailGenerator, FfmpegThumbnailGenerator>();
