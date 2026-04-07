@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, toRef } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
 import { parseFilename } from "~~/app/utils/parseFilename";
+import { useAuthImage } from "~~/app/composables/useAuthImage";
 
 const props = defineProps<{ node: FileNode }>();
 defineEmits<{ select: [node: FileNode] }>();
@@ -12,6 +13,15 @@ const parsed = computed(() =>
 
 const displayName = computed(() =>
   parsed.value ? parsed.value.title : props.node.name,
+);
+
+const thumbnailPath = computed(() => props.node.thumbnailUrl ?? null);
+const { src: thumbnailSrc, loading: thumbnailLoading, error: thumbnailError } =
+  useAuthImage(thumbnailPath);
+
+const imgFailed = ref(false);
+const showImage = computed(
+  () => thumbnailSrc.value && !imgFailed.value && !thumbnailError.value,
 );
 
 const VIDEO_EXTENSIONS = new Set([
@@ -48,9 +58,16 @@ const formatSize = (bytes: number | null): string => {
     @click="$emit('select', node)"
   >
     <div
-      class="h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500"
+      class="h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500 overflow-hidden"
     >
-      <UIcon :name="iconFor(node)" class="size-10" />
+      <img
+        v-if="showImage"
+        :src="thumbnailSrc!"
+        loading="lazy"
+        class="w-full h-full object-cover"
+        @error="imgFailed = true"
+      />
+      <UIcon v-else :name="iconFor(node)" class="size-10" />
     </div>
 
     <div class="p-2 flex flex-col gap-1 min-h-[72px]">

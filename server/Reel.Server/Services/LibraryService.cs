@@ -56,6 +56,7 @@ public sealed class LibraryService
 
                         var extension = Path.GetExtension(name).ToLowerInvariant();
                         var parsed = FilenameParser.Parse(name);
+                        var thumbnailUrl = $"/api/files/thumbnail?path={Uri.EscapeDataString(childRelative)}";
                         children.Add(new FileNode(
                             name,
                             FileNodeType.File,
@@ -64,7 +65,8 @@ public sealed class LibraryService
                             fileInfo.Length,
                             null,
                             parsed.Title,
-                            parsed.Year));
+                            parsed.Year,
+                            thumbnailUrl));
                     }
                 }
                 catch (UnauthorizedAccessException ex)
@@ -93,6 +95,7 @@ public sealed class LibraryService
             null,
             null,
             children,
+            null,
             null,
             null);
     }

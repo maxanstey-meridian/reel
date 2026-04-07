@@ -23,6 +23,9 @@ export type FileNode = {
   extension: string | null;
   sizeBytes: number | null;
   children: FileNode[] | null;
+  parsedTitle: string | null;
+  year: number | null;
+  thumbnailUrl: string | null;
 };
 
 export type CastRequest = {

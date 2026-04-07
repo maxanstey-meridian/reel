@@ -17,4 +17,5 @@ public sealed record FileNode(
     long? SizeBytes,
     IReadOnlyList<FileNode>? Children,
     string? ParsedTitle,
-    int? Year);
+    int? Year,
+    string? ThumbnailUrl);

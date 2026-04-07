@@ -54,6 +54,7 @@ app.MapLibraryEndpoints();
 app.MapStreamEndpoints();
 app.MapCastEndpoints();
 app.MapThumbnailEndpoints();
+app.MapMetadataEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
