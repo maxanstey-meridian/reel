@@ -27,4 +27,19 @@ public static class ReelContract
 
     public static readonly RouteDefinition CastStop =
         Define.Post("/api/cast/stop");
+
+    public static readonly InputRouteDefinition<ProgressRequest> ProgressUpdate =
+        Define.Post("/api/progress").Accepts<ProgressRequest>();
+
+    public static readonly RouteDefinition<WatchProgress[]> ProgressAll =
+        Define.Get<WatchProgress[]>("/api/progress");
+
+    public static readonly InputRouteDefinition<FavouriteRequest> FavouritesAdd =
+        Define.Post("/api/favourites").Accepts<FavouriteRequest>();
+
+    public static readonly RouteDefinition<Favourite[]> FavouritesAll =
+        Define.Get<Favourite[]>("/api/favourites");
+
+    public static readonly RouteDefinition FavouritesRemove =
+        Define.Delete("/api/favourites");
 }

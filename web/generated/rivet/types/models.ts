@@ -40,3 +40,25 @@ export type CastCommand = {
 export type CastStatus = {
   command: CastCommand | null;
 };
+
+export type ProgressRequest = {
+  relativePath: string;
+  positionSeconds: number;
+  durationSeconds: number;
+};
+
+export type WatchProgress = {
+  relativePath: string;
+  positionSeconds: number;
+  durationSeconds: number;
+  lastWatched: string;
+};
+
+export type FavouriteRequest = {
+  relativePath: string;
+};
+
+export type Favourite = {
+  relativePath: string;
+  addedAt: string;
+};

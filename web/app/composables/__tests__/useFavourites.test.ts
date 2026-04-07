@@ -10,20 +10,21 @@ vi.stubGlobal(
 );
 vi.stubGlobal("computed", computed);
 
-// Mock useConnection
-const mockServerUrl = ref("http://localhost:8080");
-const mockSecretKey = ref("test-key");
+// Mock Rivet client
+const mockFavouritesAll = vi.fn();
+const mockFavouritesAdd = vi.fn();
 
-vi.mock("../useConnection", () => ({
-  useConnection: () => ({
-    serverUrl: mockServerUrl,
-    secretKey: mockSecretKey,
-  }),
+vi.mock("~~/generated/rivet/client/reel", () => ({
+  favouritesAll: (...args: unknown[]) => mockFavouritesAll(...args),
+  favouritesAdd: (...args: unknown[]) => mockFavouritesAdd(...args),
 }));
 
-// Mock global fetch
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+// Mock rivetFetch for DELETE (query-param endpoint)
+const mockRivetFetch = vi.fn();
+
+vi.mock("~~/generated/rivet/rivet", () => ({
+  rivetFetch: (...args: unknown[]) => mockRivetFetch(...args),
+}));
 
 // Import after mocks
 const { useFavourites } = await import("../useFavourites");
@@ -39,31 +40,19 @@ describe("useFavourites", () => {
       { relativePath: "Films/b.mp4", addedAt: "2026-01-02T00:00:00Z" },
     ];
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(serverFavourites),
-    });
+    mockFavouritesAll.mockResolvedValue(serverFavourites);
 
     const { favourites, fetch } = useFavourites();
     await fetch();
 
     expect(favourites.value).toEqual(serverFavourites);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/favourites",
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Secret-Key": "test-key" }),
-      }),
-    );
+    expect(mockFavouritesAll).toHaveBeenCalled();
   });
 
   it("isFavourite returns correct boolean", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve([
-          { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" },
-        ]),
-    });
+    mockFavouritesAll.mockResolvedValue([
+      { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" },
+    ]);
 
     const { isFavourite, fetch } = useFavourites();
     await fetch();
@@ -73,13 +62,8 @@ describe("useFavourites", () => {
   });
 
   it("toggle adds favourite when not favourited", async () => {
-    // Start with empty favourites
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve([]),
-      })
-      .mockResolvedValueOnce({ ok: true });
+    mockFavouritesAll.mockResolvedValue([]);
+    mockFavouritesAdd.mockResolvedValue(undefined);
 
     const { favourites, toggle, fetch } = useFavourites();
     await fetch();
@@ -91,26 +75,15 @@ describe("useFavourites", () => {
     // Optimistic update should have added it
     expect(favourites.value.some((f) => f.relativePath === "Films/new.mp4")).toBe(true);
 
-    // POST was called
-    expect(mockFetch).toHaveBeenLastCalledWith(
-      "http://localhost:8080/api/favourites",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ relativePath: "Films/new.mp4" }),
-      }),
-    );
+    // POST was called via Rivet
+    expect(mockFavouritesAdd).toHaveBeenCalledWith({ relativePath: "Films/new.mp4" });
   });
 
   it("toggle removes favourite when already favourited", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve([
-            { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" },
-          ]),
-      })
-      .mockResolvedValueOnce({ ok: true });
+    mockFavouritesAll.mockResolvedValue([
+      { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" },
+    ]);
+    mockRivetFetch.mockResolvedValue(undefined);
 
     const { favourites, toggle, fetch } = useFavourites();
     await fetch();
@@ -122,10 +95,13 @@ describe("useFavourites", () => {
     // Optimistic update should have removed it
     expect(favourites.value.some((f) => f.relativePath === "Films/a.mp4")).toBe(false);
 
-    // DELETE was called with query param
-    expect(mockFetch).toHaveBeenLastCalledWith(
-      "http://localhost:8080/api/favourites?path=Films%2Fa.mp4",
-      expect.objectContaining({ method: "DELETE" }),
+    // DELETE was called via rivetFetch with query param
+    expect(mockRivetFetch).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/favourites",
+      expect.objectContaining({
+        query: { path: "Films/a.mp4" },
+      }),
     );
   });
 });

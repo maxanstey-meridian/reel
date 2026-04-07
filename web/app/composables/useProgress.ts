@@ -1,35 +1,20 @@
 import { ref } from "vue";
-import { useConnection } from "./useConnection";
+import { progressAll } from "~~/generated/rivet/client/reel";
+import type { WatchProgress } from "~~/generated/rivet/types/models";
 
-export type WatchProgress = {
-  relativePath: string;
-  positionSeconds: number;
-  durationSeconds: number;
-  lastWatched: string;
-};
+export type { WatchProgress };
 
 export const useProgress = () => {
   const entries = useState<WatchProgress[]>("reel:progress", () => []);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  const { serverUrl, secretKey } = useConnection();
-
   const fetch = async () => {
     loading.value = true;
     error.value = null;
 
     try {
-      const response = await globalThis.fetch(
-        `${serverUrl.value}/api/progress`,
-        { headers: { "X-Secret-Key": secretKey.value } },
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch progress: ${response.status}`);
-      }
-
-      entries.value = await response.json();
+      entries.value = await progressAll();
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Failed to fetch progress";
     } finally {

@@ -1,17 +1,14 @@
 import { ref } from "vue";
-import { useConnection } from "./useConnection";
+import { favouritesAll, favouritesAdd } from "~~/generated/rivet/client/reel";
+import { rivetFetch } from "~~/generated/rivet/rivet";
+import type { Favourite } from "~~/generated/rivet/types/models";
 
-export type Favourite = {
-  relativePath: string;
-  addedAt: string;
-};
+export type { Favourite };
 
 export const useFavourites = () => {
   const favourites = useState<Favourite[]>("reel:favourites", () => []);
   const loading = ref(false);
   const error = ref<string | null>(null);
-
-  const { serverUrl, secretKey } = useConnection();
 
   const favouritePaths = computed(
     () => new Set(favourites.value.map((f) => f.relativePath)),
@@ -20,27 +17,12 @@ export const useFavourites = () => {
   const isFavourite = (relativePath: string) =>
     favouritePaths.value.has(relativePath);
 
-  const authFetch = (path: string, options: RequestInit = {}) =>
-    globalThis.fetch(`${serverUrl.value}${path}`, {
-      ...options,
-      headers: {
-        "X-Secret-Key": secretKey.value,
-        ...options.headers,
-      },
-    });
-
   const fetch = async () => {
     loading.value = true;
     error.value = null;
 
     try {
-      const response = await authFetch("/api/favourites");
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch favourites: ${response.status}`);
-      }
-
-      favourites.value = await response.json();
+      favourites.value = await favouritesAll();
     } catch (e) {
       error.value =
         e instanceof Error ? e.message : "Failed to fetch favourites";
@@ -66,18 +48,11 @@ export const useFavourites = () => {
 
     try {
       if (wasFavourited) {
-        const response = await authFetch(
-          `/api/favourites?path=${encodeURIComponent(relativePath)}`,
-          { method: "DELETE" },
-        );
-        if (!response.ok) throw new Error(`DELETE failed: ${response.status}`);
-      } else {
-        const response = await authFetch("/api/favourites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ relativePath }),
+        await rivetFetch("DELETE", `/api/favourites`, {
+          query: { path: relativePath },
         });
-        if (!response.ok) throw new Error(`POST failed: ${response.status}`);
+      } else {
+        await favouritesAdd({ relativePath });
       }
     } catch (e) {
       // Revert optimistic update
