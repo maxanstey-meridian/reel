@@ -92,7 +92,7 @@ const handleCast = async () => {
           loading="lazy"
           class="rounded max-h-64 object-contain"
           alt="Movie poster"
-        />
+        >
       </div>
 
       <!-- Title -->

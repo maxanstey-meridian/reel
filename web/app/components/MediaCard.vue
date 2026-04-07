@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from "vue";
+import { computed, ref } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { useAuthImage } from "~~/app/composables/useAuthImage";
@@ -16,7 +16,7 @@ const displayName = computed(() =>
 );
 
 const thumbnailPath = computed(() => props.node.thumbnailUrl ?? null);
-const { src: thumbnailSrc, loading: thumbnailLoading, error: thumbnailError } =
+const { src: thumbnailSrc, error: thumbnailError } =
   useAuthImage(thumbnailPath);
 
 const imgFailed = ref(false);
@@ -66,7 +66,7 @@ const formatSize = (bytes: number | null): string => {
         loading="lazy"
         class="w-full h-full object-cover"
         @error="imgFailed = true"
-      />
+      >
       <UIcon v-else :name="iconFor(node)" class="size-10" />
     </div>
 
