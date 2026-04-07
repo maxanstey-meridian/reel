@@ -34,11 +34,7 @@ const parseBody = async (res: Response): Promise<unknown> => {
   if (!text) return undefined;
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("application/json")) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
+    try { return JSON.parse(text); } catch { return text; }
   }
   return text;
 };
@@ -67,11 +63,7 @@ export const rivetFetch = async <T>(
     res = await f(url.toString(), {
       method,
       headers,
-      body: options?.body
-        ? isFormData
-          ? (options.body as BodyInit)
-          : JSON.stringify(options.body)
-        : undefined,
+      body: options?.body ? (isFormData ? options.body as BodyInit : JSON.stringify(options.body)) : undefined,
     });
   } catch (err) {
     const error = new RivetError(method, path, 0, undefined, undefined, { cause: err });

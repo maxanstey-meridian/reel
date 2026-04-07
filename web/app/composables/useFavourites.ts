@@ -1,14 +1,6 @@
 import { ref } from "vue";
-import { favouritesAll, favouritesAdd } from "~~/generated/rivet/client/reel";
-// eslint-disable-next-line no-restricted-imports
-import { rivetFetch } from "~~/generated/rivet/rivet";
+import { favouritesAll, favouritesAdd, favouritesRemove } from "~~/generated/rivet/client/reel";
 import type { Favourite } from "~~/generated/rivet/types/models";
-
-// Rivet's contract API doesn't model query params on DELETE, so the generated
-// favouritesRemove() is parameterless. This typed wrapper uses rivetFetch directly
-// (same auth/baseUrl infrastructure) to pass the path query param.
-const removeFavourite = (path: string): Promise<void> =>
-  rivetFetch("DELETE", `/api/favourites`, { query: { path } });
 
 export type { Favourite };
 
@@ -46,7 +38,7 @@ export const useFavourites = () => {
 
     try {
       if (wasFavourited) {
-        await removeFavourite(relativePath);
+        await favouritesRemove(relativePath);
       } else {
         await favouritesAdd({ relativePath });
       }

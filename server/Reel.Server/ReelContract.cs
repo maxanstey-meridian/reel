@@ -40,6 +40,6 @@ public static class ReelContract
     public static readonly RouteDefinition<Favourite[]> FavouritesAll =
         Define.Get<Favourite[]>("/api/favourites");
 
-    public static readonly RouteDefinition FavouritesRemove =
-        Define.Delete("/api/favourites");
+    public static readonly InputRouteDefinition<FavouriteRemoveRequest> FavouritesRemove =
+        Define.Delete("/api/favourites").Accepts<FavouriteRemoveRequest>();
 }
