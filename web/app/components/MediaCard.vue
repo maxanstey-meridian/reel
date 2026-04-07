@@ -71,7 +71,7 @@ const formatSize = (bytes: number | null): string => {
     >
       <img
         v-if="showImage"
-        :src="thumbnailSrc!"
+        :src="thumbnailSrc ?? ''"
         loading="lazy"
         class="w-full h-full object-cover"
         @error="imgFailed = true"

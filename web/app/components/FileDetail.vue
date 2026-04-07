@@ -39,7 +39,7 @@ const fetchMetadata = async (node: FileNode) => {
       headers: { "X-Secret-Key": secretKey.value },
     });
     if (response.ok) {
-      metadata.value = await response.json();
+      metadata.value = (await response.json()) as MetadataResponse;
     }
   } catch {
     // Metadata is optional — silently ignore
