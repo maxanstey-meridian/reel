@@ -26,6 +26,8 @@ builder.Services.AddSingleton(reelConfig);
 builder.Services.AddSingleton<LibraryService>();
 builder.Services.AddSingleton<CastService>();
 builder.Services.AddSingleton<ThumbnailService>();
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<TmdbService>();
 builder.Services.AddCors();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
