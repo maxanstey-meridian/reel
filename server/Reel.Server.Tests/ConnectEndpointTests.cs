@@ -57,8 +57,7 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
     {
         var client = _factory.CreateClient();
 
-        var response = await client.PostAsync("/api/connect",
-            new StringContent("", Encoding.UTF8, "application/json"));
+        var response = await client.PostAsync("/api/connect", new StringContent("", Encoding.UTF8, "application/json"));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -73,7 +72,5 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
         response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
-    private sealed record ConnectResponseDto(
-        string Status,
-        string? ServerName);
+    private sealed record ConnectResponseDto(string Status, string? ServerName);
 }

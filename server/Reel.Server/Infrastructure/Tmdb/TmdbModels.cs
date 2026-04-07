@@ -10,9 +10,7 @@ internal sealed record TmdbResult(
     string? ReleaseDate
 );
 
-internal sealed record TmdbSearchResponse(
-    [property: JsonPropertyName("results")] List<TmdbSearchResult> Results
-);
+internal sealed record TmdbSearchResponse([property: JsonPropertyName("results")] List<TmdbSearchResult> Results);
 
 internal sealed record TmdbSearchResult(
     [property: JsonPropertyName("id")] int Id,

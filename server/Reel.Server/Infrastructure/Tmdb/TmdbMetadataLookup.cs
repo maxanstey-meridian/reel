@@ -33,7 +33,8 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
     public TmdbMetadataLookup(
         ReelConfig config,
         ILogger<TmdbMetadataLookup> logger,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory
+    )
     {
         _config = config;
         _logger = logger;
@@ -148,8 +149,7 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
                 return null;
             }
 
-            var retryAfter = response.Headers.RetryAfter?.Delta
-                ?? TimeSpan.FromSeconds(2);
+            var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(2);
 
             _logger.LogWarning("TMDB rate limit hit, retrying after {Delay}", retryAfter);
             await Task.Delay(retryAfter, ct);

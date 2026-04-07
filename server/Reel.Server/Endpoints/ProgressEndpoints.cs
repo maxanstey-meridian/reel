@@ -8,18 +8,44 @@ public static class ProgressEndpoints
 {
     public static WebApplication MapProgressEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/progress", async (HttpContext context, [FromBody] ProgressRequest request, IProgressStore store, CancellationToken ct) =>
-        {
-            var userId = (int)context.Items["UserId"]!;
-            await store.UpdateAsync(userId, request.RelativePath, request.PositionSeconds, request.DurationSeconds, ct);
-            return Results.Ok();
-        });
+        app.MapPost(
+            ReelContract.ProgressUpdate.Route,
+            async (
+                HttpContext context,
+                [FromBody] ProgressRequest request,
+                IProgressStore store,
+                CancellationToken ct
+            ) =>
+                (
+                    await ReelContract.ProgressUpdate.Invoke(
+                        request,
+                        async req =>
+                        {
+                            var userId = (int)context.Items["UserId"]!;
+                            await store.UpdateAsync(
+                                userId,
+                                req.RelativePath,
+                                req.PositionSeconds,
+                                req.DurationSeconds,
+                                ct
+                            );
+                        }
+                    )
+                ).ToResult()
+        );
 
-        app.MapGet("/api/progress", async (HttpContext context, IProgressStore store, CancellationToken ct) =>
-        {
-            var userId = (int)context.Items["UserId"]!;
-            return Results.Ok(await store.GetAllAsync(userId, ct));
-        });
+        app.MapGet(
+            ReelContract.ProgressAll.Route,
+            async (HttpContext context, IProgressStore store, CancellationToken ct) =>
+                (
+                    await ReelContract.ProgressAll.Invoke(async () =>
+                    {
+                        var userId = (int)context.Items["UserId"]!;
+                        var progress = await store.GetAllAsync(userId, ct);
+                        return progress.ToArray();
+                    })
+                ).ToResult()
+        );
 
         return app;
     }

@@ -135,7 +135,7 @@ public sealed class UserEndpointTests : IClassFixture<WebApplicationFactory<Prog
 
         var patchRequest = new HttpRequestMessage(HttpMethod.Patch, $"/api/users/{created!.Id}")
         {
-            Content = JsonContent.Create(new { name = "AfterPatch", icon = "new.png" })
+            Content = JsonContent.Create(new { name = "AfterPatch", icon = "new.png" }),
         };
         var response = await client.SendAsync(patchRequest);
 
@@ -153,7 +153,7 @@ public sealed class UserEndpointTests : IClassFixture<WebApplicationFactory<Prog
 
         var patchRequest = new HttpRequestMessage(HttpMethod.Patch, "/api/users/999")
         {
-            Content = JsonContent.Create(new { name = "Whatever" })
+            Content = JsonContent.Create(new { name = "Whatever" }),
         };
         var response = await client.SendAsync(patchRequest);
 
@@ -210,7 +210,7 @@ public sealed class UserEndpointTests : IClassFixture<WebApplicationFactory<Prog
             "GET" => await client.GetAsync(path),
             "POST" => await client.PostAsync(path, null),
             "DELETE" => await client.DeleteAsync(path),
-            _ => throw new ArgumentException($"Unknown method: {method}")
+            _ => throw new ArgumentException($"Unknown method: {method}"),
         };
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

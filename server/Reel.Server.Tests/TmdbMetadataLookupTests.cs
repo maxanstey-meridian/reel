@@ -102,10 +102,7 @@ public sealed class TmdbMetadataLookupTests
         handler.CallCount.Should().Be(0);
     }
 
-    private static TmdbMetadataLookup CreateLookup(
-        string? tmdbApiKey,
-        HttpMessageHandler handler,
-        string cacheDir)
+    private static TmdbMetadataLookup CreateLookup(string? tmdbApiKey, HttpMessageHandler handler, string cacheDir)
     {
         var config = new ReelConfig
         {
@@ -120,8 +117,10 @@ public sealed class TmdbMetadataLookupTests
         var lookup = new TmdbMetadataLookup(config, NullLogger<TmdbMetadataLookup>.Instance, factory);
 
         // Override cache directory via reflection to use isolated temp dir
-        var field = typeof(TmdbMetadataLookup).GetField("_cacheDirectory",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var field = typeof(TmdbMetadataLookup).GetField(
+            "_cacheDirectory",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+        )!;
         field.SetValue(lookup, cacheDir);
 
         return lookup;
@@ -147,7 +146,8 @@ public sealed class TmdbMetadataLookupTests
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             Interlocked.Increment(ref _callCount);
             var response = new HttpResponseMessage(HttpStatusCode.OK)

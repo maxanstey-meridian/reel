@@ -74,8 +74,7 @@ public sealed class ServerIntegrationTests : IClassFixture<WebApplicationFactory
             _ = factory.Services;
         };
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*MediaRoot*required*");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*MediaRoot*required*");
     }
 
     [Fact]
@@ -93,7 +92,6 @@ public sealed class ServerIntegrationTests : IClassFixture<WebApplicationFactory
             _ = factory.Services;
         };
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*SecretKey*required*");
+        act.Should().Throw<InvalidOperationException>().WithMessage("*SecretKey*required*");
     }
 }

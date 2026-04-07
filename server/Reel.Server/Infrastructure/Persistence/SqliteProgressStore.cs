@@ -12,7 +12,13 @@ public sealed class SqliteProgressStore : IProgressStore
         _db = db;
     }
 
-    public async Task UpdateAsync(int userId, string relativePath, double positionSeconds, double durationSeconds, CancellationToken ct)
+    public async Task UpdateAsync(
+        int userId,
+        string relativePath,
+        double positionSeconds,
+        double durationSeconds,
+        CancellationToken ct
+    )
     {
         using var conn = _db.GetConnection();
 

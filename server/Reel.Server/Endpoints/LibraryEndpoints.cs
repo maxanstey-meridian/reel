@@ -10,19 +10,25 @@ public static class LibraryEndpoints
         app.MapGet(
             ReelContract.Library.Route,
             async (HttpContext context, ILibraryScanner scanner, IMediaStore mediaStore, CancellationToken ct) =>
-                (await ReelContract.Library.Invoke(async () =>
-                {
-                    var userId = (int)context.Items["UserId"]!;
-                    var tree = await scanner.BuildTreeAsync(ct);
-                    return await EnrichWithWatchedAsync(tree, userId, mediaStore, ct);
-                })).ToResult()
+                (
+                    await ReelContract.Library.Invoke(async () =>
+                    {
+                        var userId = (int)context.Items["UserId"]!;
+                        var tree = await scanner.BuildTreeAsync(ct);
+                        return await EnrichWithWatchedAsync(tree, userId, mediaStore, ct);
+                    })
+                ).ToResult()
         );
 
         return app;
     }
 
     private static async Task<FileNode> EnrichWithWatchedAsync(
-        FileNode node, int userId, IMediaStore mediaStore, CancellationToken ct)
+        FileNode node,
+        int userId,
+        IMediaStore mediaStore,
+        CancellationToken ct
+    )
     {
         if (node.Type == FileNodeType.File)
         {
@@ -39,6 +45,9 @@ public static class LibraryEndpoints
             enrichedChildren.Add(await EnrichWithWatchedAsync(child, userId, mediaStore, ct));
         }
 
-        return node with { Children = enrichedChildren };
+        return node with
+        {
+            Children = enrichedChildren,
+        };
     }
 }

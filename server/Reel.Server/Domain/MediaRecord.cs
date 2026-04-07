@@ -15,4 +15,5 @@ public sealed record MediaRecord(
     string? Overview,
     string? ReleaseDate,
     DateTime AddedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt
+);

@@ -139,6 +139,17 @@ public sealed class FileSystemScanner : ILibraryScanner
             _logger.LogWarning(ex, "I/O error enumerating {Path}", absolutePath);
         }
 
-        return new FileNode(dirInfo.Name, FileNodeType.Directory, relativePath, null, null, children, null, null, null, null);
+        return new FileNode(
+            dirInfo.Name,
+            FileNodeType.Directory,
+            relativePath,
+            null,
+            null,
+            children,
+            null,
+            null,
+            null,
+            null
+        );
     }
 }

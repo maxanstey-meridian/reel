@@ -125,7 +125,7 @@ public sealed class FavouritesEndpointTests : IClassFixture<WebApplicationFactor
         {
             "GET" => await client.GetAsync(path),
             "DELETE" => await client.DeleteAsync(path),
-            _ => await client.PostAsync(path, null)
+            _ => await client.PostAsync(path, null),
         };
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

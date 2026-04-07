@@ -39,12 +39,15 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     {
         var client = CreateAuthenticatedClient();
 
-        var postResponse = await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/test.mp4",
-            positionSeconds = 120.5,
-            durationSeconds = 7200.0
-        });
+        var postResponse = await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/test.mp4",
+                positionSeconds = 120.5,
+                durationSeconds = 7200.0,
+            }
+        );
         postResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var getResponse = await client.GetAsync("/api/progress");
@@ -64,19 +67,25 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     {
         var client = CreateAuthenticatedClient();
 
-        await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/upsert.mp4",
-            positionSeconds = 60.0,
-            durationSeconds = 3600.0
-        });
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/upsert.mp4",
+                positionSeconds = 60.0,
+                durationSeconds = 3600.0,
+            }
+        );
 
-        await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/upsert.mp4",
-            positionSeconds = 300.0,
-            durationSeconds = 3600.0
-        });
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/upsert.mp4",
+                positionSeconds = 300.0,
+                durationSeconds = 3600.0,
+            }
+        );
 
         var response = await client.GetAsync("/api/progress");
         var entries = await response.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
@@ -89,22 +98,28 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     {
         var client = CreateAuthenticatedClient();
 
-        await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/older.mp4",
-            positionSeconds = 10.0,
-            durationSeconds = 100.0
-        });
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/older.mp4",
+                positionSeconds = 10.0,
+                durationSeconds = 100.0,
+            }
+        );
 
         // Small delay so timestamps differ
         await Task.Delay(50);
 
-        await client.PostAsJsonAsync("/api/progress", new
-        {
-            relativePath = "Films/newer.mp4",
-            positionSeconds = 20.0,
-            durationSeconds = 200.0
-        });
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/newer.mp4",
+                positionSeconds = 20.0,
+                durationSeconds = 200.0,
+            }
+        );
 
         var response = await client.GetAsync("/api/progress");
         var entries = await response.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
@@ -122,9 +137,7 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     {
         var client = _factory.CreateClient();
 
-        var response = method == "GET"
-            ? await client.GetAsync(path)
-            : await client.PostAsync(path, null);
+        var response = method == "GET" ? await client.GetAsync(path) : await client.PostAsync(path, null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

@@ -26,9 +26,11 @@ public sealed class SecretKeyMiddleware
         }
 
         // Allow auth via query param for media players and <img src> that can't set headers
-        if (!context.Request.Headers.ContainsKey("X-Secret-Key")
+        if (
+            !context.Request.Headers.ContainsKey("X-Secret-Key")
             && context.Request.Query.TryGetValue("token", out var tokenValue)
-            && tokenValue.Count > 0)
+            && tokenValue.Count > 0
+        )
         {
             context.Request.Headers["X-Secret-Key"] = tokenValue[0];
         }

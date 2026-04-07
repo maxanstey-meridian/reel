@@ -9,29 +9,56 @@ public static class CastEndpoints
 {
     public static WebApplication MapCastEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/cast", ([FromBody] CastRequest request, CastService castService) =>
-        {
-            castService.SetPlay(request.RelativePath);
-            return Results.NoContent();
-        });
+        app.MapPost(
+            ReelContract.Cast.Route,
+            async ([FromBody] CastRequest request, CastService castService) =>
+                (
+                    await ReelContract.Cast.Invoke(
+                        request,
+                        req =>
+                        {
+                            castService.SetPlay(req.RelativePath);
+                            return Task.CompletedTask;
+                        }
+                    )
+                ).ToResult()
+        );
 
-        app.MapGet("/api/cast/current", (CastService castService) =>
-        {
-            var command = castService.GetPending();
-            return Results.Ok(new CastStatus(command));
-        });
+        app.MapGet(
+            ReelContract.CastCurrent.Route,
+            async (CastService castService) =>
+                (
+                    await ReelContract.CastCurrent.Invoke(() =>
+                    {
+                        var command = castService.GetPending();
+                        return Task.FromResult(new CastStatus(command));
+                    })
+                ).ToResult()
+        );
 
-        app.MapPost("/api/cast/ack", (CastService castService) =>
-        {
-            castService.Acknowledge();
-            return Results.NoContent();
-        });
+        app.MapPost(
+            ReelContract.CastAck.Route,
+            async (CastService castService) =>
+                (
+                    await ReelContract.CastAck.Invoke(() =>
+                    {
+                        castService.Acknowledge();
+                        return Task.CompletedTask;
+                    })
+                ).ToResult()
+        );
 
-        app.MapPost("/api/cast/stop", (CastService castService) =>
-        {
-            castService.SetStop();
-            return Results.NoContent();
-        });
+        app.MapPost(
+            ReelContract.CastStop.Route,
+            async (CastService castService) =>
+                (
+                    await ReelContract.CastStop.Invoke(() =>
+                    {
+                        castService.SetStop();
+                        return Task.CompletedTask;
+                    })
+                ).ToResult()
+        );
 
         return app;
     }

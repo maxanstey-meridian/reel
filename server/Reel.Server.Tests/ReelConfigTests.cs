@@ -12,7 +12,7 @@ public sealed class ReelConfigTests
         {
             MediaRoot = "/Users/test/Media",
             SecretKey = "REEL-TEST",
-            Port = 8080
+            Port = 8080,
         };
 
         config.NormalisedMediaRoot.Should().EndWith(Path.DirectorySeparatorChar.ToString());
@@ -26,7 +26,7 @@ public sealed class ReelConfigTests
         {
             MediaRoot = "/Users/test/Media/",
             SecretKey = "REEL-TEST",
-            Port = 8080
+            Port = 8080,
         };
 
         config.NormalisedMediaRoot.Should().Be("/Users/test/Media/");
@@ -39,7 +39,7 @@ public sealed class ReelConfigTests
         {
             MediaRoot = "/tmp/media",
             SecretKey = "REEL-ABC",
-            Port = 9090
+            Port = 9090,
         };
 
         config.MediaRoot.Should().Be("/tmp/media");

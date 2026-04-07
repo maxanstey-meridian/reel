@@ -60,10 +60,12 @@ public sealed class SqliteFavouritesStore : IFavouritesStore
         var results = new List<Favourite>();
         while (await reader.ReadAsync(ct))
         {
-            results.Add(new Favourite(
-                reader.GetString(0),
-                DateTime.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind)
-            ));
+            results.Add(
+                new Favourite(
+                    reader.GetString(0),
+                    DateTime.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind)
+                )
+            );
         }
 
         return results;

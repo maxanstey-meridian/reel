@@ -23,7 +23,7 @@ public sealed class FileSystemScannerMediaTests : IDisposable
         {
             MediaRoot = _mediaRoot,
             SecretKey = "test",
-            Port = 8080
+            Port = 8080,
         };
 
         _db = new DatabaseService(config, NullLogger<DatabaseService>.Instance);

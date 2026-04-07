@@ -117,10 +117,6 @@ public sealed class SqliteUserStore : IUserStore
 
     private static User ReadUser(Microsoft.Data.Sqlite.SqliteDataReader reader)
     {
-        return new User(
-            reader.GetInt32(0),
-            reader.GetString(1),
-            reader.IsDBNull(2) ? null : reader.GetString(2)
-        );
+        return new User(reader.GetInt32(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2));
     }
 }

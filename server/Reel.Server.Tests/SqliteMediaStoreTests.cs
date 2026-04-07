@@ -20,7 +20,7 @@ public sealed class SqliteMediaStoreTests : IDisposable
         {
             MediaRoot = _tempMediaRoot,
             SecretKey = "test",
-            Port = 8080
+            Port = 8080,
         };
 
         _db = new DatabaseService(config, NullLogger<DatabaseService>.Instance);

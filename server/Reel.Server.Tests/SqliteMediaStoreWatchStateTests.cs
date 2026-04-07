@@ -20,7 +20,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
         {
             MediaRoot = _tempMediaRoot,
             SecretKey = "test",
-            Port = 8080
+            Port = 8080,
         };
 
         _db = new DatabaseService(config, NullLogger<DatabaseService>.Instance);
@@ -119,7 +119,9 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
         await _store.SetWatchStateAsync(1, "Films/test.mp4", "unwatched", CancellationToken.None);
 
         // Verify override is active
-        (await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None)).Should().BeFalse();
+        (await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None))
+            .Should()
+            .BeFalse();
 
         // Clear override
         await _store.SetWatchStateAsync(1, "Films/test.mp4", null, CancellationToken.None);
@@ -167,7 +169,9 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
         await _store.SetWatchStateAsync(1, "Films/test.mp4", "watched", CancellationToken.None);
 
         // User 1 has override, user 2 does not
-        (await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None)).Should().BeTrue();
+        (await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None))
+            .Should()
+            .BeTrue();
         (await _store.IsWatchedAsync(2, "Films/test.mp4", CancellationToken.None)).Should().BeNull();
     }
 

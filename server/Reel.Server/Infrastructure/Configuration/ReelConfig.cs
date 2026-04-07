@@ -8,7 +8,5 @@ public sealed record ReelConfig
     public string? TmdbApiKey { get; init; }
 
     public string NormalisedMediaRoot =>
-        MediaRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? MediaRoot
-            : MediaRoot + Path.DirectorySeparatorChar;
+        MediaRoot.EndsWith(Path.DirectorySeparatorChar) ? MediaRoot : MediaRoot + Path.DirectorySeparatorChar;
 }

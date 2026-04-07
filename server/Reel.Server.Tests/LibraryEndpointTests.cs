@@ -88,7 +88,8 @@ public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<P
         using var doc = JsonDocument.Parse(json);
 
         var children = doc.RootElement.GetProperty("children");
-        var matrixNode = children.EnumerateArray()
+        var matrixNode = children
+            .EnumerateArray()
             .First(c => c.GetProperty("name").GetString() == "The.Matrix.1999.1080p.BluRay.x264.mkv");
 
         matrixNode.GetProperty("parsedTitle").GetString().Should().Be("The Matrix");

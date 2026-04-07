@@ -17,7 +17,10 @@ public sealed class MetadataEndpointTests : IClassFixture<WebApplicationFactory<
 
         var filmsDir = Path.Combine(_mediaRoot, "Films");
         Directory.CreateDirectory(filmsDir);
-        File.WriteAllBytes(Path.Combine(filmsDir, "The.Matrix.1999.1080p.BluRay.x264.mkv"), "not-a-real-video"u8.ToArray());
+        File.WriteAllBytes(
+            Path.Combine(filmsDir, "The.Matrix.1999.1080p.BluRay.x264.mkv"),
+            "not-a-real-video"u8.ToArray()
+        );
 
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -96,8 +99,7 @@ public sealed class MetadataEndpointTests : IClassFixture<WebApplicationFactory<
         // No TmdbApiKey configured → TmdbService returns null → 404
         using var client = CreateAuthenticatedClient();
 
-        var response = await client.GetAsync(
-            "/api/files/metadata?path=Films/The.Matrix.1999.1080p.BluRay.x264.mkv");
+        var response = await client.GetAsync("/api/files/metadata?path=Films/The.Matrix.1999.1080p.BluRay.x264.mkv");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -107,8 +109,7 @@ public sealed class MetadataEndpointTests : IClassFixture<WebApplicationFactory<
     {
         var client = _factory.CreateClient();
 
-        var response = await client.GetAsync(
-            "/api/files/metadata?path=Films/The.Matrix.1999.1080p.BluRay.x264.mkv");
+        var response = await client.GetAsync("/api/files/metadata?path=Films/The.Matrix.1999.1080p.BluRay.x264.mkv");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }

@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,13 +14,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
@@ -105,7 +114,34 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
         onBack()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    val focusRequester = remember { FocusRequester() }
+    val seekStepMs = 10_000L
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .focusRequester(focusRequester)
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionCenter, Key.MediaPlayPause -> {
+                        if (player.isPlaying) player.pause() else player.play()
+                        true
+                    }
+                    Key.DirectionRight, Key.MediaFastForward -> {
+                        player.seekTo(player.currentPosition + seekStepMs)
+                        true
+                    }
+                    Key.DirectionLeft, Key.MediaRewind -> {
+                        player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .focusable()
+    ) {
         val error = playerError
         if (error != null) {
             PlayerErrorView(
@@ -119,6 +155,10 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
     }
 }
 

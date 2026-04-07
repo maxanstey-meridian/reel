@@ -23,7 +23,7 @@ public sealed class DatabaseServiceTests : IDisposable
         {
             MediaRoot = _tempMediaRoot,
             SecretKey = "test",
-            Port = 8080
+            Port = 8080,
         };
     }
 
@@ -50,10 +50,18 @@ public sealed class DatabaseServiceTests : IDisposable
         using var conn = svc.GetConnection();
         var tables = GetTableNames(conn);
 
-        tables.Should().BeEquivalentTo([
-            "users", "media", "tags", "progress",
-            "watch_state", "favourites", "subtitles", "trickplay"
-        ]);
+        tables
+            .Should()
+            .BeEquivalentTo([
+                "users",
+                "media",
+                "tags",
+                "progress",
+                "watch_state",
+                "favourites",
+                "subtitles",
+                "trickplay",
+            ]);
     }
 
     [Fact]
@@ -163,18 +171,21 @@ public sealed class DatabaseServiceTests : IDisposable
         var entries = new List<WatchProgress>
         {
             new("Films/movie.mp4", 120.5, 7200.0, new DateTime(2025, 1, 15, 10, 30, 0, DateTimeKind.Utc)),
-            new("Shows/ep1.mkv", 300.0, 2400.0, new DateTime(2025, 2, 20, 14, 0, 0, DateTimeKind.Utc))
+            new("Shows/ep1.mkv", 300.0, 2400.0, new DateTime(2025, 2, 20, 14, 0, 0, DateTimeKind.Utc)),
         };
         WriteJson(Path.Combine(reelDir, "progress.json"), entries);
 
         var svc = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
 
-        File.Exists(Path.Combine(reelDir, "progress.json")).Should().BeFalse("JSON file should be deleted after migration");
+        File.Exists(Path.Combine(reelDir, "progress.json"))
+            .Should()
+            .BeFalse("JSON file should be deleted after migration");
 
         using var conn = svc.GetConnection();
 
         using var progressCmd = conn.CreateCommand();
-        progressCmd.CommandText = "SELECT relative_path, position_seconds, duration_seconds, user_id FROM progress ORDER BY relative_path;";
+        progressCmd.CommandText =
+            "SELECT relative_path, position_seconds, duration_seconds, user_id FROM progress ORDER BY relative_path;";
         using var reader = progressCmd.ExecuteReader();
 
         reader.Read().Should().BeTrue();
@@ -190,7 +201,10 @@ public sealed class DatabaseServiceTests : IDisposable
 
         using var mediaCmd = conn.CreateCommand();
         mediaCmd.CommandText = "SELECT COUNT(*) FROM media;";
-        Convert.ToInt32(mediaCmd.ExecuteScalar()).Should().Be(2, "media rows should be created for each progress entry");
+        Convert
+            .ToInt32(mediaCmd.ExecuteScalar())
+            .Should()
+            .Be(2, "media rows should be created for each progress entry");
     }
 
     [Fact]
@@ -202,13 +216,15 @@ public sealed class DatabaseServiceTests : IDisposable
         var entries = new List<Favourite>
         {
             new("Films/fav1.mp4", new DateTime(2025, 3, 10, 8, 0, 0, DateTimeKind.Utc)),
-            new("Films/fav2.mkv", new DateTime(2025, 3, 11, 9, 0, 0, DateTimeKind.Utc))
+            new("Films/fav2.mkv", new DateTime(2025, 3, 11, 9, 0, 0, DateTimeKind.Utc)),
         };
         WriteJson(Path.Combine(reelDir, "favourites.json"), entries);
 
         var svc = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
 
-        File.Exists(Path.Combine(reelDir, "favourites.json")).Should().BeFalse("JSON file should be deleted after migration");
+        File.Exists(Path.Combine(reelDir, "favourites.json"))
+            .Should()
+            .BeFalse("JSON file should be deleted after migration");
 
         using var conn = svc.GetConnection();
 
@@ -232,14 +248,14 @@ public sealed class DatabaseServiceTests : IDisposable
         var reelDir = Path.Combine(_tempMediaRoot, ".reel");
         Directory.CreateDirectory(reelDir);
 
-        WriteJson(Path.Combine(reelDir, "progress.json"), new List<WatchProgress>
-        {
-            new("Films/shared.mp4", 60.0, 3600.0, DateTime.UtcNow)
-        });
-        WriteJson(Path.Combine(reelDir, "favourites.json"), new List<Favourite>
-        {
-            new("Films/shared.mp4", DateTime.UtcNow)
-        });
+        WriteJson(
+            Path.Combine(reelDir, "progress.json"),
+            new List<WatchProgress> { new("Films/shared.mp4", 60.0, 3600.0, DateTime.UtcNow) }
+        );
+        WriteJson(
+            Path.Combine(reelDir, "favourites.json"),
+            new List<Favourite> { new("Films/shared.mp4", DateTime.UtcNow) }
+        );
 
         var svc = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
 
@@ -296,10 +312,10 @@ public sealed class DatabaseServiceTests : IDisposable
         var reelDir = Path.Combine(_tempMediaRoot, ".reel");
         Directory.CreateDirectory(reelDir);
 
-        WriteJson(Path.Combine(reelDir, "progress.json"), new List<WatchProgress>
-        {
-            new("Films/test.mp4", 50.0, 1000.0, DateTime.UtcNow)
-        });
+        WriteJson(
+            Path.Combine(reelDir, "progress.json"),
+            new List<WatchProgress> { new("Films/test.mp4", 50.0, 1000.0, DateTime.UtcNow) }
+        );
 
         _ = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
         var svc2 = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
@@ -328,7 +344,7 @@ public sealed class DatabaseServiceTests : IDisposable
         var options = new JsonSerializerOptions
         {
             WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
         File.WriteAllText(path, JsonSerializer.Serialize(data, options));
     }

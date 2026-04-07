@@ -13,7 +13,7 @@ public sealed class DatabaseService
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
     public DatabaseService(ReelConfig config, ILogger<DatabaseService> logger)

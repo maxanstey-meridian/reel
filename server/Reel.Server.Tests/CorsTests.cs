@@ -31,10 +31,11 @@ public sealed class CorsTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        response.Headers.GetValues("Access-Control-Allow-Origin")
-            .Should().Contain("*");
-        response.Headers.GetValues("Access-Control-Allow-Methods")
-            .Should().Contain(m => m.Contains("POST", StringComparison.OrdinalIgnoreCase));
+        response.Headers.GetValues("Access-Control-Allow-Origin").Should().Contain("*");
+        response
+            .Headers.GetValues("Access-Control-Allow-Methods")
+            .Should()
+            .Contain(m => m.Contains("POST", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -46,7 +47,6 @@ public sealed class CorsTests : IClassFixture<WebApplicationFactory<Program>>
 
         var response = await client.PostAsync("/api/cast/ack", null);
 
-        response.Headers.GetValues("Access-Control-Allow-Origin")
-            .Should().Contain("*");
+        response.Headers.GetValues("Access-Control-Allow-Origin").Should().Contain("*");
     }
 }

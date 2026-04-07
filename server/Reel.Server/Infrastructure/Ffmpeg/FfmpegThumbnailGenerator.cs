@@ -69,15 +69,18 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
 
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = "ffprobe",
-                Arguments = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{fullPath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = false,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            });
+            using var process = Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "ffprobe",
+                    Arguments =
+                        $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{fullPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = false,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                }
+            );
 
             if (process is null)
             {
@@ -94,7 +97,10 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
                 return fallbackSeconds;
             }
 
-            if (double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration) && duration > 0)
+            if (
+                double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration)
+                && duration > 0
+            )
                 return duration * 0.1;
 
             return fallbackSeconds;
@@ -106,21 +112,29 @@ public sealed class FfmpegThumbnailGenerator : IThumbnailGenerator
         }
     }
 
-    private async Task<bool> ExtractThumbnail(string fullPath, string outputPath, double seekSeconds, CancellationToken ct)
+    private async Task<bool> ExtractThumbnail(
+        string fullPath,
+        string outputPath,
+        double seekSeconds,
+        CancellationToken ct
+    )
     {
         try
         {
             var seekArg = seekSeconds.ToString("F2", CultureInfo.InvariantCulture);
 
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = "ffmpeg",
-                Arguments = $"-ss {seekArg} -i \"{fullPath}\" -vframes 1 -vf scale=320:-1 -q:v 5 -y \"{outputPath}\"",
-                RedirectStandardOutput = false,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            });
+            using var process = Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments =
+                        $"-ss {seekArg} -i \"{fullPath}\" -vframes 1 -vf scale=320:-1 -q:v 5 -y \"{outputPath}\"",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                }
+            );
 
             if (process is null)
             {

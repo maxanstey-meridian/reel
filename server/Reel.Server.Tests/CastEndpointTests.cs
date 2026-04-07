@@ -96,9 +96,7 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         var client = _factory.CreateClient();
         // No X-Secret-Key header
 
-        var response = method == "GET"
-            ? await client.GetAsync(path)
-            : await client.PostAsync(path, null);
+        var response = method == "GET" ? await client.GetAsync(path) : await client.PostAsync(path, null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -124,5 +122,6 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
     }
 
     private sealed record CastCommandDto(string Type, string? RelativePath);
+
     private sealed record CastStatusDto(CastCommandDto? Command);
 }
