@@ -4,14 +4,17 @@ import { parseFilename } from "~~/app/utils/parseFilename";
 import { useCast } from "~~/app/composables/useCast";
 import { useConnection } from "~~/app/composables/useConnection";
 import { computed, ref, watch } from "vue";
+import { z } from "zod";
 
-interface MetadataResponse {
-  tmdbId: number;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  overview: string | null;
-  releaseDate: string | null;
-}
+const MetadataSchema = z.object({
+  tmdbId: z.number(),
+  posterUrl: z.string().nullable(),
+  backdropUrl: z.string().nullable(),
+  overview: z.string().nullable(),
+  releaseDate: z.string().nullable(),
+});
+
+type MetadataResponse = z.infer<typeof MetadataSchema>;
 
 const props = defineProps<{
   node: FileNode | null;
@@ -23,9 +26,7 @@ const emit = defineEmits<{ close: [] }>();
 const { casting, error, cast } = useCast();
 const { serverUrl, secretKey } = useConnection();
 
-const parsed = computed(() =>
-  props.node ? parseFilename(props.node.name) : null,
-);
+const parsed = computed(() => (props.node ? parseFilename(props.node.name) : null));
 
 const metadata = ref<MetadataResponse | null>(null);
 const metadataLoading = ref(false);
@@ -39,7 +40,7 @@ const fetchMetadata = async (node: FileNode) => {
       headers: { "X-Secret-Key": secretKey.value },
     });
     if (response.ok) {
-      metadata.value = (await response.json()) as MetadataResponse;
+      metadata.value = MetadataSchema.parse(await response.json());
     }
   } catch {
     // Metadata is optional — silently ignore
@@ -64,8 +65,7 @@ const formatSize = (bytes: number | null): string => {
   if (bytes === null) return "";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 };
 
@@ -82,7 +82,11 @@ const handleCast = async () => {
   <UDrawer
     :open="open"
     handle
-    @update:open="(val: boolean) => { if (!val) $emit('close') }"
+    @update:open="
+      (val: boolean) => {
+        if (!val) $emit('close');
+      }
+    "
   >
     <div v-if="node" class="p-6 space-y-4">
       <!-- Poster -->
@@ -92,7 +96,7 @@ const handleCast = async () => {
           loading="lazy"
           class="rounded max-h-64 object-contain"
           alt="Movie poster"
-        >
+        />
       </div>
 
       <!-- Title -->
@@ -107,12 +111,7 @@ const handleCast = async () => {
 
       <!-- Metadata badges -->
       <div class="flex items-center gap-2">
-        <UBadge
-          v-if="node.extension"
-          size="sm"
-          color="neutral"
-          variant="subtle"
-        >
+        <UBadge v-if="node.extension" size="sm" color="neutral" variant="subtle">
           {{ node.extension }}
         </UBadge>
         <span v-if="node.sizeBytes" class="text-sm text-neutral-500">
@@ -121,18 +120,12 @@ const handleCast = async () => {
       </div>
 
       <!-- Overview from TMDB -->
-      <p
-        v-if="metadata?.overview"
-        class="text-sm text-neutral-400 leading-relaxed"
-      >
+      <p v-if="metadata?.overview" class="text-sm text-neutral-400 leading-relaxed">
         {{ metadata.overview }}
       </p>
 
       <!-- Loading metadata -->
-      <div
-        v-if="metadataLoading"
-        class="flex items-center gap-2 text-sm text-neutral-500"
-      >
+      <div v-if="metadataLoading" class="flex items-center gap-2 text-sm text-neutral-500">
         <UIcon name="i-lucide-loader-2" class="size-4 animate-spin" />
         Loading metadata...
       </div>
@@ -143,21 +136,10 @@ const handleCast = async () => {
       </p>
 
       <!-- Error -->
-      <UAlert
-        v-if="error"
-        color="error"
-        icon="i-lucide-alert-circle"
-        :title="error"
-      />
+      <UAlert v-if="error" color="error" icon="i-lucide-alert-circle" :title="error" />
 
       <!-- Cast button -->
-      <UButton
-        block
-        size="lg"
-        icon="i-lucide-cast"
-        :loading="casting"
-        @click="handleCast"
-      >
+      <UButton block size="lg" icon="i-lucide-cast" :loading="casting" @click="handleCast">
         Cast to TV
       </UButton>
     </div>
