@@ -3,7 +3,7 @@ import { cast as rivetCast, castStop } from "~~/generated/rivet/client/reel";
 
 export const useCast = () => {
   const casting = ref(false);
-  const currentFile = ref<string | null>(null);
+  const currentFile = useState<string | null>("reel:currentFile", () => null);
   const error = ref<string | null>(null);
 
   const cast = async (relativePath: string) => {
