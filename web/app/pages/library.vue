@@ -3,9 +3,12 @@ import { ref } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
 import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
+import { useProgress } from "../composables/useProgress";
+import type { WatchProgress } from "../composables/useProgress";
 
 const { isConnected } = useConnection();
 const {
+  tree,
   currentChildren,
   breadcrumbs,
   currentPath,
@@ -15,6 +18,30 @@ const {
   navigateUp,
   refresh,
 } = useLibrary();
+
+const { entries: progressEntries, fetch: fetchProgress } = useProgress();
+fetchProgress();
+
+const findNodeByPath = (root: FileNode | null, relativePath: string): FileNode | null => {
+  if (!root) return null;
+  if (root.relativePath === relativePath) return root;
+  if (!root.children) return null;
+  for (const child of root.children) {
+    const found = findNodeByPath(child, relativePath);
+    if (found) return found;
+  }
+  return null;
+};
+
+const continueWatchingItems = computed(() => {
+  if (currentPath.value.length > 0) return [];
+  return progressEntries.value
+    .map((entry: WatchProgress) => {
+      const node = findNodeByPath(tree.value, entry.relativePath);
+      return node ? { node, progress: entry.positionSeconds / entry.durationSeconds } : null;
+    })
+    .filter((item): item is { node: FileNode; progress: number } => item !== null);
+});
 
 onMounted(() => {
   if (!isConnected.value) {
@@ -117,6 +144,20 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
 
     <!-- Content -->
     <div v-else class="space-y-6">
+      <!-- Continue Watching row -->
+      <div v-if="continueWatchingItems.length > 0" class="space-y-2">
+        <h3 class="text-sm font-medium text-neutral-400">Continue Watching</h3>
+        <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+          <MediaCard
+            v-for="item in continueWatchingItems"
+            :key="item.node.relativePath"
+            :node="item.node"
+            :progress="item.progress"
+            @select="handleSelect(item.node)"
+          />
+        </div>
+      </div>
+
       <!-- Directory rows -->
       <MediaRow
         v-for="dir in directories"

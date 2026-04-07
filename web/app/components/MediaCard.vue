@@ -3,9 +3,18 @@ import { computed, ref } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { useAuthImage } from "~~/app/composables/useAuthImage";
+import { useFavourites } from "~~/app/composables/useFavourites";
 
-const props = defineProps<{ node: FileNode }>();
+const props = defineProps<{
+  node: FileNode;
+  progress?: number;
+}>();
 defineEmits<{ select: [node: FileNode] }>();
+
+const { isFavourite, toggle } = useFavourites();
+
+const showHeart = computed(() => props.node.type === "File");
+const favourited = computed(() => isFavourite(props.node.relativePath));
 
 const parsed = computed(() =>
   props.node.type === "File" ? parseFilename(props.node.name) : null,
@@ -58,7 +67,7 @@ const formatSize = (bytes: number | null): string => {
     @click="$emit('select', node)"
   >
     <div
-      class="h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500 overflow-hidden"
+      class="relative h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500 overflow-hidden"
     >
       <img
         v-if="showImage"
@@ -68,6 +77,27 @@ const formatSize = (bytes: number | null): string => {
         @error="imgFailed = true"
       >
       <UIcon v-else :name="iconFor(node)" class="size-10" />
+
+      <!-- Progress bar -->
+      <div
+        v-if="progress != null && progress > 0"
+        class="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700"
+      >
+        <div
+          class="h-full bg-green-500"
+          :style="{ width: `${Math.min(progress * 100, 100)}%` }"
+        />
+      </div>
+
+      <!-- Favourite heart -->
+      <button
+        v-if="showHeart"
+        class="absolute top-1 right-1 p-1 rounded-full bg-black/50 transition-colors"
+        :class="favourited ? 'text-red-500' : 'text-neutral-400 hover:text-red-400'"
+        @click.stop="toggle(node.relativePath)"
+      >
+        <UIcon name="i-lucide-heart" class="size-4" />
+      </button>
     </div>
 
     <div class="p-2 flex flex-col gap-1 min-h-[72px]">
