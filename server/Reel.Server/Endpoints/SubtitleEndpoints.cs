@@ -8,6 +8,13 @@ using Reel.Server.Infrastructure.Configuration;
 
 public static class SubtitleEndpoints
 {
+    private static readonly HashSet<string> AllowedFormats = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "webvtt",
+        "srt",
+        "ass",
+        "vtt",
+    };
     public static WebApplication MapSubtitleEndpoints(this WebApplication app)
     {
         app.MapGet(
@@ -57,6 +64,9 @@ public static class SubtitleEndpoints
                 if (index is null)
                     return Results.BadRequest(new { error = "Missing required query parameter: index" });
 
+                if (format is not null && !AllowedFormats.Contains(format))
+                    return Results.BadRequest(new { error = "Unsupported subtitle format" });
+
                 var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
                 if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
                     return Results.StatusCode(403);
@@ -100,6 +110,9 @@ public static class SubtitleEndpoints
 
                 // Embedded track — extract via ffmpeg
                 var outputFormat = format ?? "webvtt";
+                if (!AllowedFormats.Contains(outputFormat))
+                    return Results.BadRequest(new { error = "Unsupported subtitle format" });
+
                 var cachedPath = await extractor.ExtractAsync(path, track.Index, outputFormat, ct);
 
                 if (cachedPath is null)

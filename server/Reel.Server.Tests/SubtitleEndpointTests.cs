@@ -217,6 +217,22 @@ public sealed class SubtitleEndpointTests : IClassFixture<WebApplicationFactory<
     }
 
     [Fact]
+    public async Task ServeContent_UnsupportedFormat_Returns400()
+    {
+        using var client = CreateAuthenticatedClient();
+
+        // Discover first to persist tracks
+        await client.GetAsync("/api/files/subtitles?path=Films/movie.mp4");
+
+        // Try an injected format string
+        var response = await client.GetAsync(
+            $"/api/files/subtitles/content?path=Films/movie.mp4&index=0&format=webvtt%20-y%20/tmp/evil&token={SecretKey}"
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task ListSubtitles_PersistsTracksToDB()
     {
         using var client = CreateAuthenticatedClient();

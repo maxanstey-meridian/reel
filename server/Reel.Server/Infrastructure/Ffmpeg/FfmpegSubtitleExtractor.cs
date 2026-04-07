@@ -59,7 +59,6 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
         finally
         {
             fileLock.Release();
-            _locks.TryRemove(lockKey, out _);
         }
     }
 
@@ -150,14 +149,17 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
                 return false;
             }
 
+            // Drain stdout and stderr concurrently to avoid deadlock
+            // when stderr exceeds the OS pipe buffer
+            var stderrTask = process.StandardError.ReadToEndAsync(ct);
             using var ms = new MemoryStream();
             await process.StandardOutput.BaseStream.CopyToAsync(ms, ct);
+            var stderr = await stderrTask;
             var outputBytes = ms.ToArray();
             await process.WaitForExitAsync(ct);
 
             if (process.ExitCode != 0)
             {
-                var stderr = await process.StandardError.ReadToEndAsync(ct);
                 _logger.LogWarning(
                     "ffmpeg subtitle extraction exited with code {ExitCode}: {Error}",
                     process.ExitCode,
