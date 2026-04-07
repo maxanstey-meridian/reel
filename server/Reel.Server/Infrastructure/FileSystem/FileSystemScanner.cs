@@ -8,7 +8,7 @@ public sealed class FileSystemScanner : ILibraryScanner
 {
     private static readonly HashSet<string> _playableExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v",
+        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts",
         ".mp3", ".flac", ".aac", ".m4a", ".ogg", ".wav",
     };
 
