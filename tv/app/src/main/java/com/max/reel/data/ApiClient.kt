@@ -1,6 +1,5 @@
 package com.max.reel.data
 
-import com.max.reel.model.FileNode
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.android.Android
@@ -29,12 +28,6 @@ sealed interface ConnectResult {
     data class Success(val serverName: String) : ConnectResult
     data object Unauthorized : ConnectResult
     data class NetworkError(val message: String) : ConnectResult
-}
-
-sealed interface LibraryResult {
-    data class Success(val root: FileNode) : LibraryResult
-    data object Unauthorized : LibraryResult
-    data class NetworkError(val message: String) : LibraryResult
 }
 
 class ApiClient(private val prefs: PreferencesManager) {
@@ -69,24 +62,6 @@ class ApiClient(private val prefs: PreferencesManager) {
             }
         } catch (e: Exception) {
             ConnectResult.NetworkError(e.message ?: "Unknown error")
-        }
-    }
-
-    suspend fun fetchLibrary(): LibraryResult {
-        return try {
-            val response = client.get("$baseUrl/api/library") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            when (response.status.value) {
-                200 -> {
-                    val root = response.body<FileNode>()
-                    LibraryResult.Success(root)
-                }
-                401 -> LibraryResult.Unauthorized
-                else -> LibraryResult.NetworkError("Unexpected status: ${response.status.value}")
-            }
-        } catch (e: Exception) {
-            LibraryResult.NetworkError(e.message ?: "Unknown error")
         }
     }
 
