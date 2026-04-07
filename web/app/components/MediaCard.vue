@@ -96,7 +96,7 @@ const formatSize = (bytes: number | null): string => {
         :class="favourited ? 'text-red-500' : 'text-neutral-400 hover:text-red-400'"
         @click.stop="toggle(node.relativePath)"
       >
-        <UIcon name="i-lucide-heart" class="size-4" />
+        <UIcon name="i-lucide-heart" class="size-4" :class="favourited ? 'fill-current' : ''" />
       </button>
     </div>
 

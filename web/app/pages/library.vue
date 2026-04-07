@@ -5,6 +5,7 @@ import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
 import type { WatchProgress } from "../composables/useProgress";
+import { findNodeByPath } from "../utils/findNodeByPath";
 
 const { isConnected } = useConnection();
 const {
@@ -20,25 +21,16 @@ const {
 } = useLibrary();
 
 const { entries: progressEntries, fetch: fetchProgress } = useProgress();
-fetchProgress();
-
-const findNodeByPath = (root: FileNode | null, relativePath: string): FileNode | null => {
-  if (!root) return null;
-  if (root.relativePath === relativePath) return root;
-  if (!root.children) return null;
-  for (const child of root.children) {
-    const found = findNodeByPath(child, relativePath);
-    if (found) return found;
-  }
-  return null;
-};
 
 const continueWatchingItems = computed(() => {
   if (currentPath.value.length > 0) return [];
   return progressEntries.value
     .map((entry: WatchProgress) => {
       const node = findNodeByPath(tree.value, entry.relativePath);
-      return node ? { node, progress: entry.positionSeconds / entry.durationSeconds } : null;
+      const progress = entry.durationSeconds > 0
+        ? entry.positionSeconds / entry.durationSeconds
+        : 0;
+      return node ? { node, progress } : null;
     })
     .filter((item): item is { node: FileNode; progress: number } => item !== null);
 });
@@ -46,7 +38,9 @@ const continueWatchingItems = computed(() => {
 onMounted(() => {
   if (!isConnected.value) {
     navigateTo("/connect", { replace: true });
+    return;
   }
+  fetchProgress();
 });
 
 const directories = computed(() =>
