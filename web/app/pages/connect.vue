@@ -1,4 +1,6 @@
 <script setup lang="ts">
+definePageMeta({ layout: "blank" });
+
 const { connect } = useConnection();
 
 const url = ref("http://localhost:8080");
@@ -22,7 +24,7 @@ const handleConnect = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
+  <div class="min-h-dvh flex items-center justify-center px-4">
     <div class="w-full max-w-sm space-y-6">
       <div class="text-center">
         <h1 class="text-3xl font-bold tracking-tight">Reel</h1>
