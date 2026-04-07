@@ -24,4 +24,5 @@ public interface IMediaStore
     Task RemoveTagAsync(int userId, string relativePath, string tag, CancellationToken ct);
     Task<IReadOnlyList<string>> GetTagsAsync(int userId, string relativePath, CancellationToken ct);
     Task<IReadOnlyList<TagCount>> GetAllTagsAsync(int userId, CancellationToken ct);
+    Task<IReadOnlyList<FileNode>> SearchAsync(int userId, SearchQuery query, CancellationToken ct);
 }

@@ -245,5 +245,11 @@ public sealed class LibraryServiceTests : IDisposable
 
         public Task<IReadOnlyList<TagCount>> GetAllTagsAsync(int userId, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<TagCount>>([]);
+
+        public Task<IReadOnlyList<FileNode>> SearchAsync(
+            int userId,
+            Application.Models.SearchQuery query,
+            CancellationToken ct
+        ) => Task.FromResult<IReadOnlyList<FileNode>>([]);
     }
 }

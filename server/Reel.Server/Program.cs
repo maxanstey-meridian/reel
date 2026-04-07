@@ -72,6 +72,7 @@ app.MapProgressEndpoints();
 app.MapFavouritesEndpoints();
 app.MapUserEndpoints();
 app.MapMediaEndpoints();
+app.MapSearchEndpoints();
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");

@@ -330,4 +330,87 @@ public sealed class SqliteMediaStore : IMediaStore
 
         return results;
     }
+
+    public async Task<IReadOnlyList<FileNode>> SearchAsync(int userId, SearchQuery query, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        var whereClauses = new List<string>();
+        var parameters = new List<(string Name, object Value)>();
+
+        if (!string.IsNullOrWhiteSpace(query.Q))
+        {
+            whereClauses.Add(
+                "(parsed_title LIKE '%' || @q || '%' COLLATE NOCASE OR display_title LIKE '%' || @q || '%' COLLATE NOCASE)"
+            );
+            parameters.Add(("@q", query.Q));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Tag))
+        {
+            whereClauses.Add(
+                "EXISTS (SELECT 1 FROM tags WHERE tags.relative_path = media.relative_path AND tags.user_id = @userId AND tags.tag = @tag)"
+            );
+            parameters.Add(("@tag", query.Tag));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Genre))
+        {
+            whereClauses.Add("genre = @genre");
+            parameters.Add(("@genre", query.Genre));
+        }
+
+        var sql = "SELECT relative_path, parsed_title, year FROM media";
+        if (whereClauses.Count > 0)
+            sql += " WHERE " + string.Join(" AND ", whereClauses);
+        sql += " ORDER BY relative_path;";
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("@userId", userId);
+        foreach (var (name, value) in parameters)
+            cmd.Parameters.AddWithValue(name, value);
+
+        var candidates = new List<(string RelativePath, string? ParsedTitle, int? Year)>();
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            candidates.Add((
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetInt32(2)
+            ));
+        }
+
+        var results = new List<FileNode>();
+        foreach (var (relativePath, parsedTitle, year) in candidates)
+        {
+            var watched = await IsWatchedAsync(userId, relativePath, ct);
+
+            if (query.Watched is not null)
+            {
+                var isWatched = watched == true;
+                if (query.Watched.Value != isWatched)
+                    continue;
+            }
+
+            var name = Path.GetFileName(relativePath);
+            var extension = Path.GetExtension(relativePath);
+
+            results.Add(new FileNode(
+                name,
+                FileNodeType.File,
+                relativePath,
+                string.IsNullOrEmpty(extension) ? null : extension,
+                SizeBytes: null,
+                Children: null,
+                parsedTitle,
+                year,
+                ThumbnailUrl: null,
+                watched
+            ));
+        }
+
+        return results;
+    }
 }

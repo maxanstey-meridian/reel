@@ -103,4 +103,6 @@ public static class ReelContract
     public static readonly RouteDefinition TagsRemove = Define.Delete("/api/media/tags").Status(204);
 
     public static readonly RouteDefinition<TagCount[]> TagsAll = Define.Get<TagCount[]>("/api/tags");
+
+    public static readonly RouteDefinition<FileNode[]> Search = Define.Get<FileNode[]>("/api/search");
 }
