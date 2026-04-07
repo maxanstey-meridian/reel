@@ -27,7 +27,7 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         var client = CreateAuthenticatedClient();
 
         var castResponse = await client.PostAsJsonAsync("/api/cast", new { relativePath = "Films/test.mp4" });
-        castResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         var currentResponse = await client.GetAsync("/api/cast/current");
         currentResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -68,7 +68,7 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         var client = CreateAuthenticatedClient();
 
         var stopResponse = await client.PostAsync("/api/cast/stop", null);
-        stopResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        stopResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         var currentResponse = await client.GetAsync("/api/cast/current");
         currentResponse.StatusCode.Should().Be(HttpStatusCode.OK);

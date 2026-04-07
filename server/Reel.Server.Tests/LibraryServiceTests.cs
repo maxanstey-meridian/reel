@@ -69,15 +69,14 @@ public sealed class LibraryServiceTests : IDisposable
     }
 
     [Fact]
-    public void EmptyDir_HasEmptyChildrenArray()
+    public void EmptyDir_IsPruned()
     {
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "empty"));
 
         var root = _service.GetTree();
-        var dir = root.Children!.Single();
 
-        dir.Children.Should().NotBeNull();
-        dir.Children.Should().BeEmpty();
+        root.Children.Should().NotBeNull();
+        root.Children.Should().BeEmpty();
     }
 
     [Fact]
@@ -96,7 +95,9 @@ public sealed class LibraryServiceTests : IDisposable
     public void DotDirectory_IsExcluded()
     {
         Directory.CreateDirectory(Path.Combine(_mediaRoot, ".hidden"));
-        Directory.CreateDirectory(Path.Combine(_mediaRoot, "visible"));
+        var visibleDir = Path.Combine(_mediaRoot, "visible");
+        Directory.CreateDirectory(visibleDir);
+        File.WriteAllBytes(Path.Combine(visibleDir, "movie.mp4"), new byte[10]);
 
         var root = _service.GetTree();
 
@@ -148,10 +149,11 @@ public sealed class LibraryServiceTests : IDisposable
     [Fact]
     public void Symlinks_AreExcluded()
     {
-        // Real file and directory
+        // Real file and directory (directory needs content to avoid pruning)
         File.WriteAllBytes(Path.Combine(_mediaRoot, "real.mp4"), new byte[10]);
         var realDir = Path.Combine(_mediaRoot, "RealDir");
         Directory.CreateDirectory(realDir);
+        File.WriteAllBytes(Path.Combine(realDir, "inside.mp4"), new byte[10]);
 
         // Symlinks to the real entries
         File.CreateSymbolicLink(Path.Combine(_mediaRoot, "link.mp4"), Path.Combine(_mediaRoot, "real.mp4"));
@@ -167,7 +169,7 @@ public sealed class LibraryServiceTests : IDisposable
     }
 
     [Fact]
-    public void PermissionDeniedDir_ReturnsEmptyDirectoryNode()
+    public void PermissionDeniedDir_IsPruned()
     {
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
             return; // chmod semantics only reliable on Unix
@@ -183,10 +185,9 @@ public sealed class LibraryServiceTests : IDisposable
         {
             var root = _service.GetTree();
 
-            var dir = root.Children!.Single(c => c.Name == "restricted");
-            dir.Type.Should().Be(FileNodeType.Directory);
-            dir.Children.Should().NotBeNull();
-            dir.Children.Should().BeEmpty();
+            // Restricted dir has no accessible children, so it gets pruned
+            root.Children.Should().NotBeNull();
+            root.Children.Should().BeEmpty();
         }
         finally
         {
