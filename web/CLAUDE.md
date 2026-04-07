@@ -13,14 +13,14 @@ Mobile-first SPA for browsing a media library and casting to a Fire TV. Nuxt 3, 
 
 ## Key files
 
-| File | Purpose |
-|---|---|
-| `generated/rivet/client/reel.ts` | Generated typed API client — **do not edit** |
+| File                              | Purpose                                                                |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `generated/rivet/client/reel.ts`  | Generated typed API client — **do not edit**                           |
 | `generated/rivet/types/models.ts` | Generated TS types (FileNode, ConnectResponse, etc.) — **do not edit** |
-| `app/plugins/1.rivet.client.ts` | Bootstraps Rivet with server URL from runtimeConfig |
-| `app/lib/api.ts` | Raw fetch wrapper — only for non-Rivet calls (e.g. file stream URLs) |
-| `nuxt.config.ts` | SPA mode, @nuxt/ui module, `serverUrl` in runtimeConfig.public |
-| `e2e/` | Playwright tests + helpers |
+| `app/plugins/1.rivet.client.ts`   | Bootstraps Rivet with server URL from runtimeConfig                    |
+| `app/lib/api.ts`                  | Raw fetch wrapper — only for non-Rivet calls (e.g. file stream URLs)   |
+| `nuxt.config.ts`                  | SPA mode, @nuxt/ui module, `serverUrl` in runtimeConfig.public         |
+| `e2e/`                            | Playwright tests + helpers                                             |
 
 ## API client
 
@@ -30,9 +30,9 @@ Mobile-first SPA for browsing a media library and casting to a Fire TV. Nuxt 3, 
 import { reel } from "~~/generated/rivet/client";
 import type { FileNode } from "~~/generated/rivet/types/models";
 
-const tree = await reel.library();           // → FileNode
+const tree = await reel.library(); // → FileNode
 const result = await reel.connect({ key }); // → ConnectResponse
-const health = await reel.health();          // → HealthResponse
+const health = await reel.health(); // → HealthResponse
 ```
 
 The stream endpoint (`/api/files/stream?path=...`) is **not** in the Rivet contract — it returns raw bytes, not JSON. Construct stream URLs manually:
@@ -79,6 +79,7 @@ pages/<feature>/
 ```
 
 Rules:
+
 - Port files contain only the type and the injection key. No logic.
 - Adapters have zero Vue/Nuxt imports. If it needs `ref`, it's not an adapter.
 - Composables never import from `adapters/` — they inject the port.
@@ -125,6 +126,7 @@ task web:e2e      # or pnpm e2e
 Config: `playwright.config.ts`. Tests in `e2e/`. Playwright auto-starts Nuxt dev server.
 
 Patterns:
+
 - `spyResponse(page, urlPattern)` — wait for an API call to complete before asserting UI state (from `e2e/utils/network.ts`)
 - `.env.test` has test credentials, loaded via Zod schema in `e2e/env.ts`
 

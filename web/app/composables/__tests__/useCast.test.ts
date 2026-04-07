@@ -4,10 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ref, computed } from "vue";
 
 // Mock Nuxt auto-imports
-vi.stubGlobal(
-  "useState",
-  <T>(_key: string, init: () => T) => ref(init()),
-);
+vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
 const mockToastAdd = vi.fn();

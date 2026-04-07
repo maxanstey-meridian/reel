@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [".nuxt/**", ".output/**", "dist/**", "generated/**"],
+  "categories": {
+    "correctness": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "curly": ["error", "all"]
+  }
+}

@@ -5,10 +5,7 @@ import { ref, computed } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/models";
 
 // Mock Nuxt auto-imports
-vi.stubGlobal(
-  "useState",
-  <T>(_key: string, init: () => T) => ref(init()),
-);
+vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("ref", ref);
 vi.stubGlobal("computed", computed);
 
@@ -130,8 +127,7 @@ describe("useLibrary", () => {
   });
 
   it("navigateUp returns to parent directory", async () => {
-    const { currentChildren, enterDirectory, navigateUp, loading } =
-      useLibrary();
+    const { currentChildren, enterDirectory, navigateUp, loading } = useLibrary();
 
     await vi.waitFor(() => {
       expect(loading.value).toBe(false);
@@ -167,9 +163,7 @@ describe("useLibrary", () => {
     expect(breadcrumbs.value).toEqual([]);
 
     enterDirectory("Films");
-    expect(breadcrumbs.value).toEqual([
-      { name: "Films", path: ["Films"] },
-    ]);
+    expect(breadcrumbs.value).toEqual([{ name: "Films", path: ["Films"] }]);
 
     enterDirectory("Sci-Fi");
     expect(breadcrumbs.value).toEqual([

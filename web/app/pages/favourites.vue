@@ -53,9 +53,7 @@ const openDetail = (node: FileNode) => {
     >
       <UIcon name="i-lucide-heart" class="size-12 mb-3" />
       <p class="text-sm font-medium">No favourites yet</p>
-      <p class="text-xs text-neutral-600 mt-1">
-        Browse your library and tap the heart icon
-      </p>
+      <p class="text-xs text-neutral-600 mt-1">Browse your library and tap the heart icon</p>
     </div>
 
     <!-- Favourites grid -->
@@ -69,10 +67,6 @@ const openDetail = (node: FileNode) => {
     </div>
 
     <!-- File detail drawer -->
-    <FileDetail
-      :node="selectedFile"
-      :open="detailOpen"
-      @close="detailOpen = false"
-    />
+    <FileDetail :node="selectedFile" :open="detailOpen" @close="detailOpen = false" />
   </div>
 </template>

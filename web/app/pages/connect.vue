@@ -31,20 +31,11 @@ const handleConnect = async () => {
         <p class="mt-2 text-neutral-400">Connect to your media server</p>
       </div>
 
-      <UAlert
-        v-if="error"
-        color="error"
-        icon="i-lucide-alert-circle"
-        :title="error"
-      />
+      <UAlert v-if="error" color="error" icon="i-lucide-alert-circle" :title="error" />
 
       <form class="space-y-4" @submit.prevent="handleConnect">
         <UFormField label="Server URL">
-          <UInput
-            v-model="url"
-            placeholder="http://192.168.1.x:8080"
-            icon="i-lucide-server"
-          />
+          <UInput v-model="url" placeholder="http://192.168.1.x:8080" icon="i-lucide-server" />
         </UFormField>
 
         <UFormField label="Secret Key">
@@ -56,14 +47,7 @@ const handleConnect = async () => {
           />
         </UFormField>
 
-        <UButton
-          type="submit"
-          block
-          :loading="loading"
-          :disabled="!url || !key"
-        >
-          Connect
-        </UButton>
+        <UButton type="submit" block :loading="loading" :disabled="!url || !key"> Connect </UButton>
       </form>
     </div>
   </div>

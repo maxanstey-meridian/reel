@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useConnection } from "../composables/useConnection";
-import { useCast } from "../composables/useCast";
 import { parseFilename } from "~~/app/utils/parseFilename";
+import { useCast } from "../composables/useCast";
+import { useConnection } from "../composables/useConnection";
 
 const { isConnected } = useConnection();
 const { currentFile, stop, error } = useCast();
@@ -14,12 +14,16 @@ onMounted(() => {
 });
 
 const filename = computed(() => {
-  if (!currentFile.value) return null;
+  if (!currentFile.value) {
+    return null;
+  }
   return currentFile.value.split("/").pop() ?? currentFile.value;
 });
 
 const parsed = computed(() => {
-  if (!filename.value) return null;
+  if (!filename.value) {
+    return null;
+  }
   return parseFilename(filename.value);
 });
 
@@ -52,13 +56,7 @@ const parsed = computed(() => {
         class="mt-6 w-full"
       />
 
-      <UButton
-        color="error"
-        size="lg"
-        icon="i-lucide-square"
-        class="mt-8 w-full"
-        @click="stop()"
-      >
+      <UButton color="error" size="lg" icon="i-lucide-square" class="mt-8 w-full" @click="stop()">
         Stop Casting
       </UButton>
     </template>
@@ -68,9 +66,7 @@ const parsed = computed(() => {
       <UIcon name="i-lucide-cast" class="size-16 text-neutral-700 mb-6" />
 
       <h1 class="text-xl font-semibold">Nothing playing</h1>
-      <p class="text-sm text-neutral-500 mt-2 text-center">
-        Browse your library to cast something
-      </p>
+      <p class="text-sm text-neutral-500 mt-2 text-center">Browse your library to cast something</p>
 
       <UButton
         variant="outline"

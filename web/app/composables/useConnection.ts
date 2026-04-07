@@ -1,5 +1,5 @@
-import { configureRivet } from "~~/generated/rivet/rivet";
 import { connect as rivetConnect } from "~~/generated/rivet/client/reel";
+import { configureRivet } from "~~/generated/rivet/rivet";
 
 const STORAGE_KEY_URL = "reel:serverUrl";
 const STORAGE_KEY_SECRET = "reel:secretKey";

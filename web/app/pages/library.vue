@@ -23,13 +23,14 @@ const {
 const { entries: progressEntries, fetch: fetchProgress } = useProgress();
 
 const continueWatchingItems = computed(() => {
-  if (currentPath.value.length > 0) return [];
+  if (currentPath.value.length > 0) {
+    return [];
+  }
   return progressEntries.value
     .map((entry: WatchProgress) => {
       const node = findNodeByPath(tree.value, entry.relativePath);
-      const progress = entry.durationSeconds > 0
-        ? entry.positionSeconds / entry.durationSeconds
-        : 0;
+      const progress =
+        entry.durationSeconds > 0 ? entry.positionSeconds / entry.durationSeconds : 0;
       return node ? { node, progress } : null;
     })
     .filter((item): item is { node: FileNode; progress: number } => item !== null);
@@ -47,9 +48,7 @@ const directories = computed(() =>
   currentChildren.value.filter((n: FileNode) => n.type === "Directory"),
 );
 
-const files = computed(() =>
-  currentChildren.value.filter((n: FileNode) => n.type === "File"),
-);
+const files = computed(() => currentChildren.value.filter((n: FileNode) => n.type === "File"));
 
 const selectedFile = ref<FileNode | null>(null);
 const detailOpen = ref(false);
@@ -87,14 +86,8 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
     </div>
 
     <!-- Breadcrumbs -->
-    <div
-      v-if="currentPath.length > 0"
-      class="flex items-center gap-1 text-sm"
-    >
-      <button
-        class="text-neutral-400 hover:text-white transition-colors"
-        @click="currentPath = []"
-      >
+    <div v-if="currentPath.length > 0" class="flex items-center gap-1 text-sm">
+      <button class="text-neutral-400 hover:text-white transition-colors" @click="currentPath = []">
         Library
       </button>
       <template v-for="crumb in breadcrumbs" :key="crumb.name">
@@ -163,12 +156,7 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
 
       <!-- Loose files grid -->
       <div v-if="files.length > 0" class="space-y-2">
-        <h3
-          v-if="directories.length > 0"
-          class="text-sm font-medium text-neutral-400"
-        >
-          Files
-        </h3>
+        <h3 v-if="directories.length > 0" class="text-sm font-medium text-neutral-400">Files</h3>
         <div class="grid grid-cols-2 gap-3">
           <MediaCard
             v-for="file in files"
@@ -190,10 +178,6 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
     </div>
 
     <!-- File detail drawer -->
-    <FileDetail
-      :node="selectedFile"
-      :open="detailOpen"
-      @close="detailOpen = false"
-    />
+    <FileDetail :node="selectedFile" :open="detailOpen" @close="detailOpen = false" />
   </div>
 </template>

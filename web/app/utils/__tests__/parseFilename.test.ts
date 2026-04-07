@@ -44,9 +44,7 @@ describe("parseFilename", () => {
   });
 
   it("strips multiple codec and quality tags", () => {
-    expect(
-      parseFilename("No.Country.for.Old.Men.2007.x265.HEVC.10bit.AAC.mkv"),
-    ).toEqual({
+    expect(parseFilename("No.Country.for.Old.Men.2007.x265.HEVC.10bit.AAC.mkv")).toEqual({
       title: "No Country for Old Men",
       year: 2007,
     });

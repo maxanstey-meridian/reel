@@ -8,14 +8,16 @@ export const useLibrary = () => {
   const error = ref<string | null>(null);
 
   const currentChildren = computed<FileNode[]>(() => {
-    if (!tree.value?.children) return [];
+    if (!tree.value?.children) {
+      return [];
+    }
 
     let node = tree.value;
     for (const segment of currentPath.value) {
-      const child = node.children?.find(
-        (c) => c.name === segment && c.type === "Directory",
-      );
-      if (!child?.children) return [];
+      const child = node.children?.find((c) => c.name === segment && c.type === "Directory");
+      if (!child?.children) {
+        return [];
+      }
       node = child;
     }
 
@@ -34,7 +36,9 @@ export const useLibrary = () => {
   };
 
   const navigateUp = () => {
-    if (currentPath.value.length === 0) return;
+    if (currentPath.value.length === 0) {
+      return;
+    }
     currentPath.value = currentPath.value.slice(0, -1);
   };
 

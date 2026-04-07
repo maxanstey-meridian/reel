@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import { favouritesAll, favouritesAdd } from "~~/generated/rivet/client/reel";
+// eslint-disable-next-line no-restricted-imports
 import { rivetFetch } from "~~/generated/rivet/rivet";
 import type { Favourite } from "~~/generated/rivet/types/models";
 
@@ -16,12 +17,9 @@ export const useFavourites = () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  const favouritePaths = computed(
-    () => new Set(favourites.value.map((f) => f.relativePath)),
-  );
+  const favouritePaths = computed(() => new Set(favourites.value.map((f) => f.relativePath)));
 
-  const isFavourite = (relativePath: string) =>
-    favouritePaths.value.has(relativePath);
+  const isFavourite = (relativePath: string) => favouritePaths.value.has(relativePath);
 
   const fetch = async () => {
     loading.value = true;
@@ -30,8 +28,7 @@ export const useFavourites = () => {
     try {
       favourites.value = await favouritesAll();
     } catch (e) {
-      error.value =
-        e instanceof Error ? e.message : "Failed to fetch favourites";
+      error.value = e instanceof Error ? e.message : "Failed to fetch favourites";
     } finally {
       loading.value = false;
     }
@@ -42,14 +39,9 @@ export const useFavourites = () => {
 
     // Optimistic update
     if (wasFavourited) {
-      favourites.value = favourites.value.filter(
-        (f) => f.relativePath !== relativePath,
-      );
+      favourites.value = favourites.value.filter((f) => f.relativePath !== relativePath);
     } else {
-      favourites.value = [
-        { relativePath, addedAt: new Date().toISOString() },
-        ...favourites.value,
-      ];
+      favourites.value = [{ relativePath, addedAt: new Date().toISOString() }, ...favourites.value];
     }
 
     try {
@@ -66,12 +58,9 @@ export const useFavourites = () => {
           ...favourites.value,
         ];
       } else {
-        favourites.value = favourites.value.filter(
-          (f) => f.relativePath !== relativePath,
-        );
+        favourites.value = favourites.value.filter((f) => f.relativePath !== relativePath);
       }
-      error.value =
-        e instanceof Error ? e.message : "Failed to toggle favourite";
+      error.value = e instanceof Error ? e.message : "Failed to toggle favourite";
     }
   };
 

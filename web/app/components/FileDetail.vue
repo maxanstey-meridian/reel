@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { FileNode } from "~~/generated/rivet/types/models";
-import { parseFilename } from "~~/app/utils/parseFilename";
-import { useCast } from "~~/app/composables/useCast";
-import { useConnection } from "~~/app/composables/useConnection";
 import { computed, ref, watch } from "vue";
 import { z } from "zod";
+import { useCast } from "~~/app/composables/useCast";
+import { useConnection } from "~~/app/composables/useConnection";
+import { parseFilename } from "~~/app/utils/parseFilename";
+import type { FileNode } from "~~/generated/rivet/types/models";
 
 const MetadataSchema = z.object({
   tmdbId: z.number(),
@@ -62,15 +62,25 @@ watch(
 );
 
 const formatSize = (bytes: number | null): string => {
-  if (bytes === null) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes === null) {
+    return "";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 };
 
 const handleCast = async () => {
-  if (!props.node) return;
+  if (!props.node) {
+    return;
+  }
   await cast(props.node.relativePath);
   if (!error.value) {
     emit("close");

@@ -54,3 +54,15 @@ tasks:
     dir: web
     cmds:
       - pnpm e2e
+
+  web:lint:
+    desc: Lint web UI (oxlint + eslint)
+    dir: web
+    cmds:
+      - pnpm lint
+
+  web:fmt:
+    desc: Format web UI (oxfmt)
+    dir: web
+    cmds:
+      - pnpm fmt

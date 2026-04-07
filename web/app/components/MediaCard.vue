@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { FileNode } from "~~/generated/rivet/types/models";
-import { parseFilename } from "~~/app/utils/parseFilename";
 import { useAuthImage } from "~~/app/composables/useAuthImage";
 import { useFavourites } from "~~/app/composables/useFavourites";
+import { parseFilename } from "~~/app/utils/parseFilename";
+import type { FileNode } from "~~/generated/rivet/types/models";
 
 const props = defineProps<{
   node: FileNode;
@@ -16,47 +16,41 @@ const { isFavourite, toggle } = useFavourites();
 const showHeart = computed(() => props.node.type === "File");
 const favourited = computed(() => isFavourite(props.node.relativePath));
 
-const parsed = computed(() =>
-  props.node.type === "File" ? parseFilename(props.node.name) : null,
-);
+const parsed = computed(() => (props.node.type === "File" ? parseFilename(props.node.name) : null));
 
-const displayName = computed(() =>
-  parsed.value ? parsed.value.title : props.node.name,
-);
+const displayName = computed(() => (parsed.value ? parsed.value.title : props.node.name));
 
 const thumbnailPath = computed(() => props.node.thumbnailUrl ?? null);
-const { src: thumbnailSrc, error: thumbnailError } =
-  useAuthImage(thumbnailPath);
+const { src: thumbnailSrc, error: thumbnailError } = useAuthImage(thumbnailPath);
 
 const imgFailed = ref(false);
-const showImage = computed(
-  () => thumbnailSrc.value && !imgFailed.value && !thumbnailError.value,
-);
+const showImage = computed(() => thumbnailSrc.value && !imgFailed.value && !thumbnailError.value);
 
-const VIDEO_EXTENSIONS = new Set([
-  ".mp4",
-  ".mkv",
-  ".avi",
-  ".mov",
-  ".wmv",
-  ".flv",
-  ".webm",
-  ".m4v",
-]);
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]);
 
 const iconFor = (node: FileNode) => {
-  if (node.type === "Directory") return "i-lucide-folder";
-  if (node.extension && VIDEO_EXTENSIONS.has(node.extension.toLowerCase()))
+  if (node.type === "Directory") {
+    return "i-lucide-folder";
+  }
+  if (node.extension && VIDEO_EXTENSIONS.has(node.extension.toLowerCase())) {
     return "i-lucide-film";
+  }
   return "i-lucide-file";
 };
 
 const formatSize = (bytes: number | null): string => {
-  if (bytes === null) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
+  if (bytes === null) {
+    return "";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 };
 </script>
@@ -75,7 +69,7 @@ const formatSize = (bytes: number | null): string => {
         loading="lazy"
         class="w-full h-full object-cover"
         @error="imgFailed = true"
-      >
+      />
       <UIcon v-else :name="iconFor(node)" class="size-10" />
 
       <!-- Progress bar -->
@@ -83,10 +77,7 @@ const formatSize = (bytes: number | null): string => {
         v-if="progress != null && progress > 0"
         class="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700"
       >
-        <div
-          class="h-full bg-green-500"
-          :style="{ width: `${Math.min(progress * 100, 100)}%` }"
-        />
+        <div class="h-full bg-green-500" :style="{ width: `${Math.min(progress * 100, 100)}%` }" />
       </div>
 
       <!-- Favourite heart -->
@@ -104,10 +95,7 @@ const formatSize = (bytes: number | null): string => {
       <span class="text-xs font-medium leading-tight line-clamp-2">
         {{ displayName }}
       </span>
-      <span
-        v-if="parsed?.year"
-        class="text-xs text-neutral-500"
-      >
+      <span v-if="parsed?.year" class="text-xs text-neutral-500">
         {{ parsed.year }}
       </span>
 
@@ -120,10 +108,7 @@ const formatSize = (bytes: number | null): string => {
         >
           {{ node.extension }}
         </UBadge>
-        <span
-          v-if="node.sizeBytes && node.type === 'File'"
-          class="text-[10px] text-neutral-500"
-        >
+        <span v-if="node.sizeBytes && node.type === 'File'" class="text-[10px] text-neutral-500">
           {{ formatSize(node.sizeBytes) }}
         </span>
       </div>

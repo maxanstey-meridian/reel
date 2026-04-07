@@ -40,9 +40,7 @@ const TAGS_RE = new RegExp(
 const YEAR_PAREN_RE = /\((\d{4})\)/g;
 const YEAR_BARE_RE = /(?<=\s|^)(19[2-9]\d|20[0-9]\d)(?=\s|$)/g;
 
-export const parseFilename = (
-  filename: string,
-): { title: string; year: number | null } => {
+export const parseFilename = (filename: string): { title: string; year: number | null } => {
   // 1. Strip file extension
   let working = filename.replace(EXTENSIONS_RE, "");
 
@@ -64,9 +62,7 @@ export const parseFilename = (
 
   if (year !== null) {
     // Remove the parenthesised year including parens
-    working =
-      working.slice(0, yearIndex) +
-      working.slice(yearIndex + `(${year})`.length);
+    working = working.slice(0, yearIndex) + working.slice(yearIndex + `(${year})`.length);
   } else {
     // 4. Find bare years — pick the last one whose remainder is only tags/whitespace.
     // This correctly handles "2001 A Space Odyssey 1968 REMUX" → year=1968, title includes "2001".
