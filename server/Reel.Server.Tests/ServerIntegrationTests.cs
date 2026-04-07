@@ -2,7 +2,7 @@ using System.Net;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Reel.Server.Services;
+using Reel.Server.Infrastructure.Configuration;
 
 namespace Reel.Server.Tests;
 

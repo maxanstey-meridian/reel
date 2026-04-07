@@ -1,6 +1,6 @@
 namespace Reel.Server.Middleware;
 
-using Reel.Server.Services;
+using Reel.Server.Infrastructure.Configuration;
 
 public sealed class SecretKeyMiddleware
 {
@@ -23,6 +23,14 @@ public sealed class SecretKeyMiddleware
         {
             await _next(context);
             return;
+        }
+
+        // Allow auth via query param for media players and <img src> that can't set headers
+        if (!context.Request.Headers.ContainsKey("X-Secret-Key")
+            && context.Request.Query.TryGetValue("token", out var tokenValue)
+            && tokenValue.Count > 0)
+        {
+            context.Request.Headers["X-Secret-Key"] = tokenValue[0];
         }
 
         var key = context.Request.Headers["X-Secret-Key"].FirstOrDefault();

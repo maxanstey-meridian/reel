@@ -1,12 +1,12 @@
 namespace Reel.Server.Endpoints;
 
-using Reel.Server.Services;
+using Reel.Server.Application.Ports;
 
 public static class LibraryEndpoints
 {
     public static WebApplication MapLibraryEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/library", (LibraryService library) => Results.Ok(library.GetTree()));
+        app.MapGet("/api/library", (ILibraryScanner scanner) => Results.Ok(scanner.BuildTree()));
 
         return app;
     }

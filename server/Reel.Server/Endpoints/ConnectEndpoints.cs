@@ -1,8 +1,8 @@
 namespace Reel.Server.Endpoints;
 
 using Microsoft.AspNetCore.Mvc;
-using Reel.Server.Models;
-using Reel.Server.Services;
+using Reel.Server.Application.Models;
+using Reel.Server.Infrastructure.Configuration;
 
 public static class ConnectEndpoints
 {

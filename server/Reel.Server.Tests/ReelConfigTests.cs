@@ -1,5 +1,5 @@
 using FluentAssertions;
-using Reel.Server.Services;
+using Reel.Server.Infrastructure.Configuration;
 
 namespace Reel.Server.Tests;
 

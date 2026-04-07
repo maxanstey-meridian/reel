@@ -1,8 +1,9 @@
 namespace Reel.Server.Endpoints;
 
 using Microsoft.AspNetCore.Mvc;
-using Reel.Server.Models;
-using Reel.Server.Services;
+using Reel.Server.Application;
+using Reel.Server.Application.Models;
+using Reel.Server.Domain;
 
 public static class CastEndpoints
 {

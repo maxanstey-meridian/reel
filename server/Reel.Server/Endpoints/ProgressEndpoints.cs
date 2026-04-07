@@ -1,30 +1,30 @@
 namespace Reel.Server.Endpoints;
 
 using Microsoft.AspNetCore.Mvc;
-using Reel.Server.Models;
-using Reel.Server.Services;
+using Reel.Server.Application.Models;
+using Reel.Server.Application.Ports;
 
 public static class ProgressEndpoints
 {
     public static WebApplication MapProgressEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/progress", ([FromBody] ProgressRequest request, ProgressService progressService) =>
+        app.MapPost("/api/progress", async ([FromBody] ProgressRequest request, IProgressStore store, CancellationToken ct) =>
         {
-            progressService.UpdateProgress(request.RelativePath, request.PositionSeconds, request.DurationSeconds);
+            await store.UpdateAsync(request.RelativePath, request.PositionSeconds, request.DurationSeconds, ct);
             return Results.Ok();
         });
 
-        app.MapGet("/api/progress", ([FromQuery] string? path, ProgressService progressService) =>
+        app.MapGet("/api/progress", async ([FromQuery] string? path, IProgressStore store, CancellationToken ct) =>
         {
             if (path is not null)
             {
-                var entry = progressService.Get(path);
+                var entry = await store.GetAsync(path, ct);
                 return entry is not null
                     ? Results.Ok(entry)
                     : Results.NotFound();
             }
 
-            return Results.Ok(progressService.GetAll());
+            return Results.Ok(await store.GetAllAsync(ct));
         });
 
         return app;

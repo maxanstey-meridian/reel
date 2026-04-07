@@ -1,7 +1,7 @@
 namespace Reel.Server.Endpoints;
 
 using System.Diagnostics;
-using Reel.Server.Models;
+using Reel.Server.Application.Models;
 
 public static class HealthEndpoints
 {

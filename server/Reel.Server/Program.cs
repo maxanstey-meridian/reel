@@ -3,9 +3,15 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Reel.Server.Application;
+using Reel.Server.Application.Ports;
 using Reel.Server.Endpoints;
+using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.Ffmpeg;
+using Reel.Server.Infrastructure.FileSystem;
+using Reel.Server.Infrastructure.Persistence;
+using Reel.Server.Infrastructure.Tmdb;
 using Reel.Server.Middleware;
-using Reel.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,13 +29,14 @@ if (reelConfig.Port <= 0)
     throw new InvalidOperationException("Reel:Port must be a positive integer in appsettings.json.");
 
 builder.Services.AddSingleton(reelConfig);
-builder.Services.AddSingleton<LibraryService>();
+builder.Services.AddSingleton<ILibraryScanner, FileSystemScanner>();
 builder.Services.AddSingleton<CastService>();
-builder.Services.AddSingleton<ThumbnailService>();
-builder.Services.AddSingleton<ProgressService>();
-builder.Services.AddSingleton<FavouritesService>();
+builder.Services.AddSingleton<IThumbnailGenerator, FfmpegThumbnailGenerator>();
+builder.Services.AddSingleton<IProgressStore, JsonProgressStore>();
+builder.Services.AddSingleton<IFavouritesStore, JsonFavouritesStore>();
+builder.Services.AddSingleton<IFileStreamer, FileSystemStreamer>();
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<TmdbService>();
+builder.Services.AddSingleton<IMetadataLookup, TmdbMetadataLookup>();
 builder.Services.AddCors();
 
 builder.Services.ConfigureHttpJsonOptions(options =>

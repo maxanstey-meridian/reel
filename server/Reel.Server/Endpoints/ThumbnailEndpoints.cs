@@ -1,12 +1,13 @@
 namespace Reel.Server.Endpoints;
 
-using Reel.Server.Services;
+using Reel.Server.Application.Ports;
+using Reel.Server.Infrastructure.Configuration;
 
 public static class ThumbnailEndpoints
 {
     public static WebApplication MapThumbnailEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/files/thumbnail", async (string? path, ReelConfig config, ThumbnailService thumbnailService) =>
+        app.MapGet("/api/files/thumbnail", async (string? path, ReelConfig config, IThumbnailGenerator generator, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(path))
                 return Results.BadRequest(new { error = "Missing required query parameter: path" });
@@ -19,7 +20,7 @@ public static class ThumbnailEndpoints
             if (!File.Exists(fullPath))
                 return Results.NotFound(new { error = "File not found" });
 
-            var thumbnailPath = await thumbnailService.GetOrCreateThumbnail(fullPath, path);
+            var thumbnailPath = await generator.GetOrGenerateAsync(path, ct);
 
             if (thumbnailPath is null)
                 return Results.Problem(

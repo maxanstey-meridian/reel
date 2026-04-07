@@ -118,23 +118,23 @@ public sealed class StreamEndpointTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task PathTraversal_Returns403()
+    public async Task PathTraversal_Returns404()
     {
         using var client = CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/files/stream?path=../../../etc/passwd");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task PathTraversalWithEncodedDots_Returns403()
+    public async Task PathTraversalWithEncodedDots_Returns404()
     {
         using var client = CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/files/stream?path=Films/../../etc/passwd");
 
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
