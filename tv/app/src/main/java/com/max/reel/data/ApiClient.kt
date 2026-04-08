@@ -30,9 +30,9 @@ sealed interface ConnectResult {
     data class NetworkError(val message: String) : ConnectResult
 }
 
-class ApiClient(private val prefs: PreferencesManager) {
-
-    private val client = HttpClient(Android) {
+class ApiClient(
+    private val prefs: PreferencesManager,
+    private val client: HttpClient = HttpClient(Android) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
@@ -41,7 +41,8 @@ class ApiClient(private val prefs: PreferencesManager) {
             socketTimeout = 10_000
         }
         expectSuccess = false
-    }
+    },
+) {
 
     private val baseUrl: String
         get() = "http://${prefs.serverIp}:${prefs.serverPort}"

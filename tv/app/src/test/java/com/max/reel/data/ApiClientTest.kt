@@ -14,30 +14,53 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ApiClientTest {
 
-    private fun createTestClient(
-        handler: suspend (io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.http.Url) -> io.ktor.client.request.HttpResponseData),
-    ): HttpClient {
+    private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+
+    private fun createPrefs(): PreferencesManager {
+        val prefs = PreferencesManager(RuntimeEnvironment.getApplication())
+        prefs.savePairing("localhost", "8080", "test-key")
+        return prefs
+    }
+
+    private fun createApiClient(
+        handler: suspend io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.http.Url) -> io.ktor.client.request.HttpResponseData,
+    ): ApiClient {
         val mockEngine = MockEngine { request ->
             handler(request.url)
         }
-        return HttpClient(mockEngine) {
+        val mockClient = HttpClient(mockEngine) {
             install(ContentNegotiation) {
                 json(Json { ignoreUnknownKeys = true })
             }
             expectSuccess = false
         }
+        return ApiClient(createPrefs(), mockClient)
     }
 
-    private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private fun createApiClientWithEngine(engine: MockEngine): ApiClient {
+        val mockClient = HttpClient(engine) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+            expectSuccess = false
+        }
+        return ApiClient(createPrefs(), mockClient)
+    }
 
     // --- fetchPosters ---
 
     @Test
     fun `fetchPosters deserializes string array on 200`() = runTest {
-        val client = createTestClient { url ->
+        val apiClient = createApiClient { url ->
             if (url.encodedPath == "/api/library/posters") {
                 respond("""["Films/a.mp4","Films/b.mp4","Films/c.mp4"]""", HttpStatusCode.OK, jsonHeaders)
             } else {
@@ -45,37 +68,27 @@ class ApiClientTest {
             }
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchPosters(3)
-
         assertEquals(listOf("Films/a.mp4", "Films/b.mp4", "Films/c.mp4"), result)
     }
 
     @Test
     fun `fetchPosters returns empty list on non-200`() = runTest {
-        val client = createTestClient {
+        val apiClient = createApiClient {
             respond("", HttpStatusCode.InternalServerError)
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchPosters(5)
-
         assertEquals(emptyList<String>(), result)
     }
 
     @Test
     fun `fetchPosters returns empty list on network error`() = runTest {
-        val mockEngine = MockEngine { throw java.io.IOException("Connection refused") }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
-            }
-            expectSuccess = false
-        }
+        val apiClient = createApiClientWithEngine(
+            MockEngine { throw java.io.IOException("Connection refused") },
+        )
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchPosters(5)
-
         assertEquals(emptyList<String>(), result)
     }
 
@@ -83,7 +96,7 @@ class ApiClientTest {
 
     @Test
     fun `fetchStats deserializes LibraryStats on 200`() = runTest {
-        val client = createTestClient { url ->
+        val apiClient = createApiClient { url ->
             if (url.encodedPath == "/api/library/stats") {
                 respond("""{"totalFiles":42,"totalBytes":123456789}""", HttpStatusCode.OK, jsonHeaders)
             } else {
@@ -91,37 +104,27 @@ class ApiClientTest {
             }
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchStats()
-
         assertEquals(LibraryStats(totalFiles = 42, totalBytes = 123456789), result)
     }
 
     @Test
     fun `fetchStats returns null on non-200`() = runTest {
-        val client = createTestClient {
+        val apiClient = createApiClient {
             respond("", HttpStatusCode.Unauthorized)
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchStats()
-
         assertNull(result)
     }
 
     @Test
     fun `fetchStats returns null on network error`() = runTest {
-        val mockEngine = MockEngine { throw java.io.IOException("Timeout") }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
-            }
-            expectSuccess = false
-        }
+        val apiClient = createApiClientWithEngine(
+            MockEngine { throw java.io.IOException("Timeout") },
+        )
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchStats()
-
         assertNull(result)
     }
 
@@ -129,7 +132,7 @@ class ApiClientTest {
 
     @Test
     fun `fetchUsers deserializes user list on 200`() = runTest {
-        val client = createTestClient { url ->
+        val apiClient = createApiClient { url ->
             if (url.encodedPath == "/api/users") {
                 respond(
                     """[{"id":1,"name":"Max","icon":null},{"id":2,"name":"Guest"}]""",
@@ -141,9 +144,7 @@ class ApiClientTest {
             }
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchUsers()
-
         assertEquals(2, result.size)
         assertEquals("Max", result[0].name)
         assertEquals(1, result[0].id)
@@ -153,19 +154,17 @@ class ApiClientTest {
 
     @Test
     fun `fetchUsers returns empty list on non-200`() = runTest {
-        val client = createTestClient {
+        val apiClient = createApiClient {
             respond("", HttpStatusCode.Forbidden)
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchUsers()
-
         assertEquals(emptyList<UserInfo>(), result)
     }
 
     @Test
     fun `fetchUsers handles unknown fields gracefully`() = runTest {
-        val client = createTestClient { url ->
+        val apiClient = createApiClient { url ->
             if (url.encodedPath == "/api/users") {
                 respond(
                     """[{"id":1,"name":"Max","icon":null,"extraField":"ignored"}]""",
@@ -177,9 +176,7 @@ class ApiClientTest {
             }
         }
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "test-key")
         val result = apiClient.fetchUsers()
-
         assertEquals(1, result.size)
         assertEquals("Max", result[0].name)
     }
@@ -187,20 +184,14 @@ class ApiClientTest {
     @Test
     fun `fetchPosters sends auth header`() = runTest {
         var capturedAuthHeader: String? = null
-        val mockEngine = MockEngine { request ->
-            capturedAuthHeader = request.headers["X-Secret-Key"]
-            respond("""[]""", HttpStatusCode.OK, jsonHeaders)
-        }
-        val client = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
-            }
-            expectSuccess = false
-        }
+        val apiClient = createApiClientWithEngine(
+            MockEngine { request ->
+                capturedAuthHeader = request.headers["X-Secret-Key"]
+                respond("""[]""", HttpStatusCode.OK, jsonHeaders)
+            },
+        )
 
-        val apiClient = ApiClientTestable(client, "http://localhost:8080", "my-secret")
         apiClient.fetchPosters(1)
-
-        assertEquals("my-secret", capturedAuthHeader)
+        assertEquals("test-key", capturedAuthHeader)
     }
 }
