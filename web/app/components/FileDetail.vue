@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useCast } from "~~/app/composables/useCast";
+import { useTags } from "~~/app/composables/useTags";
 import { useWatchState } from "~~/app/composables/useWatchState";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { metadata as fetchMetadataApi } from "~~/generated/rivet/client/reel";
@@ -16,8 +17,26 @@ const emit = defineEmits<{ close: [] }>();
 
 const { casting, error, cast } = useCast();
 const { loading: watchLoading, setWatched, setUnwatched } = useWatchState();
+const { tags, loading: tagsLoading, getTags, addTag, removeTag } = useTags();
+const newTag = ref("");
 
 const isWatched = computed(() => props.node?.watched === true);
+
+const handleAddTag = async () => {
+  const trimmed = newTag.value.trim();
+  if (!trimmed || !props.node) {
+    return;
+  }
+  newTag.value = "";
+  await addTag(props.node.relativePath, trimmed);
+};
+
+const handleRemoveTag = async (tag: string) => {
+  if (!props.node) {
+    return;
+  }
+  await removeTag(props.node.relativePath, tag);
+};
 
 const handleToggleWatched = async () => {
   if (!props.node) {
@@ -52,9 +71,11 @@ watch(
   ([node, open]) => {
     if (open && node) {
       fetchMetadata(node);
+      getTags(node.relativePath);
     }
     if (!open) {
       metadata.value = null;
+      tags.value = [];
     }
   },
 );
@@ -121,6 +142,32 @@ const handleCast = async () => {
         <p v-if="metadata?.overview" class="text-sm text-neutral-400 leading-relaxed">
           {{ metadata.overview }}
         </p>
+
+        <div class="flex flex-wrap items-center gap-1.5">
+          <UBadge
+            v-for="tag in tags"
+            :key="tag"
+            size="sm"
+            color="neutral"
+            variant="subtle"
+            class="gap-1"
+          >
+            {{ tag }}
+            <button
+              class="i-lucide-x size-3 opacity-60 hover:opacity-100"
+              :disabled="tagsLoading"
+              @click="handleRemoveTag(tag)"
+            />
+          </UBadge>
+          <UInput
+            v-model="newTag"
+            size="xs"
+            placeholder="Add tag..."
+            :disabled="tagsLoading"
+            class="w-24"
+            @keydown.enter="handleAddTag"
+          />
+        </div>
 
         <UButton
           block
