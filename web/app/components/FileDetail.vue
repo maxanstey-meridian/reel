@@ -4,9 +4,10 @@ import { useCast } from "~~/app/composables/useCast";
 import { useTags } from "~~/app/composables/useTags";
 import { useWatchState } from "~~/app/composables/useWatchState";
 import { parseFilename } from "~~/app/utils/parseFilename";
-import { metadata as fetchMetadataApi } from "~~/generated/rivet/client/reel";
+import { mediaDetail as fetchMediaDetail } from "~~/generated/rivet/client/reel";
+import { rivetFetch } from "~~/generated/rivet/rivet";
 import type { FileNode } from "~~/generated/rivet/types/domain";
-import type { MetadataResponse } from "~~/generated/rivet/types/models";
+import type { MediaDetailResponse, MediaUpdateRequest } from "~~/generated/rivet/types/models";
 
 const props = defineProps<{
   node: FileNode | null;
@@ -21,6 +22,95 @@ const { tags, loading: tagsLoading, getTags, addTag, removeTag } = useTags();
 const newTag = ref("");
 
 const isWatched = computed(() => props.node?.watched === true);
+
+const editing = ref<keyof MediaUpdateRequest | null>(null);
+const editValue = ref("");
+const saving = ref(false);
+
+type EditableField = keyof MediaUpdateRequest;
+const editableFields: { key: EditableField; label: string }[] = [
+  { key: "displayTitle", label: "Title" },
+  { key: "genre", label: "Genre" },
+  { key: "rating", label: "Rating" },
+  { key: "language", label: "Language" },
+];
+
+const startEdit = (field: EditableField) => {
+  editing.value = field;
+  editValue.value = (detail.value?.[field] as string | null) ?? "";
+};
+
+const cancelEdit = () => {
+  editing.value = null;
+  editValue.value = "";
+};
+
+const saveEdit = async () => {
+  if (!editing.value || !props.node) {
+    return;
+  }
+  const field = editing.value;
+  const newVal = editValue.value.trim() || null;
+  const oldVal = (detail.value?.[field] as string | null) ?? null;
+  if (newVal === oldVal) {
+    cancelEdit();
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const body: MediaUpdateRequest = {
+      genre: null,
+      rating: null,
+      language: null,
+      notes: null,
+      displayTitle: null,
+    };
+    body[field] = newVal;
+
+    // rivetFetch used directly because generated mediaUpdate() has no path param
+    // but server reads path from [FromQuery]
+    await rivetFetch("PATCH", "/api/media/detail", {
+      body,
+      query: { path: props.node.relativePath },
+    });
+
+    detail.value = await fetchMediaDetail(props.node.relativePath);
+
+    if (field === "displayTitle") {
+      await useLibrary().refresh();
+    }
+  } finally {
+    saving.value = false;
+    cancelEdit();
+  }
+};
+
+const saveNotes = async () => {
+  if (!props.node) {
+    return;
+  }
+  const newVal = editValue.value.trim() || null;
+  const oldVal = detail.value?.notes ?? null;
+  if (newVal === oldVal) {
+    editing.value = null;
+    editValue.value = "";
+    return;
+  }
+
+  saving.value = true;
+  try {
+    await rivetFetch("PATCH", "/api/media/detail", {
+      body: { genre: null, rating: null, language: null, notes: newVal, displayTitle: null },
+      query: { path: props.node.relativePath },
+    });
+    detail.value = await fetchMediaDetail(props.node.relativePath);
+  } finally {
+    saving.value = false;
+    editing.value = null;
+    editValue.value = "";
+  }
+};
 
 const handleAddTag = async () => {
   const trimmed = newTag.value.trim();
@@ -51,18 +141,18 @@ const handleToggleWatched = async () => {
 
 const parsed = computed(() => (props.node ? parseFilename(props.node.name) : null));
 
-const metadata = ref<MetadataResponse | null>(null);
-const metadataLoading = ref(false);
+const detail = ref<MediaDetailResponse | null>(null);
+const detailLoading = ref(false);
 
-const fetchMetadata = async (node: FileNode) => {
-  metadata.value = null;
-  metadataLoading.value = true;
+const fetchDetail = async (node: FileNode) => {
+  detail.value = null;
+  detailLoading.value = true;
   try {
-    metadata.value = await fetchMetadataApi(node.relativePath);
+    detail.value = await fetchMediaDetail(node.relativePath);
   } catch {
-    // Metadata is optional — silently ignore
+    // Detail is optional — silently ignore
   } finally {
-    metadataLoading.value = false;
+    detailLoading.value = false;
   }
 };
 
@@ -70,12 +160,13 @@ watch(
   () => [props.node, props.open] as const,
   ([node, open]) => {
     if (open && node) {
-      fetchMetadata(node);
+      fetchDetail(node);
       getTags(node.relativePath);
     }
     if (!open) {
-      metadata.value = null;
+      detail.value = null;
       tags.value = [];
+      cancelEdit();
     }
   },
 );
@@ -139,9 +230,63 @@ const handleCast = async () => {
 
     <template #body>
       <div class="px-6 pb-6 space-y-3">
-        <p v-if="metadata?.overview" class="text-sm text-neutral-400 leading-relaxed">
-          {{ metadata.overview }}
+        <p v-if="detail?.overview" class="text-sm text-neutral-400 leading-relaxed">
+          {{ detail.overview }}
         </p>
+
+        <div v-if="detail" class="space-y-2">
+          <div v-for="{ key, label } in editableFields" :key="key" class="flex items-center gap-2">
+            <span class="text-xs text-neutral-500 w-16 shrink-0">{{ label }}</span>
+            <template v-if="editing === key">
+              <UInput
+                v-model="editValue"
+                size="xs"
+                class="flex-1"
+                :disabled="saving"
+                @keydown.enter="saveEdit"
+                @keydown.escape="cancelEdit"
+                @blur="saveEdit"
+              />
+            </template>
+            <template v-else>
+              <button
+                class="flex items-center gap-1 text-sm text-neutral-300 hover:text-white truncate"
+                @click="startEdit(key)"
+              >
+                {{ detail[key] ?? '—' }}
+                <span class="i-lucide-pencil size-3 text-neutral-500 shrink-0" />
+              </button>
+            </template>
+          </div>
+
+          <div class="flex items-start gap-2">
+            <span class="text-xs text-neutral-500 w-16 shrink-0 mt-1">Notes</span>
+            <template v-if="editing === 'notes'">
+              <div class="flex-1 space-y-1">
+                <UTextarea
+                  v-model="editValue"
+                  size="xs"
+                  :rows="3"
+                  :disabled="saving"
+                  @keydown.escape="cancelEdit"
+                />
+                <div class="flex gap-1">
+                  <UButton size="xs" @click="saveNotes">Save</UButton>
+                  <UButton size="xs" variant="ghost" @click="cancelEdit">Cancel</UButton>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <button
+                class="flex items-center gap-1 text-sm text-neutral-300 hover:text-white"
+                @click="startEdit('notes')"
+              >
+                {{ detail.notes ?? '—' }}
+                <span class="i-lucide-pencil size-3 text-neutral-500 shrink-0" />
+              </button>
+            </template>
+          </div>
+        </div>
 
         <div class="flex flex-wrap items-center gap-1.5">
           <UBadge
