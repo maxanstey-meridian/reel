@@ -219,6 +219,40 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RenameAsync_WrongUser_DoesNotUpdate()
+    {
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO users (name) VALUES ('User2');";
+        cmd.ExecuteNonQuery();
+        conn.Dispose();
+
+        var created = await _store.CreateAsync(1, "Original Name", CancellationToken.None);
+
+        await _store.RenameAsync(created.Id, 2, "Hijacked", CancellationToken.None);
+
+        var all = await _store.GetAllAsync(1, CancellationToken.None);
+        all.Should().ContainSingle(c => c.Name == "Original Name", "user 2 should not be able to rename user 1's collection");
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WrongUser_DoesNotDelete()
+    {
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO users (name) VALUES ('User2');";
+        cmd.ExecuteNonQuery();
+        conn.Dispose();
+
+        var created = await _store.CreateAsync(1, "Protected", CancellationToken.None);
+
+        await _store.DeleteAsync(created.Id, 2, CancellationToken.None);
+
+        var all = await _store.GetAllAsync(1, CancellationToken.None);
+        all.Should().ContainSingle(c => c.Name == "Protected", "user 2 should not be able to delete user 1's collection");
+    }
+
+    [Fact]
     public async Task AddItemAsync_WrongUser_DoesNotInsert()
     {
         using var conn = _db.GetConnection();
