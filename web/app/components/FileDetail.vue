@@ -20,7 +20,9 @@ const { loading: watchLoading, setWatched, setUnwatched } = useWatchState();
 const isWatched = computed(() => props.node?.watched === true);
 
 const handleToggleWatched = async () => {
-  if (!props.node) return;
+  if (!props.node) {
+    return;
+  }
   if (isWatched.value) {
     await setUnwatched(props.node.relativePath);
   } else {
