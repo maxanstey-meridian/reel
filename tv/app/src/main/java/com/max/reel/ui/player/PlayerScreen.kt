@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -52,7 +53,7 @@ sealed interface PlayerError {
     data class Unknown(val message: String) : PlayerError
 }
 
-private fun classifyError(error: PlaybackException): PlayerError {
+internal fun classifyError(error: PlaybackException): PlayerError {
     val cause = error.cause
     if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
         return when (cause.responseCode) {
@@ -67,7 +68,7 @@ private fun classifyError(error: PlaybackException): PlayerError {
     return PlayerError.Unknown(error.message ?: "Playback error")
 }
 
-private fun playerErrorMessage(error: PlayerError): String = when (error) {
+internal fun playerErrorMessage(error: PlayerError): String = when (error) {
     is PlayerError.CannotReachServer -> "Can't reach server"
     is PlayerError.Unauthorized -> "Invalid key"
     is PlayerError.FileNotFound -> "File not found"
@@ -79,36 +80,6 @@ private fun playerErrorMessage(error: PlayerError): String = when (error) {
 @Composable
 fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> Unit) {
     val context = LocalContext.current
-    val streamUrl = "http://${prefs.serverIp}:${prefs.serverPort}/api/files/stream?path=${Uri.encode(relativePath)}"
-
-    var playerError by remember { mutableStateOf<PlayerError?>(null) }
-
-    val player = remember {
-        ExoPlayer.Builder(context).build()
-    }
-
-    DisposableEffect(player) {
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setDefaultRequestProperties(mapOf("X-Secret-Key" to prefs.secretKey))
-
-        val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-            .createMediaSource(MediaItem.fromUri(streamUrl))
-
-        val listener = object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                playerError = classifyError(error)
-            }
-        }
-        player.addListener(listener)
-        player.setMediaSource(mediaSource)
-        player.prepare()
-        player.playWhenReady = true
-
-        onDispose {
-            player.stop()
-            player.release()
-        }
-    }
 
     BackHandler {
         onBack()
@@ -117,48 +88,81 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
     val focusRequester = remember { FocusRequester() }
     val seekStepMs = 10_000L
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .focusRequester(focusRequester)
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                when (event.key) {
-                    Key.DirectionCenter, Key.MediaPlayPause -> {
-                        if (player.isPlaying) player.pause() else player.play()
-                        true
-                    }
-                    Key.DirectionRight, Key.MediaFastForward -> {
-                        player.seekTo(player.currentPosition + seekStepMs)
-                        true
-                    }
-                    Key.DirectionLeft, Key.MediaRewind -> {
-                        player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
-                        true
-                    }
-                    else -> false
+    key(relativePath) {
+        val streamUrl = "http://${prefs.serverIp}:${prefs.serverPort}/api/files/stream?path=${Uri.encode(relativePath)}"
+
+        var playerError by remember { mutableStateOf<PlayerError?>(null) }
+
+        val player = remember {
+            ExoPlayer.Builder(context).build()
+        }
+
+        DisposableEffect(Unit) {
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setDefaultRequestProperties(mapOf("X-Secret-Key" to prefs.secretKey))
+
+            val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                .createMediaSource(MediaItem.fromUri(streamUrl))
+
+            val listener = object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    playerError = classifyError(error)
                 }
             }
-            .focusable()
-    ) {
-        val error = playerError
-        if (error != null) {
-            PlayerErrorView(
-                message = playerErrorMessage(error),
-                onBack = onBack,
-            )
-        } else {
-            ContentFrame(
-                player = player,
-                surfaceType = SURFACE_TYPE_SURFACE_VIEW,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
+            player.addListener(listener)
+            player.setMediaSource(mediaSource)
+            player.prepare()
+            player.playWhenReady = true
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+            onDispose {
+                player.stop()
+                player.release()
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .focusRequester(focusRequester)
+                .onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    when (event.key) {
+                        Key.DirectionCenter, Key.MediaPlayPause -> {
+                            if (player.isPlaying) player.pause() else player.play()
+                            true
+                        }
+                        Key.DirectionRight, Key.MediaFastForward -> {
+                            player.seekTo(player.currentPosition + seekStepMs)
+                            true
+                        }
+                        Key.DirectionLeft, Key.MediaRewind -> {
+                            player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                .focusable()
+        ) {
+            val error = playerError
+            if (error != null) {
+                PlayerErrorView(
+                    message = playerErrorMessage(error),
+                    onBack = onBack,
+                )
+            } else {
+                ContentFrame(
+                    player = player,
+                    surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
     }
 }
 
