@@ -12,7 +12,7 @@ public sealed class CastService
         lock (_lock)
         {
             _queue.Clear();
-            _queue.Add(new CastCommand("play", relativePath, positionSeconds));
+            _queue.Add(new CastCommand(CastCommandType.Play, relativePath, positionSeconds));
         }
     }
 
@@ -23,7 +23,7 @@ public sealed class CastService
             _queue.Clear();
             for (var i = 0; i < paths.Length; i++)
             {
-                _queue.Add(new CastCommand("play", paths[i], i == 0 ? firstItemPosition : null));
+                _queue.Add(new CastCommand(CastCommandType.Play, paths[i], i == 0 ? firstItemPosition : null));
             }
         }
     }
@@ -33,7 +33,7 @@ public sealed class CastService
         lock (_lock)
         {
             _queue.Clear();
-            _queue.Add(new CastCommand("stop", null));
+            _queue.Add(new CastCommand(CastCommandType.Stop, null));
         }
     }
 

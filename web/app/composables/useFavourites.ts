@@ -28,6 +28,7 @@ export const useFavourites = () => {
 
   const toggle = async (relativePath: string) => {
     const wasFavourited = isFavourite(relativePath);
+    const original = favourites.value.find((f) => f.relativePath === relativePath);
 
     // Optimistic update
     if (wasFavourited) {
@@ -48,11 +49,8 @@ export const useFavourites = () => {
       }
     } catch (e) {
       // Revert optimistic update
-      if (wasFavourited) {
-        favourites.value = [
-          { relativePath, addedAt: new Date().toISOString() },
-          ...favourites.value,
-        ];
+      if (wasFavourited && original) {
+        favourites.value = [original, ...favourites.value];
       } else {
         favourites.value = favourites.value.filter((f) => f.relativePath !== relativePath);
       }

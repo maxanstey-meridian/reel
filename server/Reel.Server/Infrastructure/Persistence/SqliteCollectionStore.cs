@@ -212,9 +212,11 @@ public sealed class SqliteCollectionStore : ICollectionStore
     public async Task ReorderAsync(int collectionId, int userId, string[] paths, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
+        using var transaction = conn.BeginTransaction();
 
         // Validate paths are a complete permutation of existing items
         using var checkCmd = conn.CreateCommand();
+        checkCmd.Transaction = transaction;
         checkCmd.CommandText = """
             SELECT relative_path FROM collection_items
             WHERE collection_id = @collectionId
@@ -233,8 +235,6 @@ public sealed class SqliteCollectionStore : ICollectionStore
         var provided = new HashSet<string>(paths);
         if (!existing.SetEquals(provided))
             throw new InvalidOperationException("Paths must be a complete permutation of existing items.");
-
-        using var transaction = conn.BeginTransaction();
 
         for (var i = 0; i < paths.Length; i++)
         {

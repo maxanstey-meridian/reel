@@ -37,7 +37,7 @@ class ApiClient(
     private val prefs: PreferencesManager,
     private val client: HttpClient = HttpClient(Android) {
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
+            json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
         }
         engine {
             connectTimeout = 5_000

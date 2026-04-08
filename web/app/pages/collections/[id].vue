@@ -205,7 +205,7 @@ onMounted(fetchCollection);
               :src="itemThumbnail(item.relativePath) ?? ''"
               class="w-full h-full object-cover"
               loading="lazy"
-              @error="($event.target as HTMLImageElement).style.display = 'none'"
+              @error="$event.target instanceof HTMLImageElement && ($event.target.style.display = 'none')"
             />
             <UIcon v-else name="i-lucide-film" class="size-5 text-neutral-500" />
           </div>

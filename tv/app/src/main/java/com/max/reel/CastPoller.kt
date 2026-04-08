@@ -56,6 +56,10 @@ class CastPoller(
                     CastCommandType.Stop -> {
                         apiClient.acknowledgeCast()
                     }
+                    CastCommandType.Unknown -> {
+                        // Unrecognised command — acknowledge to clear it from the queue
+                        apiClient.acknowledgeCast()
+                    }
                 }
             }
             is CastPollResult.Unauthorized -> {

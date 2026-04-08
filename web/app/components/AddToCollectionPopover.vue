@@ -5,7 +5,7 @@ import { useCollections } from "~~/app/composables/useCollections";
 const props = defineProps<{
   relativePath: string;
   /** Popover content placement — defaults to bottom/start */
-  content?: Record<string, string>;
+  content?: { side?: "top" | "right" | "bottom" | "left"; align?: "start" | "center" | "end" };
 }>();
 
 const emit = defineEmits<{ added: [] }>();

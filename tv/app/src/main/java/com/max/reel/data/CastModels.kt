@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class CastCommandType {
+    Unknown,
     @SerialName("play") Play,
     @SerialName("stop") Stop,
 }

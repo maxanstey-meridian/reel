@@ -48,8 +48,10 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed interface PlayerError {
     data object CannotReachServer : PlayerError
@@ -168,10 +170,23 @@ fun PlayerScreen(
             player.playWhenReady = true
 
             onDispose {
-                // Final progress report before cleanup
-                reportProgress()
+                // Capture position synchronously before releasing the player
+                val posMs = player.currentPosition
+                val durMs = player.duration
                 player.stop()
                 player.release()
+
+                // Launch with NonCancellable so the final report survives scope cancellation
+                if (durMs > 0 && durMs != C.TIME_UNSET) {
+                    scope.launch(NonCancellable) {
+                        withContext(NonCancellable) {
+                            apiClient.updateProgress(relativePath, posMs / 1000.0, durMs / 1000.0)
+                            if (!markedWatched && (posMs / 1000.0) / (durMs / 1000.0) > 0.95) {
+                                apiClient.setWatched(relativePath)
+                            }
+                        }
+                    }
+                }
             }
         }
 
