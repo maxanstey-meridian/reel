@@ -368,15 +368,29 @@ describe("Detail page", () => {
     });
 
     it("saveEdit does NOT refresh library when rating changes", async () => {
-      mockMediaDetail.mockResolvedValue(makeDetail({ rating: "R" }));
-
+      // Load with default rating "PG-13", then change to "R"
       const page = setupDetailPage("Movies/Film.mkv");
       await page.loadData();
 
-      page.startEdit("rating");
-      page.editValue.value = "R";
+      // Re-mock for the re-fetch after PATCH
+      mockMediaDetail.mockResolvedValue(makeDetail({ rating: "R" }));
+
+      page.startEdit("rating");       // editValue = "PG-13" (from loaded detail)
+      page.editValue.value = "R";     // change to different value
       await page.saveEdit();
 
+      // PATCH was sent (proves we didn't take the early-return path)
+      expect(mockRivetFetch).toHaveBeenCalledWith("PATCH", "/api/media/detail", {
+        body: {
+          genre: null,
+          rating: "R",
+          language: null,
+          notes: null,
+          displayTitle: null,
+        },
+        query: { path: "Movies/Film.mkv" },
+      });
+      // But refresh was NOT called — shouldRefreshLibrary("rating") is false
       expect(mockRefresh).not.toHaveBeenCalled();
     });
 
