@@ -1,5 +1,7 @@
 package com.max.reel.ui.cast
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -67,6 +69,7 @@ fun StatusBar(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
+            .background(Color(0xCC121212))
             .drawBehind {
                 drawLine(
                     color = borderColor,

@@ -57,7 +57,7 @@ class ApiClient(
                 setBody(ConnectRequestBody(key))
             }
             when (response.status.value) {
-                200 -> {
+                in 200..299 -> {
                     val body = response.body<ConnectResponseBody>()
                     ConnectResult.Success(body.serverName ?: "")
                 }
