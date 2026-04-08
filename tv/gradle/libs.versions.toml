@@ -12,6 +12,7 @@ ktor                   = "2.3.12"
 kotlinx-serialization  = "1.6.3"
 lifecycle              = "2.8.7"
 coroutines             = "1.9.0"
+coil                   = "2.7.0"
 
 [libraries]
 # AndroidX core
@@ -48,6 +49,9 @@ kotlinx-coroutines-android  = { module = "org.jetbrains.kotlinx:kotlinx-coroutin
 # Lifecycle
 lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 lifecycle-runtime-compose   = { module = "androidx.lifecycle:lifecycle-runtime-compose",   version.ref = "lifecycle" }
+
+# Coil (image loading)
+coil-compose                = { module = "io.coil-kt:coil-compose",                          version.ref = "coil" }
 
 [plugins]
 android-application         = { id = "com.android.application",            version.ref = "agp" }

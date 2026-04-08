@@ -72,4 +72,7 @@ dependencies {
     // Lifecycle (ViewModel + collectAsStateWithLifecycle)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
+
+    // Coil (image loading)
+    implementation(libs.coil.compose)
 }

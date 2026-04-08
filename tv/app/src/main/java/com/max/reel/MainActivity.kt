@@ -15,11 +15,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
+import coil.Coil
+import coil.ImageLoader
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
 import com.max.reel.ui.cast.WaitingForCastScreen
 import com.max.reel.ui.pairing.PairingScreen
 import com.max.reel.ui.player.PlayerScreen
+import okhttp3.OkHttpClient
 
 sealed interface Screen {
     data object Pairing : Screen
@@ -37,6 +40,23 @@ class MainActivity : ComponentActivity() {
 
         val prefs = PreferencesManager(applicationContext)
         apiClient = ApiClient(prefs)
+
+        Coil.setImageLoader(
+            ImageLoader.Builder(this)
+                .okHttpClient {
+                    OkHttpClient.Builder()
+                        .addInterceptor { chain ->
+                            chain.proceed(
+                                chain.request().newBuilder()
+                                    .header("X-Secret-Key", prefs.secretKey)
+                                    .build()
+                            )
+                        }
+                        .build()
+                }
+                .crossfade(true)
+                .build()
+        )
 
         setContent {
             ReelApp(
