@@ -3,11 +3,13 @@ import { computed, ref, watch } from "vue";
 import { useCast } from "~~/app/composables/useCast";
 import { useTags } from "~~/app/composables/useTags";
 import { useWatchState } from "~~/app/composables/useWatchState";
+import { buildPatchBody, shouldRefreshLibrary } from "~~/app/utils/metadataEdit";
+import type { EditableField } from "~~/app/utils/metadataEdit";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { mediaDetail as fetchMediaDetail } from "~~/generated/rivet/client/reel";
 import { rivetFetch } from "~~/generated/rivet/rivet";
 import type { FileNode } from "~~/generated/rivet/types/domain";
-import type { MediaDetailResponse, MediaUpdateRequest } from "~~/generated/rivet/types/models";
+import type { MediaDetailResponse } from "~~/generated/rivet/types/models";
 
 const props = defineProps<{
   node: FileNode | null;
@@ -23,11 +25,10 @@ const newTag = ref("");
 
 const isWatched = computed(() => props.node?.watched === true);
 
-const editing = ref<keyof MediaUpdateRequest | null>(null);
+const editing = ref<EditableField | null>(null);
 const editValue = ref("");
 const saving = ref(false);
 
-type EditableField = keyof MediaUpdateRequest;
 const editableFields: { key: EditableField; label: string }[] = [
   { key: "displayTitle", label: "Title" },
   { key: "genre", label: "Genre" },
@@ -59,25 +60,16 @@ const saveEdit = async () => {
 
   saving.value = true;
   try {
-    const body: MediaUpdateRequest = {
-      genre: null,
-      rating: null,
-      language: null,
-      notes: null,
-      displayTitle: null,
-    };
-    body[field] = newVal;
-
     // rivetFetch used directly because generated mediaUpdate() has no path param
     // but server reads path from [FromQuery]
     await rivetFetch("PATCH", "/api/media/detail", {
-      body,
+      body: buildPatchBody(field, newVal),
       query: { path: props.node.relativePath },
     });
 
     detail.value = await fetchMediaDetail(props.node.relativePath);
 
-    if (field === "displayTitle") {
+    if (shouldRefreshLibrary(field)) {
       await useLibrary().refresh();
     }
   } finally {
@@ -101,7 +93,7 @@ const saveNotes = async () => {
   saving.value = true;
   try {
     await rivetFetch("PATCH", "/api/media/detail", {
-      body: { genre: null, rating: null, language: null, notes: newVal, displayTitle: null },
+      body: buildPatchBody("notes", newVal),
       query: { path: props.node.relativePath },
     });
     detail.value = await fetchMediaDetail(props.node.relativePath);

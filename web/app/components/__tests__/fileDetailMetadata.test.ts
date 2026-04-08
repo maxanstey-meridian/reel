@@ -1,32 +1,15 @@
 import { describe, it, expect } from "vitest";
-import type { MediaUpdateRequest } from "~~/generated/rivet/types/models";
+import { buildPatchBody, shouldRefreshLibrary } from "~~/app/utils/metadataEdit";
 
 /**
- * These tests verify the metadata editing logic used by FileDetail.vue:
- * - PATCH body construction sends only the changed field, nulls for rest
- * - Library refresh decision based on which field changed
+ * These tests verify the metadata editing logic extracted from FileDetail.vue.
+ * FileDetail.vue imports and uses these same functions — if they break here,
+ * the component breaks too.
  */
 
-type EditableField = keyof MediaUpdateRequest;
-
-const buildPatchBody = (field: EditableField, value: string | null): MediaUpdateRequest => {
-  const body: MediaUpdateRequest = {
-    genre: null,
-    rating: null,
-    language: null,
-    notes: null,
-    displayTitle: null,
-  };
-  body[field] = value;
-  return body;
-};
-
-const shouldRefreshLibrary = (field: EditableField): boolean => field === "displayTitle";
-
-describe("metadata PATCH body construction", () => {
+describe("buildPatchBody", () => {
   it("sets only genre, nulls for all other fields", () => {
-    const body = buildPatchBody("genre", "Comedy");
-    expect(body).toEqual({
+    expect(buildPatchBody("genre", "Comedy")).toEqual({
       genre: "Comedy",
       rating: null,
       language: null,
@@ -36,8 +19,7 @@ describe("metadata PATCH body construction", () => {
   });
 
   it("sets only displayTitle, nulls for all other fields", () => {
-    const body = buildPatchBody("displayTitle", "New Title");
-    expect(body).toEqual({
+    expect(buildPatchBody("displayTitle", "New Title")).toEqual({
       genre: null,
       rating: null,
       language: null,
@@ -47,8 +29,7 @@ describe("metadata PATCH body construction", () => {
   });
 
   it("sets only notes, nulls for all other fields", () => {
-    const body = buildPatchBody("notes", "Great film");
-    expect(body).toEqual({
+    expect(buildPatchBody("notes", "Great film")).toEqual({
       genre: null,
       rating: null,
       language: null,
@@ -58,8 +39,7 @@ describe("metadata PATCH body construction", () => {
   });
 
   it("sends empty string to clear a field", () => {
-    const body = buildPatchBody("genre", "");
-    expect(body).toEqual({
+    expect(buildPatchBody("genre", "")).toEqual({
       genre: "",
       rating: null,
       language: null,
@@ -69,13 +49,33 @@ describe("metadata PATCH body construction", () => {
   });
 
   it("never includes extra fields beyond the MediaUpdateRequest shape", () => {
-    const body = buildPatchBody("rating", "PG-13");
-    const keys = Object.keys(body).sort();
+    const keys = Object.keys(buildPatchBody("rating", "PG-13")).sort();
     expect(keys).toEqual(["displayTitle", "genre", "language", "notes", "rating"]);
+  });
+
+  it("saveNotes path: sets only notes field via buildPatchBody", () => {
+    // FileDetail.saveNotes calls buildPatchBody("notes", newVal)
+    expect(buildPatchBody("notes", "My thoughts")).toEqual({
+      genre: null,
+      rating: null,
+      language: null,
+      notes: "My thoughts",
+      displayTitle: null,
+    });
+  });
+
+  it("saveNotes path: clearing notes sends empty string", () => {
+    expect(buildPatchBody("notes", "")).toEqual({
+      genre: null,
+      rating: null,
+      language: null,
+      notes: "",
+      displayTitle: null,
+    });
   });
 });
 
-describe("library refresh decision", () => {
+describe("shouldRefreshLibrary", () => {
   it("refreshes library when displayTitle changes", () => {
     expect(shouldRefreshLibrary("displayTitle")).toBe(true);
   });
