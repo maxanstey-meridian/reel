@@ -35,7 +35,9 @@ export const useScrollPreservation = (
     (val) => {
       if (!val && scrollTop.value > 0 && scrollContainer) {
         nextTick(() => {
-          scrollContainer!.scrollTop = scrollTop.value;
+          if (scrollContainer) {
+            scrollContainer.scrollTop = scrollTop.value;
+          }
         });
       }
     },

@@ -74,9 +74,9 @@ const heroMode = computed<HeroMode>(() => {
 });
 
 const heroSrc = computed<string | null>(() => {
-  if (heroMode.value === "backdrop") { return detail.value!.backdropUrl; }
+  if (heroMode.value === "backdrop") { return detail.value?.backdropUrl ?? null; }
   if (heroMode.value === "thumbnail") { return thumbnailSrc.value; }
-  if (heroMode.value === "poster") { return detail.value!.posterUrl; }
+  if (heroMode.value === "poster") { return detail.value?.posterUrl ?? null; }
   return null;
 });
 
@@ -302,7 +302,7 @@ onMounted(async () => {
         <!-- Poster inset overlay -->
         <img
           v-if="showPosterInset"
-          :src="detail!.posterUrl!"
+          :src="detail?.posterUrl ?? ''"
           class="absolute bottom-3 left-3 w-[60px] rounded-md shadow-lg"
           @error="posterInsetFailed = true"
         />

@@ -79,8 +79,7 @@ public static class CollectionEndpoints
 
                             await store.RenameAsync(id, userId, req.Name, ct);
 
-                            var all = await store.GetAllAsync(userId, ct);
-                            return all.FirstOrDefault(c => c.Id == id)
+                            return await store.GetByIdAsync(id, userId, ct)
                                 ?? throw new NotFoundException("Collection not found");
                         }
                     )
@@ -102,6 +101,7 @@ public static class CollectionEndpoints
         app.MapPost(
             ReelContract.CollectionsAddItem.Route,
             async (
+                int id,
                 HttpContext context,
                 [FromBody] CollectionItemRequest request,
                 ICollectionStore store,
@@ -113,7 +113,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            await store.AddItemAsync(req.CollectionId, userId, req.Path, ct);
+                            await store.AddItemAsync(id, userId, req.Path, ct);
                         }
                     )
                 ).ToResult()
@@ -122,19 +122,19 @@ public static class CollectionEndpoints
         app.MapDelete(
             ReelContract.CollectionsRemoveItem.Route,
             async (
+                int id,
                 HttpContext context,
-                [FromQuery] int collectionId,
                 [FromQuery] string path,
                 ICollectionStore store,
                 CancellationToken ct
             ) =>
                 (
                     await ReelContract.CollectionsRemoveItem.Invoke(
-                        new CollectionItemRequest(collectionId, path),
+                        new CollectionItemRequest(path),
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            await store.RemoveItemAsync(req.CollectionId, userId, req.Path, ct);
+                            await store.RemoveItemAsync(id, userId, req.Path, ct);
                         }
                     )
                 ).ToResult()
@@ -144,6 +144,7 @@ public static class CollectionEndpoints
             ReelContract.CollectionsReorder.Route,
             ["PUT"],
             async (
+                int id,
                 HttpContext context,
                 [FromBody] ReorderItemsRequest request,
                 ICollectionStore store,
@@ -155,7 +156,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            await store.ReorderAsync(req.CollectionId, userId, req.Paths, ct);
+                            await store.ReorderAsync(id, userId, req.Paths, ct);
                         }
                     )
                 ).ToResult()

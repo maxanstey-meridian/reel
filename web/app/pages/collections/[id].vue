@@ -202,7 +202,7 @@ onMounted(fetchCollection);
           <div class="size-10 rounded bg-neutral-800 overflow-hidden shrink-0 flex items-center justify-center">
             <img
               v-if="itemThumbnail(item.relativePath)"
-              :src="itemThumbnail(item.relativePath)!"
+              :src="itemThumbnail(item.relativePath) ?? ''"
               class="w-full h-full object-cover"
               loading="lazy"
               @error="($event.target as HTMLImageElement).style.display = 'none'"

@@ -34,13 +34,39 @@ public sealed class SqliteCollectionStore : ICollectionStore
                 new Collection(
                     reader.GetInt32(0),
                     reader.GetString(1),
-                    reader.GetString(2),
+                    DateTime.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind),
                     reader.GetInt32(3)
                 )
             );
         }
 
         return results.ToArray();
+    }
+
+    public async Task<Collection?> GetByIdAsync(int collectionId, int userId, CancellationToken ct)
+    {
+        using var conn = _db.GetConnection();
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT c.id, c.name, c.created_at,
+                   (SELECT COUNT(*) FROM collection_items WHERE collection_id = c.id) AS item_count
+            FROM collections c
+            WHERE c.id = @id AND c.user_id = @userId;
+            """;
+        cmd.Parameters.AddWithValue("@id", collectionId);
+        cmd.Parameters.AddWithValue("@userId", userId);
+
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        return new Collection(
+            reader.GetInt32(0),
+            reader.GetString(1),
+            DateTime.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind),
+            reader.GetInt32(3)
+        );
     }
 
     public async Task<CollectionWithItems?> GetWithItemsAsync(int collectionId, int userId, CancellationToken ct)
@@ -62,7 +88,7 @@ public sealed class SqliteCollectionStore : ICollectionStore
 
         var id = collReader.GetInt32(0);
         var name = collReader.GetString(1);
-        var createdAt = collReader.GetString(2);
+        var createdAt = DateTime.Parse(collReader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind);
         collReader.Close();
 
         using var itemsCmd = conn.CreateCommand();
@@ -82,7 +108,7 @@ public sealed class SqliteCollectionStore : ICollectionStore
                 new CollectionItem(
                     itemsReader.GetString(0),
                     itemsReader.GetInt32(1),
-                    itemsReader.GetString(2)
+                    DateTime.Parse(itemsReader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind)
                 )
             );
         }
@@ -105,12 +131,13 @@ public sealed class SqliteCollectionStore : ICollectionStore
         cmd.Parameters.AddWithValue("@createdAt", DateTime.UtcNow.ToString("o"));
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            throw new InvalidOperationException("INSERT RETURNING yielded no rows.");
 
         return new Collection(
             reader.GetInt32(0),
             reader.GetString(1),
-            reader.GetString(2),
+            DateTime.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind),
             0
         );
     }
@@ -185,6 +212,28 @@ public sealed class SqliteCollectionStore : ICollectionStore
     public async Task ReorderAsync(int collectionId, int userId, string[] paths, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
+
+        // Validate paths are a complete permutation of existing items
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = """
+            SELECT relative_path FROM collection_items
+            WHERE collection_id = @collectionId
+            AND collection_id IN (SELECT id FROM collections WHERE id = @collectionId AND user_id = @userId)
+            ORDER BY relative_path;
+            """;
+        checkCmd.Parameters.AddWithValue("@collectionId", collectionId);
+        checkCmd.Parameters.AddWithValue("@userId", userId);
+
+        using var checkReader = await checkCmd.ExecuteReaderAsync(ct);
+        var existing = new HashSet<string>();
+        while (await checkReader.ReadAsync(ct))
+            existing.Add(checkReader.GetString(0));
+        checkReader.Close();
+
+        var provided = new HashSet<string>(paths);
+        if (!existing.SetEquals(provided))
+            throw new InvalidOperationException("Paths must be a complete permutation of existing items.");
+
         using var transaction = conn.BeginTransaction();
 
         for (var i = 0; i < paths.Length; i++)

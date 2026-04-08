@@ -300,7 +300,8 @@ public sealed class SqliteCollectionStoreTests : IDisposable
         await _store.AddItemAsync(created.Id, 1, "Films/a.mp4", CancellationToken.None);
         await _store.AddItemAsync(created.Id, 1, "Films/b.mp4", CancellationToken.None);
 
-        await _store.ReorderAsync(created.Id, 2, ["Films/b.mp4", "Films/a.mp4"], CancellationToken.None);
+        var act = () => _store.ReorderAsync(created.Id, 2, ["Films/b.mp4", "Films/a.mp4"], CancellationToken.None);
+        await act.Should().ThrowAsync<InvalidOperationException>();
 
         var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
         result!.Items[0].RelativePath.Should().Be("Films/a.mp4", "original order should be preserved");

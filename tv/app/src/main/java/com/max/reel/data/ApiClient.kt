@@ -13,6 +13,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLParameter
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -64,6 +65,7 @@ class ApiClient(
                 else -> ConnectResult.NetworkError("Unexpected status: ${response.status.value}")
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             ConnectResult.NetworkError(e.message ?: "Unknown error")
         }
     }
@@ -83,6 +85,7 @@ class ApiClient(
                 else -> CastPollResult.NetworkError("Unexpected status: ${response.status.value}")
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             CastPollResult.NetworkError(e.message ?: "Unknown error")
         }
     }
@@ -93,7 +96,8 @@ class ApiClient(
                 header("X-Secret-Key", prefs.secretKey)
             }
             response.status.value == 200
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             false
         }
     }
@@ -104,7 +108,8 @@ class ApiClient(
                 header("X-Secret-Key", prefs.secretKey)
             }
             if (response.status.value == 200) response.body<List<String>>() else emptyList()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             emptyList()
         }
     }
@@ -115,7 +120,8 @@ class ApiClient(
                 header("X-Secret-Key", prefs.secretKey)
             }
             if (response.status.value == 200) response.body<LibraryStats>() else null
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             null
         }
     }
@@ -126,7 +132,8 @@ class ApiClient(
                 header("X-Secret-Key", prefs.secretKey)
             }
             if (response.status.value == 200) response.body<List<UserInfo>>() else emptyList()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             emptyList()
         }
     }
@@ -143,7 +150,8 @@ class ApiClient(
                 setBody(ProgressRequestBody(path, positionSeconds, durationSeconds))
             }
             response.status.value == 200
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             false
         }
     }
@@ -154,7 +162,8 @@ class ApiClient(
                 header("X-Secret-Key", prefs.secretKey)
             }
             response.status.value == 204
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             false
         }
     }

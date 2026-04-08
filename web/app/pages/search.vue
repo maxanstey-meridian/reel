@@ -116,7 +116,10 @@ onMounted(async () => {
   try {
     const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
     if (stored) {
-      recentSearches.value = JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.every((x: unknown) => typeof x === "string")) {
+        recentSearches.value = parsed;
+      }
     }
   } catch {
     // Corrupted localStorage — ignore
