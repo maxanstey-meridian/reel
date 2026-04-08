@@ -49,7 +49,8 @@ fun WaitingForCastScreen(
     }
 
     val indicatorColor = if (connectionOk) ReelColors.connected else ReelColors.disconnected
-    val indicatorText = if (connectionOk) "Connected" else "Waiting for cast\u2026"
+    val indicatorText = if (connectionOk) "Connected" else "Disconnected"
+    val indicatorTextColor = if (connectionOk) ReelColors.textSecondary else ReelColors.disconnected
 
     Box(
         modifier = Modifier
@@ -99,7 +100,7 @@ fun WaitingForCastScreen(
                     Text(
                         text = indicatorText,
                         fontSize = 14.sp,
-                        color = ReelColors.textSecondary,
+                        color = indicatorTextColor,
                     )
                 }
             }
@@ -121,5 +122,8 @@ fun WaitingForCastScreen(
             totalBytes = stats?.totalBytes,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+
+        // Disconnected overlay — renders on top of everything
+        DisconnectedOverlay(visible = !connectionOk)
     }
 }
