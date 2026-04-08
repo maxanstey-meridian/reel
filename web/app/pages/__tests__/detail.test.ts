@@ -227,12 +227,16 @@ const setupDetailPage = (routePath: string | string[]) => {
   };
 
   const handleToggleWatched = async () => {
-    if (isWatched.value) {
-      await setUnwatched(relativePath);
-    } else {
-      await setWatched(relativePath);
+    try {
+      if (isWatched.value) {
+        await setUnwatched(relativePath);
+      } else {
+        await setWatched(relativePath);
+      }
+      detail.value = await mockMediaDetail(relativePath);
+    } catch {
+      // Matches page behavior: errors are silent, UI stays in current state
     }
-    detail.value = await mockMediaDetail(relativePath);
   };
 
   const handleCast = async () => {

@@ -3,6 +3,7 @@ package com.max.reel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.max.reel.data.ApiClient
+import com.max.reel.data.CastCommandType
 import com.max.reel.data.CastPollResult
 import com.max.reel.data.PlayCommand
 import kotlinx.coroutines.Job
@@ -47,16 +48,12 @@ class CastPoller(
                 _connectionOk.value = true
                 val command = result.status?.command ?: return
                 when (command.type) {
-                    "play" -> {
+                    CastCommandType.Play -> {
                         val path = command.relativePath ?: return
                         apiClient.acknowledgeCast()
                         _playCommand.send(PlayCommand(path, command.positionSeconds))
                     }
-                    "stop" -> {
-                        apiClient.acknowledgeCast()
-                    }
-                    else -> {
-                        // Unknown command type — acknowledge to clear it from the queue
+                    CastCommandType.Stop -> {
                         apiClient.acknowledgeCast()
                     }
                 }

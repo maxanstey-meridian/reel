@@ -1,10 +1,17 @@
 package com.max.reel.data
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+enum class CastCommandType {
+    @SerialName("play") Play,
+    @SerialName("stop") Stop,
+}
+
+@Serializable
 data class CastCommand(
-    val type: String,
+    val type: CastCommandType,
     val relativePath: String? = null,
     val positionSeconds: Double? = null,
 )

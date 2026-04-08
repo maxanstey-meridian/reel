@@ -210,13 +210,18 @@ const handleRemoveTag = async (tag: string) => {
 };
 
 const handleToggleWatched = async () => {
-  if (isWatched.value) {
-    await setUnwatched(relativePath.value);
-  } else {
-    await setWatched(relativePath.value);
+  try {
+    if (isWatched.value) {
+      await setUnwatched(relativePath.value);
+    } else {
+      await setWatched(relativePath.value);
+    }
+    // Re-fetch detail to update watched state
+    detail.value = await fetchMediaDetail(relativePath.value);
+  } catch {
+    // Toast is handled by useWatchState on success; errors are silent
+    // but the UI stays in its current state rather than crashing
   }
-  // Re-fetch detail to update watched state
-  detail.value = await fetchMediaDetail(relativePath.value);
 };
 
 const handleCast = async () => {

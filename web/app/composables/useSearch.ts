@@ -36,7 +36,7 @@ export const useSearch = () => {
       clearTimeout(debounceTimer);
     }
 
-    if (!q.trim() && !tag && watched === null) {
+    if (!q.trim() && !tag && !genre && watched === null) {
       results.value = [];
       loading.value = false;
       error.value = null;
