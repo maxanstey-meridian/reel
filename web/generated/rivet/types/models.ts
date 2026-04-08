@@ -71,6 +71,10 @@ export type MediaUpdateRequest = {
   displayTitle: string | null;
 };
 
+export type FileRequest = {
+  path: string;
+};
+
 export type SetTagsRequest = {
   tags: string[];
 };

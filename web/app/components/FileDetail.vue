@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useCast } from "~~/app/composables/useCast";
+import { useWatchState } from "~~/app/composables/useWatchState";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { metadata as fetchMetadataApi } from "~~/generated/rivet/client/reel";
 import type { FileNode } from "~~/generated/rivet/types/domain";
@@ -14,6 +15,18 @@ const props = defineProps<{
 const emit = defineEmits<{ close: [] }>();
 
 const { casting, error, cast } = useCast();
+const { loading: watchLoading, setWatched, setUnwatched } = useWatchState();
+
+const isWatched = computed(() => props.node?.watched === true);
+
+const handleToggleWatched = async () => {
+  if (!props.node) return;
+  if (isWatched.value) {
+    await setUnwatched(props.node.relativePath);
+  } else {
+    await setWatched(props.node.relativePath);
+  }
+};
 
 const parsed = computed(() => (props.node ? parseFilename(props.node.name) : null));
 
@@ -106,6 +119,17 @@ const handleCast = async () => {
         <p v-if="metadata?.overview" class="text-sm text-neutral-400 leading-relaxed">
           {{ metadata.overview }}
         </p>
+
+        <UButton
+          block
+          size="lg"
+          variant="outline"
+          :icon="isWatched ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+          :loading="watchLoading"
+          @click="handleToggleWatched"
+        >
+          {{ isWatched ? "Mark Unwatched" : "Mark Watched" }}
+        </UButton>
 
         <UAlert v-if="error" color="error" icon="i-lucide-alert-circle" :title="error" />
 

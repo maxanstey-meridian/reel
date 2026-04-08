@@ -2,7 +2,7 @@
 
 import { rivetFetch, getBaseUrl, type RivetResult } from "../rivet.js";
 import type { CastStatus, Favourite, FileNode, SubtitleTrack, TagCount, TrickplayMetadata, User, WatchProgress } from "../types/domain.js";
-import type { AddTagRequest, CastRequest, ConnectRequest, ConnectResponse, FavouriteRequest, HealthResponse, MediaDetailResponse, MediaUpdateRequest, MetadataResponse, ProgressRequest, SetTagsRequest, UserRequest } from "../types/models.js";
+import type { AddTagRequest, CastRequest, ConnectRequest, ConnectResponse, FavouriteRequest, FileRequest, HealthResponse, MediaDetailResponse, MediaUpdateRequest, MetadataResponse, ProgressRequest, SetTagsRequest, UserRequest } from "../types/models.js";
 
 export type ConnectResult =
   | { status: 201; data: ConnectResponse; response: Response }
@@ -171,25 +171,25 @@ export function mediaUpdate(body: MediaUpdateRequest, opts?: { unwrap?: boolean 
   return rivetFetch<RivetResult<void>>("PATCH", `/api/media/detail`, { body: body, unwrap: opts?.unwrap });
 }
 
-export function mediaSetWatched(): Promise<void>;
-export function mediaSetWatched(opts: { unwrap: true }): Promise<void>;
-export function mediaSetWatched(opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function mediaSetWatched(opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("PUT", `/api/media/watched`, { unwrap: opts?.unwrap });
+export function mediaSetWatched(body: FileRequest): Promise<void>;
+export function mediaSetWatched(body: FileRequest, opts: { unwrap: true }): Promise<void>;
+export function mediaSetWatched(body: FileRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function mediaSetWatched(body: FileRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("PUT", `/api/media/watched`, { body: body, unwrap: opts?.unwrap });
 }
 
-export function mediaSetUnwatched(): Promise<void>;
-export function mediaSetUnwatched(opts: { unwrap: true }): Promise<void>;
-export function mediaSetUnwatched(opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function mediaSetUnwatched(opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("PUT", `/api/media/unwatched`, { unwrap: opts?.unwrap });
+export function mediaSetUnwatched(body: FileRequest): Promise<void>;
+export function mediaSetUnwatched(body: FileRequest, opts: { unwrap: true }): Promise<void>;
+export function mediaSetUnwatched(body: FileRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function mediaSetUnwatched(body: FileRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("PUT", `/api/media/unwatched`, { body: body, unwrap: opts?.unwrap });
 }
 
-export function mediaClearWatched(): Promise<void>;
-export function mediaClearWatched(opts: { unwrap: true }): Promise<void>;
-export function mediaClearWatched(opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function mediaClearWatched(opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("DELETE", `/api/media/watched`, { unwrap: opts?.unwrap });
+export function mediaClearWatched(path: string): Promise<void>;
+export function mediaClearWatched(path: string, opts: { unwrap: true }): Promise<void>;
+export function mediaClearWatched(path: string, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function mediaClearWatched(path: string, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("DELETE", `/api/media/watched`, { query: { path }, unwrap: opts?.unwrap });
 }
 
 export function tagsList(path: string): Promise<string[]>;
@@ -213,11 +213,11 @@ export function tagsAdd(body: AddTagRequest, opts?: { unwrap?: boolean }): Promi
   return rivetFetch<RivetResult<void>>("POST", `/api/media/tags`, { body: body, unwrap: opts?.unwrap });
 }
 
-export function tagsRemove(): Promise<void>;
-export function tagsRemove(opts: { unwrap: true }): Promise<void>;
-export function tagsRemove(opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function tagsRemove(opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("DELETE", `/api/media/tags`, { unwrap: opts?.unwrap });
+export function tagsRemove(path: string, tag: string): Promise<void>;
+export function tagsRemove(path: string, tag: string, opts: { unwrap: true }): Promise<void>;
+export function tagsRemove(path: string, tag: string, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function tagsRemove(path: string, tag: string, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("DELETE", `/api/media/tags`, { query: { path, tag }, unwrap: opts?.unwrap });
 }
 
 export function tagsAll(): Promise<TagCount[]>;
@@ -227,11 +227,11 @@ export function tagsAll(opts?: { unwrap?: boolean }): Promise<TagCount[] | Rivet
   return rivetFetch<RivetResult<TagCount[]>>("GET", `/api/tags`, { unwrap: opts?.unwrap });
 }
 
-export function search(): Promise<FileNode[]>;
-export function search(opts: { unwrap: true }): Promise<FileNode[]>;
-export function search(opts: { unwrap: false }): Promise<RivetResult<FileNode[]>>;
-export function search(opts?: { unwrap?: boolean }): Promise<FileNode[] | RivetResult<FileNode[]>> {
-  return rivetFetch<RivetResult<FileNode[]>>("GET", `/api/search`, { unwrap: opts?.unwrap });
+export function search(q: string | null, tag: string | null, genre: string | null, watched: boolean | null): Promise<FileNode[]>;
+export function search(q: string | null, tag: string | null, genre: string | null, watched: boolean | null, opts: { unwrap: true }): Promise<FileNode[]>;
+export function search(q: string | null, tag: string | null, genre: string | null, watched: boolean | null, opts: { unwrap: false }): Promise<RivetResult<FileNode[]>>;
+export function search(q: string | null, tag: string | null, genre: string | null, watched: boolean | null, opts?: { unwrap?: boolean }): Promise<FileNode[] | RivetResult<FileNode[]>> {
+  return rivetFetch<RivetResult<FileNode[]>>("GET", `/api/search`, { query: { q, tag, genre, watched }, unwrap: opts?.unwrap });
 }
 
 export function nextFile(path: string): Promise<FileNode>;
