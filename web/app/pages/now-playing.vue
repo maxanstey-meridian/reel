@@ -7,7 +7,7 @@ import { nextFile, thumbnailUrl } from "~~/generated/rivet/client/reel";
 import type { FileNode } from "~~/generated/rivet/types/domain";
 
 const { isConnected, secretKey } = useConnection();
-const { currentFile, stop, error, cast, casting } = useCast();
+const { currentFile, stop, error, cast, casting, queue, fetchQueue } = useCast();
 
 onMounted(() => {
   if (!isConnected.value) {
@@ -55,6 +55,7 @@ const fetchUpNext = async (path: string) => {
 watch(currentFile, (path) => {
   if (path) {
     fetchUpNext(path);
+    fetchQueue();
   } else {
     upNext.value = null;
   }
@@ -106,7 +107,7 @@ const castNext = () => {
       </UButton>
 
       <!-- Up Next -->
-      <div v-if="upNext" class="mt-8 w-full">
+      <div v-if="upNext && queue.length === 0" class="mt-8 w-full">
         <h2 class="text-sm font-medium text-neutral-400 mb-3">Up Next</h2>
         <button
           class="w-full flex items-center gap-3 rounded-lg bg-neutral-900 p-3 text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
@@ -130,6 +131,35 @@ const castNext = () => {
           </div>
           <UIcon name="i-lucide-cast" class="size-5 text-green-500 shrink-0" />
         </button>
+      </div>
+
+      <!-- Queue -->
+      <div v-if="queue.length > 0" class="mt-8 w-full">
+        <h2 class="text-sm font-medium text-neutral-400 mb-3">
+          Queue ({{ queue.length }} remaining)
+        </h2>
+        <div class="space-y-1">
+          <div
+            v-for="(path, index) in queue"
+            :key="path"
+            class="flex items-center gap-3 rounded-lg bg-neutral-900 p-3"
+          >
+            <span class="text-xs text-neutral-600 w-5 text-right shrink-0">{{ index + 1 }}</span>
+            <div class="size-10 rounded bg-neutral-800 overflow-hidden shrink-0 flex items-center justify-center">
+              <img
+                v-if="secretKey"
+                :src="thumbnailUrl(path, secretKey)"
+                class="w-full h-full object-cover"
+                loading="lazy"
+                @error="($event.target as HTMLImageElement).style.display = 'none'"
+              />
+              <UIcon v-else name="i-lucide-film" class="size-5 text-neutral-500" />
+            </div>
+            <p class="flex-1 min-w-0 text-sm text-neutral-300 truncate">
+              {{ path.split("/").pop() }}
+            </p>
+          </div>
+        </div>
       </div>
     </template>
 

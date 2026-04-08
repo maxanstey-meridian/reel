@@ -2,7 +2,7 @@
 
 import { rivetFetch, getBaseUrl, type RivetResult } from "../rivet.js";
 import type { CastStatus, Collection, CollectionWithItems, Favourite, FileNode, SubtitleTrack, TagCount, TrickplayMetadata, User, WatchProgress } from "../types/domain.js";
-import type { AddTagRequest, CastRequest, CollectionItemRequest, ConnectRequest, ConnectResponse, CreateCollectionRequest, FavouriteRequest, FileRequest, HealthResponse, LibraryStatsResponse, MediaDetailResponse, MediaUpdateRequest, MetadataResponse, ProgressRequest, RenameCollectionRequest, ReorderItemsRequest, SetTagsRequest, UserRequest } from "../types/models.js";
+import type { AddTagRequest, CastQueueRequest, CastRequest, CollectionItemRequest, ConnectRequest, ConnectResponse, CreateCollectionRequest, FavouriteRequest, FileRequest, HealthResponse, LibraryStatsResponse, MediaDetailResponse, MediaUpdateRequest, MetadataResponse, ProgressRequest, RenameCollectionRequest, ReorderItemsRequest, SetTagsRequest, UserRequest } from "../types/models.js";
 
 export type ConnectResult =
   | { status: 201; data: ConnectResponse; response: Response }
@@ -70,6 +70,20 @@ export function castStop(opts: { unwrap: true }): Promise<void>;
 export function castStop(opts: { unwrap: false }): Promise<RivetResult<void>>;
 export function castStop(opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
   return rivetFetch<RivetResult<void>>("POST", `/api/cast/stop`, { unwrap: opts?.unwrap });
+}
+
+export function castQueuePlay(body: CastQueueRequest): Promise<void>;
+export function castQueuePlay(body: CastQueueRequest, opts: { unwrap: true }): Promise<void>;
+export function castQueuePlay(body: CastQueueRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function castQueuePlay(body: CastQueueRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("POST", `/api/cast/queue`, { body: body, unwrap: opts?.unwrap });
+}
+
+export function castQueueGet(): Promise<string[]>;
+export function castQueueGet(opts: { unwrap: true }): Promise<string[]>;
+export function castQueueGet(opts: { unwrap: false }): Promise<RivetResult<string[]>>;
+export function castQueueGet(opts?: { unwrap?: boolean }): Promise<string[] | RivetResult<string[]>> {
+  return rivetFetch<RivetResult<string[]>>("GET", `/api/cast/queue`, { unwrap: opts?.unwrap });
 }
 
 export function progressUpdate(body: ProgressRequest): Promise<void>;
@@ -326,23 +340,23 @@ export function collectionsDelete(id: string, opts?: { unwrap?: boolean }): Prom
   return rivetFetch<RivetResult<void>>("DELETE", `/api/collections/${encodeURIComponent(String(id))}`, { unwrap: opts?.unwrap });
 }
 
-export function collectionsAddItem(id: number, body: CollectionItemRequest): Promise<void>;
-export function collectionsAddItem(id: number, body: CollectionItemRequest, opts: { unwrap: true }): Promise<void>;
-export function collectionsAddItem(id: number, body: CollectionItemRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsAddItem(id: number, body: CollectionItemRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+export function collectionsAddItem(id: string, body: CollectionItemRequest): Promise<void>;
+export function collectionsAddItem(id: string, body: CollectionItemRequest, opts: { unwrap: true }): Promise<void>;
+export function collectionsAddItem(id: string, body: CollectionItemRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function collectionsAddItem(id: string, body: CollectionItemRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
   return rivetFetch<RivetResult<void>>("POST", `/api/collections/${encodeURIComponent(String(id))}/items`, { body: body, unwrap: opts?.unwrap });
 }
 
-export function collectionsRemoveItem(id: number, path: string): Promise<void>;
-export function collectionsRemoveItem(id: number, path: string, opts: { unwrap: true }): Promise<void>;
-export function collectionsRemoveItem(id: number, path: string, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsRemoveItem(id: number, path: string, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+export function collectionsRemoveItem(id: string, path: string): Promise<void>;
+export function collectionsRemoveItem(id: string, path: string, opts: { unwrap: true }): Promise<void>;
+export function collectionsRemoveItem(id: string, path: string, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function collectionsRemoveItem(id: string, path: string, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
   return rivetFetch<RivetResult<void>>("DELETE", `/api/collections/${encodeURIComponent(String(id))}/items`, { query: { path }, unwrap: opts?.unwrap });
 }
 
-export function collectionsReorder(id: number, body: ReorderItemsRequest): Promise<void>;
-export function collectionsReorder(id: number, body: ReorderItemsRequest, opts: { unwrap: true }): Promise<void>;
-export function collectionsReorder(id: number, body: ReorderItemsRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsReorder(id: number, body: ReorderItemsRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+export function collectionsReorder(id: string, body: ReorderItemsRequest): Promise<void>;
+export function collectionsReorder(id: string, body: ReorderItemsRequest, opts: { unwrap: true }): Promise<void>;
+export function collectionsReorder(id: string, body: ReorderItemsRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function collectionsReorder(id: string, body: ReorderItemsRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
   return rivetFetch<RivetResult<void>>("PUT", `/api/collections/${encodeURIComponent(String(id))}/items/order`, { body: body, unwrap: opts?.unwrap });
 }

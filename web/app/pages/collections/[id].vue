@@ -10,7 +10,7 @@ const route = useRoute();
 const router = useRouter();
 const { secretKey } = useConnection();
 const { remove, removeItem, rename, getWithItems } = useCollections();
-const { cast, casting } = useCast();
+const { castQueue, casting } = useCast();
 
 const collectionId = computed(() => String(route.params.id));
 
@@ -80,10 +80,10 @@ const handleRemoveItem = async (relativePath: string) => {
   };
 };
 
-// Cast all — falls back to first item (queue not yet available)
 const handleCastAll = async () => {
   if (!collection.value || collection.value.items.length === 0) return;
-  await cast(collection.value.items[0]!.relativePath);
+  const paths = collection.value.items.map((i) => i.relativePath);
+  await castQueue(paths);
   navigateTo("/now-playing");
 };
 

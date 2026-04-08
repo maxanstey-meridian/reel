@@ -32,6 +32,13 @@ public static class ReelContract
 
     public static readonly RouteDefinition CastStop = Define.Post("/api/cast/stop").Status(204);
 
+    public static readonly InputRouteDefinition<CastQueueRequest> CastQueuePlay = Define
+        .Post("/api/cast/queue")
+        .Accepts<CastQueueRequest>()
+        .Status(204);
+
+    public static readonly RouteDefinition<string[]> CastQueueGet = Define.Get<string[]>("/api/cast/queue");
+
     public static readonly InputRouteDefinition<ProgressRequest> ProgressUpdate = Define
         .Post("/api/progress")
         .Accepts<ProgressRequest>()
@@ -170,16 +177,16 @@ public static class ReelContract
     public static readonly RouteDefinition CollectionsDelete = Define.Delete("/api/collections/{id}").Status(204);
 
     public static readonly InputRouteDefinition<CollectionItemRequest> CollectionsAddItem = Define
-        .Post("/api/collection-items")
+        .Post("/api/collections/{id}/items")
         .Accepts<CollectionItemRequest>()
         .Status(204);
 
     public static readonly InputRouteDefinition<CollectionItemRequest> CollectionsRemoveItem = Define
-        .Delete("/api/collection-items")
+        .Delete("/api/collections/{id}/items")
         .Accepts<CollectionItemRequest>();
 
     public static readonly InputRouteDefinition<ReorderItemsRequest> CollectionsReorder = Define
-        .Put("/api/collection-items/order")
+        .Put("/api/collections/{id}/items/order")
         .Accepts<ReorderItemsRequest>()
         .Status(204);
 }

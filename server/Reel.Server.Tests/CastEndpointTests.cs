@@ -114,6 +114,125 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         status!.Command!.RelativePath.Should().Be("Films/second.mp4");
     }
 
+    [Fact]
+    public async Task PostCastQueue_LoadsMultipleItems_GetCurrentReturnsFirst()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var paths = new[] { "Films/a.mp4", "Films/b.mp4", "Films/c.mp4" };
+        var response = await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command.Should().NotBeNull();
+        status.Command!.Type.Should().Be("play");
+        status.Command.RelativePath.Should().Be("Films/a.mp4");
+    }
+
+    [Fact]
+    public async Task PostCastQueue_AckPopsFront_NextBecomesPending()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var paths = new[] { "Films/a.mp4", "Films/b.mp4", "Films/c.mp4" };
+        await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+
+        // Ack first item
+        await client.PostAsync("/api/cast/ack", null);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/b.mp4");
+    }
+
+    [Fact]
+    public async Task PostCastQueue_AckThroughEntireQueue_CurrentBecomesNull()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var paths = new[] { "Films/a.mp4", "Films/b.mp4" };
+        await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+
+        await client.PostAsync("/api/cast/ack", null); // pop a
+        await client.PostAsync("/api/cast/ack", null); // pop b
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PostCast_ClearsExistingQueue()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var paths = new[] { "Films/a.mp4", "Films/b.mp4", "Films/c.mp4" };
+        await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+
+        // Single cast should replace the queue
+        await client.PostAsJsonAsync("/api/cast", new { relativePath = "Films/single.mp4" });
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/single.mp4");
+
+        // Queue should be empty (only the single item, no remaining)
+        var queueResponse = await client.GetAsync("/api/cast/queue");
+        var queue = await queueResponse.Content.ReadFromJsonAsync<string[]>();
+        queue.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PostStop_ClearsQueue()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var paths = new[] { "Films/a.mp4", "Films/b.mp4" };
+        await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+
+        await client.PostAsync("/api/cast/stop", null);
+
+        // Current should be stop command
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.Type.Should().Be("stop");
+
+        // Queue should be empty
+        var queueResponse = await client.GetAsync("/api/cast/queue");
+        var queue = await queueResponse.Content.ReadFromJsonAsync<string[]>();
+        queue.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetCastQueue_ReturnsRemainingPathsExcludingCurrent()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var paths = new[] { "Films/a.mp4", "Films/b.mp4", "Films/c.mp4" };
+        await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+
+        var queueResponse = await client.GetAsync("/api/cast/queue");
+        queueResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var queue = await queueResponse.Content.ReadFromJsonAsync<string[]>();
+        queue.Should().Equal("Films/b.mp4", "Films/c.mp4");
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/cast/queue")]
+    [InlineData("GET", "/api/cast/queue")]
+    public async Task CastQueueEndpoints_RequireAuth(string method, string path)
+    {
+        var client = _factory.CreateClient();
+
+        var response = method == "GET"
+            ? await client.GetAsync(path)
+            : await client.PostAsync(path, null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     private HttpClient CreateAuthenticatedClient()
     {
         var client = _factory.CreateClient();

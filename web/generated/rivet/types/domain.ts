@@ -6,23 +6,23 @@ export type FileNode = {
   name: string;
   type: FileNodeType;
   relativePath: string;
-  extension: string | null;
-  sizeBytes: number | null;
-  children: FileNode[] | null;
-  parsedTitle: string | null;
-  year: number | null;
-  thumbnailUrl: string | null;
-  watched: boolean | null;
-  displayTitle: string | null;
+  extension?: string | null;
+  sizeBytes?: number | null;
+  children?: FileNode[] | null;
+  parsedTitle?: string | null;
+  year?: number | null;
+  thumbnailUrl?: string | null;
+  watched?: boolean | null;
+  displayTitle?: string | null;
 };
 
 export type CastCommand = {
   type: string;
-  relativePath: string | null;
+  relativePath?: string | null;
 };
 
 export type CastStatus = {
-  command: CastCommand | null;
+  command?: CastCommand | null;
 };
 
 export type WatchProgress = {
@@ -40,7 +40,7 @@ export type Favourite = {
 export type User = {
   id: number;
   name: string;
-  icon: string | null;
+  icon?: string | null;
 };
 
 export type TagCount = {
@@ -54,7 +54,7 @@ export type SubtitleTrack = {
   language: string;
   format: string;
   source: string;
-  externalPath: string | null;
+  externalPath?: string | null;
 };
 
 export type TrickplayMetadata = {

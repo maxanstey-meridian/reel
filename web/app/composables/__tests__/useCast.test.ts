@@ -13,10 +13,14 @@ vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
 // Mock Rivet modules
 const mockCast = vi.fn();
 const mockCastStop = vi.fn();
+const mockCastQueuePlay = vi.fn();
+const mockCastQueueGet = vi.fn();
 
 vi.mock("~~/generated/rivet/client/reel", () => ({
   cast: (...args: unknown[]) => mockCast(...args),
   castStop: (...args: unknown[]) => mockCastStop(...args),
+  castQueuePlay: (...args: unknown[]) => mockCastQueuePlay(...args),
+  castQueueGet: (...args: unknown[]) => mockCastQueueGet(...args),
 }));
 
 // Import after mocks are set up
@@ -110,5 +114,66 @@ describe("useCast", () => {
     await cast("Films/test.mp4");
 
     expect(mockToastAdd).not.toHaveBeenCalled();
+  });
+
+  it("castQueue calls endpoint and sets currentFile to first path", async () => {
+    mockCastQueuePlay.mockResolvedValue(undefined);
+
+    const { castQueue, currentFile, queue } = useCast();
+    await castQueue(["Films/a.mp4", "Films/b.mp4", "Films/c.mp4"]);
+
+    expect(mockCastQueuePlay).toHaveBeenCalledWith({
+      paths: ["Films/a.mp4", "Films/b.mp4", "Films/c.mp4"],
+    });
+    expect(currentFile.value).toBe("Films/a.mp4");
+    expect(queue.value).toEqual(["Films/b.mp4", "Films/c.mp4"]);
+  });
+
+  it("castQueue does nothing for empty array", async () => {
+    const { castQueue } = useCast();
+    await castQueue([]);
+
+    expect(mockCastQueuePlay).not.toHaveBeenCalled();
+  });
+
+  it("castQueue handles error", async () => {
+    mockCastQueuePlay.mockRejectedValue(new Error("Queue failed"));
+
+    const { castQueue, currentFile, queue, error } = useCast();
+    await castQueue(["Films/a.mp4"]);
+
+    expect(error.value).toBe("Queue failed");
+    expect(currentFile.value).toBeNull();
+    expect(queue.value).toEqual([]);
+  });
+
+  it("fetchQueue populates queue state", async () => {
+    mockCastQueueGet.mockResolvedValue(["Films/b.mp4", "Films/c.mp4"]);
+
+    const { fetchQueue, queue } = useCast();
+    await fetchQueue();
+
+    expect(queue.value).toEqual(["Films/b.mp4", "Films/c.mp4"]);
+  });
+
+  it("fetchQueue clears queue on error", async () => {
+    mockCastQueueGet.mockRejectedValue(new Error("fail"));
+
+    const { fetchQueue, queue } = useCast();
+    await fetchQueue();
+
+    expect(queue.value).toEqual([]);
+  });
+
+  it("stop clears queue", async () => {
+    mockCastQueuePlay.mockResolvedValue(undefined);
+    mockCastStop.mockResolvedValue(undefined);
+
+    const { castQueue, stop, queue } = useCast();
+    await castQueue(["Films/a.mp4", "Films/b.mp4"]);
+    expect(queue.value).toEqual(["Films/b.mp4"]);
+
+    await stop();
+    expect(queue.value).toEqual([]);
   });
 });

@@ -60,6 +60,32 @@ public static class CastEndpoints
                 ).ToResult()
         );
 
+        app.MapPost(
+            ReelContract.CastQueuePlay.Route,
+            async ([FromBody] CastQueueRequest request, CastService castService) =>
+                (
+                    await ReelContract.CastQueuePlay.Invoke(
+                        request,
+                        req =>
+                        {
+                            castService.SetPlayQueue(req.Paths);
+                            return Task.CompletedTask;
+                        }
+                    )
+                ).ToResult()
+        );
+
+        app.MapGet(
+            ReelContract.CastQueueGet.Route,
+            async (CastService castService) =>
+                (
+                    await ReelContract.CastQueueGet.Invoke(() =>
+                    {
+                        return Task.FromResult(castService.GetQueue());
+                    })
+                ).ToResult()
+        );
+
         return app;
     }
 }
