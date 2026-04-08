@@ -34,10 +34,11 @@ const setupSearchPage = () => {
   const activeTag = ref<string | null>(null);
   const watchedFilter = ref<boolean | null>(null);
   const recentSearches = ref<string[]>([]);
+  const allTags = ref<{ tag: string; count: number }[]>([]);
   const { results, loading, error, debouncedSearch } = useSearch();
   const { getAllTags } = useTags();
 
-  // Load recent searches from localStorage (mirrors onMounted)
+  // Mirrors onMounted block in search.vue
   try {
     const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
     if (stored) {
@@ -46,6 +47,9 @@ const setupSearchPage = () => {
   } catch {
     // ignore
   }
+  getAllTags().then((tags: { tag: string; count: number }[]) => {
+    allTags.value = tags;
+  }).catch(() => {});
 
   const triggerSearch = () => {
     const q = query.value;
@@ -118,7 +122,7 @@ const setupSearchPage = () => {
   return {
     query, hasSearched, results, loading, error, clearSearch, viewState,
     debouncedSearch, activeTag, watchedFilter, hasActiveFilters, noResultsMessage,
-    getAllTags, recentSearches, selectRecent, clearHistory,
+    getAllTags, allTags, recentSearches, selectRecent, clearHistory,
   };
 };
 
@@ -320,6 +324,22 @@ describe("Search page", () => {
   });
 
   describe("filter wiring", () => {
+    it("loads all tags via getAllTags on mount", async () => {
+      const mockTags = [
+        { tag: "Action", count: 12 },
+        { tag: "Comedy", count: 5 },
+      ];
+      mockTagsAll.mockResolvedValue(mockTags);
+
+      const { allTags } = setupSearchPage();
+
+      // getAllTags is async — flush the microtask
+      await vi.waitFor(() => {
+        expect(allTags.value).toEqual(mockTags);
+      });
+      expect(mockTagsAll).toHaveBeenCalledTimes(1);
+    });
+
     it("tag filter passes through to debouncedSearch", async () => {
       const { query, activeTag } = setupSearchPage();
 
