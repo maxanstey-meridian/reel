@@ -20,7 +20,7 @@ const favourited = computed(() => isFavourite(props.node.relativePath));
 
 const parsed = computed(() => (props.node.type === "file" ? parseFilename(props.node.name) : null));
 
-const displayName = computed(() => (parsed.value ? parsed.value.title : props.node.name));
+const displayName = computed(() => props.node.displayTitle ?? props.node.name);
 
 const thumbnailSrc = computed(() =>
   props.node.relativePath && secretKey.value

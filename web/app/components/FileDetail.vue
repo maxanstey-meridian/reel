@@ -85,7 +85,7 @@ const handleCast = async () => {
     <template v-if="node" #header>
       <div class="flex items-center gap-3 w-full">
         <div class="flex-1 min-w-0">
-          <h2 class="text-base font-semibold truncate">{{ parsed?.title ?? node.name }}</h2>
+          <h2 class="text-base font-semibold truncate">{{ node.displayTitle ?? node.name }}</h2>
           <div class="flex items-center gap-2 mt-0.5">
             <UBadge v-if="node.extension" size="xs" color="neutral" variant="subtle">
               {{ node.extension }}
