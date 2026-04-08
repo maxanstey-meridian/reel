@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -35,6 +40,12 @@ fun WaitingForCastScreen(
     prefs: PreferencesManager,
     apiClient: ApiClient,
 ) {
+    var posterPaths by remember { mutableStateOf(emptyList<String>()) }
+
+    LaunchedEffect(Unit) {
+        posterPaths = apiClient.fetchPosters(30)
+    }
+
     val indicatorColor = if (connectionOk) ReelColors.connected else ReelColors.disconnected
     val indicatorText = if (connectionOk) "Connected" else "Waiting for cast\u2026"
 
@@ -91,8 +102,10 @@ fun WaitingForCastScreen(
                 }
             }
 
-            // Right panel — placeholder for poster mosaic (slice 4)
-            Box(
+            // Right panel — poster mosaic
+            PosterMosaic(
+                posterPaths = posterPaths,
+                serverBaseUrl = "http://${prefs.serverIp}:${prefs.serverPort}",
                 modifier = Modifier
                     .weight(0.6f)
                     .fillMaxHeight(),
