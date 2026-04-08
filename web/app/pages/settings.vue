@@ -1,17 +1,40 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { User } from "~~/generated/rivet/types/domain";
 
-const { currentUserId, users, fetchUsers, switchUser, createUser, updateUser, deleteUser } =
-  useUser();
+const { currentUserId, users, fetchUsers, createUser, updateUser, deleteUser } = useUser();
 const { serverUrl, isConnected, disconnect } = useConnection();
-const { refresh: refreshLibrary } = useLibrary();
-const { fetch: fetchProgress } = useProgress();
-const { fetch: fetchFavourites } = useFavourites();
 
-// Create user form
+const currentUser = computed(() => users.value.find((u) => u.id === currentUserId.value));
+
+// Avatar colours — same palette as select-user page
+const AVATAR_COLORS = [
+  "bg-green-700",
+  "bg-blue-700",
+  "bg-purple-700",
+  "bg-amber-700",
+  "bg-rose-700",
+  "bg-cyan-700",
+  "bg-orange-700",
+  "bg-teal-700",
+];
+
+const colorForUser = (index: number) => AVATAR_COLORS[index % AVATAR_COLORS.length]!;
+
+// Inline add user
+const addingUser = ref(false);
 const newUserName = ref("");
 const creating = ref(false);
+
+const startAdding = () => {
+  cancelEdit();
+  addingUser.value = true;
+  newUserName.value = "";
+};
+
+const cancelAdding = () => {
+  addingUser.value = false;
+  newUserName.value = "";
+};
 
 const handleCreate = async () => {
   const name = newUserName.value.trim();
@@ -21,35 +44,20 @@ const handleCreate = async () => {
   creating.value = true;
   try {
     await createUser(name);
-    newUserName.value = "";
+    cancelAdding();
   } finally {
     creating.value = false;
   }
 };
 
-// Switch user
-const switching = ref(false);
-
-const handleSwitch = async (id: number) => {
-  if (id === currentUserId.value) {
-    return;
-  }
-  switching.value = true;
-  try {
-    switchUser(id);
-    await Promise.all([refreshLibrary(), fetchProgress(), fetchFavourites()]);
-  } finally {
-    switching.value = false;
-  }
-};
-
-// Edit user
+// Inline edit user
 const editingUser = ref<number | null>(null);
 const editName = ref("");
 const editIcon = ref("");
 const saving = ref(false);
 
 const startEdit = (user: User) => {
+  cancelAdding();
   editingUser.value = user.id;
   editName.value = user.name;
   editIcon.value = user.icon ?? "";
@@ -95,22 +103,10 @@ const handleDelete = async () => {
     return;
   }
   const deletedId = deleteTarget.value.id;
-  const wasCurrent = deletedId === currentUserId.value;
   deleting.value = true;
   deleteError.value = null;
   try {
     await deleteUser(deletedId);
-
-    if (wasCurrent) {
-      const remaining = users.value.filter((u) => u.id !== deletedId);
-      if (remaining.length > 0) {
-        switchUser(remaining[0]!.id);
-      } else {
-        switchUser(1);
-      }
-      await Promise.all([refreshLibrary(), fetchProgress(), fetchFavourites()]);
-    }
-
     deleteModalOpen.value = false;
     deleteTarget.value = null;
   } catch (e) {
@@ -133,132 +129,170 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <div class="page-header">
-      <h1 class="page-title">Settings</h1>
-    </div>
-
-    <!-- Users section -->
-    <section class="space-y-3">
-      <h2 class="text-sm font-medium text-neutral-400">Users</h2>
-
-      <!-- User list / picker -->
-      <div class="space-y-1" data-testid="user-list">
-        <button
-          v-for="user in users"
-          :key="user.id"
-          class="w-full flex items-center gap-3 px-3 py-2.5 rounded transition-colors"
-          :class="
-            user.id === currentUserId
-              ? 'bg-neutral-800 text-green-500'
-              : 'text-neutral-300 hover:bg-neutral-900'
-          "
-          :disabled="switching"
-          @click="handleSwitch(user.id)"
+    <!-- Profile card -->
+    <section class="rounded-lg bg-neutral-900 p-4">
+      <div class="flex items-center gap-4">
+        <div
+          class="flex size-16 shrink-0 items-center justify-center rounded-full text-2xl"
+          :class="currentUser?.icon ? 'bg-neutral-800' : 'bg-green-700'"
+          data-testid="profile-avatar"
         >
-          <span v-if="user.icon" class="text-lg">{{ user.icon }}</span>
-          <UIcon v-else name="i-lucide-user" class="size-5 shrink-0" />
-          <span class="flex-1 text-left text-sm truncate">{{ user.name }}</span>
-          <UIcon
-            v-if="user.id === currentUserId"
-            name="i-lucide-check"
-            class="size-4 shrink-0"
-          />
-        </button>
-      </div>
-
-      <!-- User management for each user -->
-      <div class="space-y-2 pt-2">
-        <div v-for="user in users" :key="user.id" class="flex items-center gap-2">
-          <template v-if="editingUser === user.id">
-            <UInput
-              v-model="editName"
-              size="sm"
-              placeholder="Name"
-              class="flex-1"
-              :disabled="saving"
-              @keydown.enter="saveEdit"
-              @keydown.escape="cancelEdit"
-            />
-            <UInput
-              v-model="editIcon"
-              size="sm"
-              placeholder="Icon"
-              class="w-16"
-              :disabled="saving"
-              @keydown.enter="saveEdit"
-              @keydown.escape="cancelEdit"
-            />
-            <UButton size="sm" :loading="saving" @click="saveEdit">Save</UButton>
-            <UButton size="sm" variant="ghost" @click="cancelEdit">Cancel</UButton>
-          </template>
-          <template v-else>
-            <span class="flex-1 text-sm text-neutral-300 truncate">{{ user.name }}</span>
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              icon="i-lucide-pencil"
-              @click="startEdit(user)"
-            />
-            <UButton
-              size="xs"
-              variant="ghost"
-              color="error"
-              icon="i-lucide-trash-2"
-              @click="confirmDelete(user)"
-            />
-          </template>
-        </div>
-      </div>
-
-      <!-- Create user -->
-      <form class="flex items-center gap-2 pt-2" @submit.prevent="handleCreate">
-        <UInput
-          v-model="newUserName"
-          size="sm"
-          placeholder="New user name..."
-          class="flex-1"
-          :disabled="creating"
-        />
-        <UButton
-          type="submit"
-          size="sm"
-          icon="i-lucide-plus"
-          :loading="creating"
-          :disabled="!newUserName.trim()"
-        >
-          Add
-        </UButton>
-      </form>
-    </section>
-
-    <!-- Server connection section -->
-    <section class="space-y-3">
-      <h2 class="text-sm font-medium text-neutral-400">Server</h2>
-
-      <div class="space-y-2 text-sm">
-        <div class="flex items-center gap-2">
-          <span class="text-neutral-500">URL</span>
-          <span class="text-neutral-300 truncate">{{ serverUrl || "Not connected" }}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-neutral-500">Status</span>
-          <span :class="isConnected ? 'text-green-500' : 'text-red-500'">
-            {{ isConnected ? "Connected" : "Disconnected" }}
+          <span v-if="currentUser?.icon">{{ currentUser.icon }}</span>
+          <span v-else class="font-semibold text-white">
+            {{ currentUser?.name.charAt(0).toUpperCase() ?? "?" }}
           </span>
         </div>
+        <div>
+          <p class="text-lg font-semibold" data-testid="profile-name">
+            {{ currentUser?.name ?? "Unknown" }}
+          </p>
+          <button
+            class="text-sm text-green-500 hover:text-green-400 transition-colors"
+            data-testid="switch-user-link"
+            @click="navigateTo('/select-user')"
+          >
+            Switch User
+          </button>
+        </div>
       </div>
+    </section>
 
-      <UButton
-        v-if="isConnected"
-        variant="outline"
-        color="error"
-        size="sm"
-        icon="i-lucide-log-out"
-        @click="handleDisconnect"
-      >
-        Disconnect
-      </UButton>
+    <!-- Users section -->
+    <section class="space-y-2">
+      <h2 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1">Users</h2>
+
+      <div class="rounded-lg bg-neutral-900 divide-y divide-neutral-800" data-testid="user-list">
+        <div v-for="(user, index) in users" :key="user.id" class="px-4 py-3">
+          <!-- Edit mode -->
+          <template v-if="editingUser === user.id">
+            <div class="flex items-center gap-2">
+              <UInput
+                v-model="editName"
+                size="sm"
+                placeholder="Name"
+                class="flex-1"
+                :disabled="saving"
+                @keydown.enter="saveEdit"
+                @keydown.escape="cancelEdit"
+              />
+              <UInput
+                v-model="editIcon"
+                size="sm"
+                placeholder="Icon"
+                class="w-16"
+                :disabled="saving"
+                @keydown.enter="saveEdit"
+                @keydown.escape="cancelEdit"
+              />
+              <UButton size="sm" :loading="saving" @click="saveEdit">Save</UButton>
+              <UButton size="sm" variant="ghost" @click="cancelEdit">Cancel</UButton>
+            </div>
+          </template>
+
+          <!-- Display mode -->
+          <template v-else>
+            <div class="flex items-center gap-3">
+              <div
+                class="flex size-8 shrink-0 items-center justify-center rounded-full text-sm"
+                :class="user.icon ? 'bg-neutral-800' : colorForUser(index)"
+              >
+                <span v-if="user.icon">{{ user.icon }}</span>
+                <span v-else class="font-semibold text-white">
+                  {{ user.name.charAt(0).toUpperCase() }}
+                </span>
+              </div>
+              <span class="flex-1 text-sm text-neutral-300 truncate">{{ user.name }}</span>
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                icon="i-lucide-pencil"
+                @click="startEdit(user)"
+              />
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="error"
+                icon="i-lucide-trash-2"
+                @click="confirmDelete(user)"
+              />
+            </div>
+          </template>
+        </div>
+
+        <!-- Add user row -->
+        <div class="px-4 py-3">
+          <template v-if="addingUser">
+            <form class="flex items-center gap-2" @submit.prevent="handleCreate">
+              <UInput
+                v-model="newUserName"
+                size="sm"
+                placeholder="New user name..."
+                class="flex-1"
+                :disabled="creating"
+                @keydown.escape="cancelAdding"
+              />
+              <UButton
+                type="submit"
+                size="sm"
+                :loading="creating"
+                :disabled="!newUserName.trim()"
+              >
+                Save
+              </UButton>
+              <UButton size="sm" variant="ghost" @click="cancelAdding">Cancel</UButton>
+            </form>
+          </template>
+          <template v-else>
+            <button
+              class="flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors"
+              data-testid="add-user-btn"
+              @click="startAdding"
+            >
+              <UIcon name="i-lucide-plus" class="size-4" />
+              Add User
+            </button>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- Server section -->
+    <section class="space-y-2">
+      <h2 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1">Server</h2>
+
+      <div class="rounded-lg bg-neutral-900 p-4 space-y-3" data-testid="server-section">
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2">
+            <span class="text-neutral-500">URL</span>
+            <span class="text-neutral-300 font-mono truncate">
+              {{ serverUrl || "Not connected" }}
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-neutral-500">Status</span>
+            <span
+              class="size-2 rounded-full"
+              :class="isConnected ? 'bg-green-500' : 'bg-red-500'"
+            />
+            <span :class="isConnected ? 'text-green-500' : 'text-red-500'">
+              {{ isConnected ? "Connected" : "Disconnected" }}
+            </span>
+          </div>
+        </div>
+
+        <UButton
+          v-if="isConnected"
+          variant="outline"
+          color="error"
+          block
+          icon="i-lucide-log-out"
+          data-testid="disconnect-btn"
+          @click="handleDisconnect"
+        >
+          Disconnect
+        </UButton>
+      </div>
     </section>
 
     <!-- Delete confirmation modal -->
