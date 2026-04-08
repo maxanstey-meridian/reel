@@ -170,16 +170,16 @@ public static class ReelContract
     public static readonly RouteDefinition CollectionsDelete = Define.Delete("/api/collections/{id}").Status(204);
 
     public static readonly InputRouteDefinition<CollectionItemRequest> CollectionsAddItem = Define
-        .Post("/api/collections/{id}/items")
+        .Post("/api/collection-items")
         .Accepts<CollectionItemRequest>()
         .Status(204);
 
     public static readonly InputRouteDefinition<CollectionItemRequest> CollectionsRemoveItem = Define
-        .Delete("/api/collections/{id}/items")
+        .Delete("/api/collection-items")
         .Accepts<CollectionItemRequest>();
 
     public static readonly InputRouteDefinition<ReorderItemsRequest> CollectionsReorder = Define
-        .Put("/api/collections/{id}/items/order")
+        .Put("/api/collection-items/order")
         .Accepts<ReorderItemsRequest>()
         .Status(204);
 }

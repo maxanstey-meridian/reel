@@ -326,23 +326,23 @@ export function collectionsDelete(id: string, opts?: { unwrap?: boolean }): Prom
   return rivetFetch<RivetResult<void>>("DELETE", `/api/collections/${encodeURIComponent(String(id))}`, { unwrap: opts?.unwrap });
 }
 
-export function collectionsAddItem(id: number, body: CollectionItemRequest): Promise<void>;
-export function collectionsAddItem(id: number, body: CollectionItemRequest, opts: { unwrap: true }): Promise<void>;
-export function collectionsAddItem(id: number, body: CollectionItemRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsAddItem(id: number, body: CollectionItemRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("POST", `/api/collections/${encodeURIComponent(String(id))}/items`, { body: body, unwrap: opts?.unwrap });
+export function collectionsAddItem(body: CollectionItemRequest): Promise<void>;
+export function collectionsAddItem(body: CollectionItemRequest, opts: { unwrap: true }): Promise<void>;
+export function collectionsAddItem(body: CollectionItemRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function collectionsAddItem(body: CollectionItemRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("POST", `/api/collection-items`, { body: body, unwrap: opts?.unwrap });
 }
 
-export function collectionsRemoveItem(id: number, path: string): Promise<void>;
-export function collectionsRemoveItem(id: number, path: string, opts: { unwrap: true }): Promise<void>;
-export function collectionsRemoveItem(id: number, path: string, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsRemoveItem(id: number, path: string, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("DELETE", `/api/collections/${encodeURIComponent(String(id))}/items`, { query: { path }, unwrap: opts?.unwrap });
+export function collectionsRemoveItem(collectionId: number, path: string): Promise<void>;
+export function collectionsRemoveItem(collectionId: number, path: string, opts: { unwrap: true }): Promise<void>;
+export function collectionsRemoveItem(collectionId: number, path: string, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function collectionsRemoveItem(collectionId: number, path: string, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("DELETE", `/api/collection-items`, { query: { collectionId, path }, unwrap: opts?.unwrap });
 }
 
-export function collectionsReorder(id: number, body: ReorderItemsRequest): Promise<void>;
-export function collectionsReorder(id: number, body: ReorderItemsRequest, opts: { unwrap: true }): Promise<void>;
-export function collectionsReorder(id: number, body: ReorderItemsRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsReorder(id: number, body: ReorderItemsRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("PUT", `/api/collections/${encodeURIComponent(String(id))}/items/order`, { body: body, unwrap: opts?.unwrap });
+export function collectionsReorder(body: ReorderItemsRequest): Promise<void>;
+export function collectionsReorder(body: ReorderItemsRequest, opts: { unwrap: true }): Promise<void>;
+export function collectionsReorder(body: ReorderItemsRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
+export function collectionsReorder(body: ReorderItemsRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
+  return rivetFetch<RivetResult<void>>("PUT", `/api/collection-items/order`, { body: body, unwrap: opts?.unwrap });
 }

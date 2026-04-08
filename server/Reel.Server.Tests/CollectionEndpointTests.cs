@@ -70,7 +70,7 @@ public sealed class CollectionEndpointTests : IClassFixture<WebApplicationFactor
         var createResponse = await client.PostAsJsonAsync("/api/collections", new { name = "Detail" });
         var created = await createResponse.Content.ReadFromJsonAsync<CollectionDto>();
 
-        await client.PostAsJsonAsync($"/api/collections/{created!.Id}/items", new { path = "Films/a.mp4" });
+        await client.PostAsJsonAsync("/api/collection-items", new { collectionId = created!.Id, path = "Films/a.mp4" });
 
         var response = await client.GetAsync($"/api/collections/{created.Id}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -128,13 +128,13 @@ public sealed class CollectionEndpointTests : IClassFixture<WebApplicationFactor
         var createResponse = await client.PostAsJsonAsync("/api/collections", new { name = "Items" });
         var created = await createResponse.Content.ReadFromJsonAsync<CollectionDto>();
 
-        await client.PostAsJsonAsync($"/api/collections/{created!.Id}/items", new { path = "Films/x.mp4" });
+        await client.PostAsJsonAsync("/api/collection-items", new { collectionId = created!.Id, path = "Films/x.mp4" });
 
         var getResponse = await client.GetAsync($"/api/collections/{created.Id}");
         var detail = await getResponse.Content.ReadFromJsonAsync<CollectionWithItemsDto>();
         detail!.Items.Should().ContainSingle(i => i.RelativePath == "Films/x.mp4");
 
-        await client.DeleteAsync($"/api/collections/{created.Id}/items?path=Films/x.mp4");
+        await client.DeleteAsync($"/api/collection-items?collectionId={created.Id}&path=Films/x.mp4");
 
         var getResponse2 = await client.GetAsync($"/api/collections/{created.Id}");
         var detail2 = await getResponse2.Content.ReadFromJsonAsync<CollectionWithItemsDto>();
@@ -149,13 +149,13 @@ public sealed class CollectionEndpointTests : IClassFixture<WebApplicationFactor
         var createResponse = await client.PostAsJsonAsync("/api/collections", new { name = "Order" });
         var created = await createResponse.Content.ReadFromJsonAsync<CollectionDto>();
 
-        await client.PostAsJsonAsync($"/api/collections/{created!.Id}/items", new { path = "Films/a.mp4" });
-        await client.PostAsJsonAsync($"/api/collections/{created.Id}/items", new { path = "Films/b.mp4" });
-        await client.PostAsJsonAsync($"/api/collections/{created.Id}/items", new { path = "Films/c.mp4" });
+        await client.PostAsJsonAsync("/api/collection-items", new { collectionId = created!.Id, path = "Films/a.mp4" });
+        await client.PostAsJsonAsync("/api/collection-items", new { collectionId = created.Id, path = "Films/b.mp4" });
+        await client.PostAsJsonAsync("/api/collection-items", new { collectionId = created.Id, path = "Films/c.mp4" });
 
         var reorderResponse = await client.PutAsJsonAsync(
-            $"/api/collections/{created.Id}/items/order",
-            new { paths = new[] { "Films/c.mp4", "Films/a.mp4", "Films/b.mp4" } }
+            "/api/collection-items/order",
+            new { collectionId = created.Id, paths = new[] { "Films/c.mp4", "Films/a.mp4", "Films/b.mp4" } }
         );
         reorderResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 

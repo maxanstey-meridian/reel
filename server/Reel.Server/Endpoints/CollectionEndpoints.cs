@@ -102,9 +102,8 @@ public static class CollectionEndpoints
         app.MapPost(
             ReelContract.CollectionsAddItem.Route,
             async (
-                int id,
-                [FromBody] CollectionItemRequest request,
                 HttpContext context,
+                [FromBody] CollectionItemRequest request,
                 ICollectionStore store,
                 CancellationToken ct
             ) =>
@@ -114,7 +113,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            await store.AddItemAsync(id, userId, req.Path, ct);
+                            await store.AddItemAsync(req.CollectionId, userId, req.Path, ct);
                         }
                     )
                 ).ToResult()
@@ -122,14 +121,20 @@ public static class CollectionEndpoints
 
         app.MapDelete(
             ReelContract.CollectionsRemoveItem.Route,
-            async (int id, [FromQuery] string path, HttpContext context, ICollectionStore store, CancellationToken ct) =>
+            async (
+                HttpContext context,
+                [FromQuery] int collectionId,
+                [FromQuery] string path,
+                ICollectionStore store,
+                CancellationToken ct
+            ) =>
                 (
                     await ReelContract.CollectionsRemoveItem.Invoke(
-                        new CollectionItemRequest(id, path),
+                        new CollectionItemRequest(collectionId, path),
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            await store.RemoveItemAsync(id, userId, req.Path, ct);
+                            await store.RemoveItemAsync(req.CollectionId, userId, req.Path, ct);
                         }
                     )
                 ).ToResult()
@@ -139,9 +144,8 @@ public static class CollectionEndpoints
             ReelContract.CollectionsReorder.Route,
             ["PUT"],
             async (
-                int id,
-                [FromBody] ReorderItemsRequest request,
                 HttpContext context,
+                [FromBody] ReorderItemsRequest request,
                 ICollectionStore store,
                 CancellationToken ct
             ) =>
@@ -151,7 +155,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            await store.ReorderAsync(id, userId, req.Paths, ct);
+                            await store.ReorderAsync(req.CollectionId, userId, req.Paths, ct);
                         }
                     )
                 ).ToResult()

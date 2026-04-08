@@ -97,11 +97,11 @@ export type RenameCollectionRequest = {
 };
 
 export type CollectionItemRequest = {
-  id: number;
+  collectionId: number;
   path: string;
 };
 
 export type ReorderItemsRequest = {
-  id: number;
+  collectionId: number;
   paths: string[];
 };
