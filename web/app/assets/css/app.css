@@ -33,3 +33,8 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Nuxt UI v3 wraps inputs in a container that doesn't inherit width */
+[data-part="root"]:has(input, textarea) {
+  width: 100%;
+}

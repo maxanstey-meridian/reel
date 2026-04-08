@@ -155,22 +155,6 @@ const handleCast = async () => {
   await cast(relativePath.value);
 };
 
-const formatSize = (bytes: number | null): string => {
-  if (bytes === null) {
-    return "";
-  }
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(0)} KB`;
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-};
-
 // Load data on mount
 onMounted(async () => {
   const path = relativePath.value;
@@ -244,7 +228,7 @@ onMounted(async () => {
         <UBadge v-if="fileName.split('.').pop()" size="xs" color="neutral" variant="subtle">
           .{{ fileName.split('.').pop() }}
         </UBadge>
-        <span v-if="detail" class="text-xs text-neutral-500">
+        <span class="text-xs text-neutral-500 truncate">
           {{ relativePath }}
         </span>
       </div>
