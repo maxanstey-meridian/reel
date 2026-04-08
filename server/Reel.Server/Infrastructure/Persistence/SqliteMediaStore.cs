@@ -336,7 +336,7 @@ public sealed class SqliteMediaStore : IMediaStore
         using var conn = _db.GetConnection();
 
         var whereClauses = new List<string>();
-        var parameters = new List<(string Name, object Value)>();
+        var parameters = new List<(string Name, string Value)>();
 
         if (!string.IsNullOrWhiteSpace(query.Q))
         {

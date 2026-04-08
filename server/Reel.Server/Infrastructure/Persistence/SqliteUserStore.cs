@@ -63,7 +63,7 @@ public sealed class SqliteUserStore : IUserStore
         using var conn = _db.GetConnection();
 
         var setClauses = new List<string>();
-        var parameters = new List<(string Name, object Value)>();
+        var parameters = new List<(string Name, string Value)>();
 
         if (name is not null)
         {
