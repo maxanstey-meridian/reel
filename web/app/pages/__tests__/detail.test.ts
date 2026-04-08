@@ -57,6 +57,12 @@ import type { EditableField } from "../../utils/metadataEdit";
 import type { MediaDetailResponse } from "~~/generated/rivet/types/models";
 import type { SubtitleTrack } from "~~/generated/rivet/types/domain";
 
+const formatDuration = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
 /**
  * Replicates the detail page's core logic without mounting the Vue component.
  * Tests state transitions and API wiring.
@@ -79,6 +85,67 @@ const setupDetailPage = (routePath: string | string[]) => {
 
   const isWatched = computed(() => detail.value?.watched === true);
   const displayTitle = computed(() => detail.value?.displayTitle ?? fileName);
+
+  // Thumbnail src (mirrors page logic)
+  const thumbnailSrc = computed(() =>
+    relativePath ? mockThumbnailUrl(relativePath, "test-key") : null,
+  );
+
+  // Hero image fallback chain
+  const backdropFailed = ref(false);
+  const thumbnailFailed = ref(false);
+  const posterFailed = ref(false);
+  const posterInsetFailed = ref(false);
+
+  type HeroMode = "backdrop" | "thumbnail" | "poster" | "icon";
+
+  const heroMode = computed<HeroMode>(() => {
+    if (detail.value?.backdropUrl && !backdropFailed.value) return "backdrop";
+    if (thumbnailSrc.value && !thumbnailFailed.value) return "thumbnail";
+    if (detail.value?.posterUrl && !posterFailed.value) return "poster";
+    return "icon";
+  });
+
+  const heroSrc = computed<string | null>(() => {
+    if (heroMode.value === "backdrop") return detail.value!.backdropUrl;
+    if (heroMode.value === "thumbnail") return thumbnailSrc.value;
+    if (heroMode.value === "poster") return detail.value!.posterUrl;
+    return null;
+  });
+
+  const showPosterInset = computed(() =>
+    heroMode.value === "backdrop" && !!detail.value?.posterUrl && !posterInsetFailed.value,
+  );
+
+  const formattedDuration = computed(() => {
+    const dur = detail.value?.durationSeconds;
+    if (!dur || dur <= 0) return null;
+    return formatDuration(dur);
+  });
+
+  const progressPercent = computed(() => {
+    const pos = detail.value?.positionSeconds;
+    const dur = detail.value?.durationSeconds;
+    if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+    return (pos / dur) * 100;
+  });
+
+  const remainingTime = computed(() => {
+    const pos = detail.value?.positionSeconds;
+    const dur = detail.value?.durationSeconds;
+    if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+    const remaining = dur - pos;
+    if (remaining <= 0) return null;
+    return `${formatDuration(remaining)} remaining`;
+  });
+
+  const formattedReleaseDate = computed(() => {
+    const rd = detail.value?.releaseDate;
+    if (!rd) return null;
+    const date = new Date(rd);
+    if (isNaN(date.getTime())) return null;
+    return `Released ${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  });
 
   // Genre NOT in editable fields — regression guard target
   const editableFields: { key: EditableField; label: string }[] = [
@@ -214,6 +281,18 @@ const setupDetailPage = (routePath: string | string[]) => {
     handleToggleWatched,
     handleCast,
     loadData,
+    // TMDB imagery & metadata
+    heroMode,
+    heroSrc,
+    showPosterInset,
+    formattedDuration,
+    progressPercent,
+    remainingTime,
+    formattedReleaseDate,
+    backdropFailed,
+    thumbnailFailed,
+    posterFailed,
+    posterInsetFailed,
   };
 };
 
@@ -249,6 +328,7 @@ describe("Detail page", () => {
     mockRivetFetch.mockResolvedValue(undefined);
     mockRefresh.mockResolvedValue(undefined);
     mockCast.mockResolvedValue(undefined);
+    mockThumbnailUrl.mockReturnValue("http://localhost/thumb");
   });
 
   describe("path decoding from route params", () => {
@@ -548,6 +628,272 @@ describe("Detail page", () => {
       await page.loadData();
 
       expect(page.displayTitle.value).toBe("Film.mkv");
+    });
+  });
+
+  describe("hero image fallback chain", () => {
+    it("uses backdropUrl as hero when available", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ backdropUrl: "https://tmdb.org/backdrop.jpg" }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.heroMode.value).toBe("backdrop");
+      expect(page.heroSrc.value).toBe("https://tmdb.org/backdrop.jpg");
+    });
+
+    it("falls back to thumbnail when no backdrop", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ backdropUrl: null }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.heroMode.value).toBe("thumbnail");
+      expect(page.heroSrc.value).toBe("http://localhost/thumb");
+    });
+
+    it("falls back to poster when no backdrop and thumbnail fails", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        backdropUrl: null,
+        posterUrl: "https://tmdb.org/poster.jpg",
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      // Simulate thumbnail image error
+      page.thumbnailFailed.value = true;
+
+      expect(page.heroMode.value).toBe("poster");
+      expect(page.heroSrc.value).toBe("https://tmdb.org/poster.jpg");
+    });
+
+    it("falls back to icon when nothing available", async () => {
+      mockThumbnailUrl.mockReturnValue(null);
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        backdropUrl: null,
+        posterUrl: null,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.heroMode.value).toBe("icon");
+      expect(page.heroSrc.value).toBeNull();
+    });
+
+    it("falls through backdrop to thumbnail when backdrop fails", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ backdropUrl: "https://tmdb.org/backdrop.jpg" }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.heroMode.value).toBe("backdrop");
+
+      // Simulate backdrop @error
+      page.backdropFailed.value = true;
+
+      expect(page.heroMode.value).toBe("thumbnail");
+      expect(page.heroSrc.value).toBe("http://localhost/thumb");
+    });
+  });
+
+  describe("poster inset overlay", () => {
+    it("shows poster inset when backdrop and poster both exist", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        backdropUrl: "https://tmdb.org/backdrop.jpg",
+        posterUrl: "https://tmdb.org/poster.jpg",
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.showPosterInset.value).toBe(true);
+    });
+
+    it("hides poster inset when only backdrop (no poster)", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        backdropUrl: "https://tmdb.org/backdrop.jpg",
+        posterUrl: null,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.showPosterInset.value).toBe(false);
+    });
+
+    it("hides poster inset when only poster (no backdrop — heroMode is not backdrop)", async () => {
+      mockThumbnailUrl.mockReturnValue(null);
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        backdropUrl: null,
+        posterUrl: "https://tmdb.org/poster.jpg",
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.heroMode.value).not.toBe("backdrop");
+      expect(page.showPosterInset.value).toBe(false);
+    });
+
+    it("hides poster inset when poster inset image fails to load", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        backdropUrl: "https://tmdb.org/backdrop.jpg",
+        posterUrl: "https://tmdb.org/poster.jpg",
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.showPosterInset.value).toBe(true);
+
+      page.posterInsetFailed.value = true;
+
+      expect(page.showPosterInset.value).toBe(false);
+    });
+  });
+
+  describe("duration formatting", () => {
+    it("formats hours and minutes", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ durationSeconds: 7620 }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedDuration.value).toBe("2h 7m");
+    });
+
+    it("formats minutes only when under an hour", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ durationSeconds: 2520 }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedDuration.value).toBe("42m");
+    });
+
+    it("returns null when durationSeconds is null", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ durationSeconds: null }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedDuration.value).toBeNull();
+    });
+
+    it("returns null when durationSeconds is 0", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ durationSeconds: 0 }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedDuration.value).toBeNull();
+    });
+  });
+
+  describe("progress bar and remaining time", () => {
+    it("computes progress percent from position and duration", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        positionSeconds: 1800,
+        durationSeconds: 7200,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.progressPercent.value).toBe(25);
+    });
+
+    it("computes remaining time formatted", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        positionSeconds: 1800,
+        durationSeconds: 7200,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.remainingTime.value).toBe("1h 30m remaining");
+    });
+
+    it("returns null progress when positionSeconds is null", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        positionSeconds: null,
+        durationSeconds: 7200,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.progressPercent.value).toBeNull();
+      expect(page.remainingTime.value).toBeNull();
+    });
+
+    it("returns null progress when positionSeconds is 0", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        positionSeconds: 0,
+        durationSeconds: 7200,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.progressPercent.value).toBeNull();
+    });
+
+    it("returns null when durationSeconds is 0", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        positionSeconds: 100,
+        durationSeconds: 0,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.progressPercent.value).toBeNull();
+    });
+
+    it("handles nearly complete progress", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({
+        positionSeconds: 7100,
+        durationSeconds: 7200,
+      }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.progressPercent.value).toBeCloseTo(98.6, 0);
+      expect(page.remainingTime.value).toBe("1m remaining");
+    });
+  });
+
+  describe("release date", () => {
+    it("formats release date when available", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ releaseDate: "2009-03-15" }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedReleaseDate.value).toBe("Released Mar 15, 2009");
+    });
+
+    it("returns null when releaseDate is null", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ releaseDate: null }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedReleaseDate.value).toBeNull();
+    });
+
+    it("returns null for invalid date string", async () => {
+      mockMediaDetail.mockResolvedValue(makeDetail({ releaseDate: "not-a-date" }));
+
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      expect(page.formattedReleaseDate.value).toBeNull();
     });
   });
 });

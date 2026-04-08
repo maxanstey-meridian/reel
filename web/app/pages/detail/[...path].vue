@@ -12,6 +12,12 @@ import { rivetFetch } from "~~/generated/rivet/rivet";
 import type { SubtitleTrack } from "~~/generated/rivet/types/domain";
 import type { MediaDetailResponse } from "~~/generated/rivet/types/models";
 
+const formatDuration = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
 const route = useRoute();
 const router = useRouter();
 const { secretKey } = useConnection();
@@ -51,8 +57,64 @@ const thumbnailSrc = computed(() =>
     ? thumbnailUrl(relativePath.value, secretKey.value)
     : null,
 );
-const imgFailed = ref(false);
-const showImage = computed(() => thumbnailSrc.value && !imgFailed.value);
+
+// Hero image fallback chain: backdrop → thumbnail → poster → icon
+const backdropFailed = ref(false);
+const thumbnailFailed = ref(false);
+const posterFailed = ref(false);
+const posterInsetFailed = ref(false);
+
+type HeroMode = "backdrop" | "thumbnail" | "poster" | "icon";
+
+const heroMode = computed<HeroMode>(() => {
+  if (detail.value?.backdropUrl && !backdropFailed.value) return "backdrop";
+  if (thumbnailSrc.value && !thumbnailFailed.value) return "thumbnail";
+  if (detail.value?.posterUrl && !posterFailed.value) return "poster";
+  return "icon";
+});
+
+const heroSrc = computed<string | null>(() => {
+  if (heroMode.value === "backdrop") return detail.value!.backdropUrl;
+  if (heroMode.value === "thumbnail") return thumbnailSrc.value;
+  if (heroMode.value === "poster") return detail.value!.posterUrl;
+  return null;
+});
+
+const showPosterInset = computed(() =>
+  heroMode.value === "backdrop" && !!detail.value?.posterUrl && !posterInsetFailed.value,
+);
+
+// Duration & progress
+const formattedDuration = computed(() => {
+  const dur = detail.value?.durationSeconds;
+  if (!dur || dur <= 0) return null;
+  return formatDuration(dur);
+});
+
+const progressPercent = computed(() => {
+  const pos = detail.value?.positionSeconds;
+  const dur = detail.value?.durationSeconds;
+  if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+  return (pos / dur) * 100;
+});
+
+const remainingTime = computed(() => {
+  const pos = detail.value?.positionSeconds;
+  const dur = detail.value?.durationSeconds;
+  if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+  const remaining = dur - pos;
+  if (remaining <= 0) return null;
+  return `${formatDuration(remaining)} remaining`;
+});
+
+// Release date
+const formattedReleaseDate = computed(() => {
+  const rd = detail.value?.releaseDate;
+  if (!rd) return null;
+  const date = new Date(rd);
+  if (isNaN(date.getTime())) return null;
+  return `Released ${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+});
 
 // Editable metadata — genre is NOT included (managed through tags)
 const editableFields: { key: EditableField; label: string }[] = [
@@ -197,36 +259,74 @@ onMounted(async () => {
 
     <!-- Loading -->
     <div v-if="detailLoading" class="space-y-3">
-      <USkeleton class="h-48 w-full rounded" />
+      <USkeleton class="h-56 w-full rounded" />
       <USkeleton class="h-4 w-3/4" />
       <USkeleton class="h-4 w-1/2" />
     </div>
 
     <template v-else>
-      <!-- Thumbnail / poster -->
+      <!-- Hero image -->
       <div class="relative rounded overflow-hidden bg-neutral-800/50">
+        <!-- Backdrop or thumbnail: full-width, object-cover -->
         <img
-          v-if="showImage"
-          :src="thumbnailSrc ?? ''"
-          class="w-full h-48 object-cover"
-          @error="imgFailed = true"
+          v-if="heroMode === 'backdrop'"
+          :src="heroSrc ?? ''"
+          class="w-full h-56 object-cover"
+          @error="backdropFailed = true"
         />
-        <div v-else class="h-48 flex items-center justify-center text-neutral-500">
+        <img
+          v-else-if="heroMode === 'thumbnail'"
+          :src="heroSrc ?? ''"
+          class="w-full h-56 object-cover"
+          @error="thumbnailFailed = true"
+        />
+        <!-- Poster only: centered portrait image -->
+        <div v-else-if="heroMode === 'poster'" class="h-56 flex items-center justify-center">
+          <img
+            :src="heroSrc ?? ''"
+            class="max-h-full w-auto max-w-[140px] rounded"
+            @error="posterFailed = true"
+          />
+        </div>
+        <!-- Fallback icon -->
+        <div v-else class="h-56 flex items-center justify-center text-neutral-500">
           <UIcon name="i-lucide-film" class="size-16" />
         </div>
 
+        <!-- Poster inset overlay -->
+        <img
+          v-if="showPosterInset"
+          :src="detail!.posterUrl!"
+          class="absolute bottom-3 left-3 w-[60px] rounded-md shadow-lg"
+          @error="posterInsetFailed = true"
+        />
+
         <!-- Overlaid badges -->
-        <div class="absolute bottom-2 left-2 flex items-center gap-1.5">
-          <UBadge v-if="parsed?.year || detail?.year" size="xs" color="neutral" variant="subtle">
+        <div class="absolute bottom-2 left-2 flex items-center gap-1.5" :class="{ 'left-20': showPosterInset }">
+          <UBadge v-if="formattedReleaseDate" size="xs" color="neutral" variant="subtle">
+            {{ formattedReleaseDate }}
+          </UBadge>
+          <UBadge v-else-if="parsed?.year || detail?.year" size="xs" color="neutral" variant="subtle">
             {{ detail?.year ?? parsed?.year }}
           </UBadge>
         </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div v-if="progressPercent != null && progressPercent > 0" class="space-y-1">
+        <div class="h-1 bg-neutral-700 rounded-full overflow-hidden">
+          <div class="h-full bg-green-500" :style="{ width: `${Math.min(progressPercent, 100)}%` }" />
+        </div>
+        <p v-if="remainingTime" class="text-xs text-neutral-500">{{ remainingTime }}</p>
       </div>
 
       <!-- Extension + size row -->
       <div class="flex items-center gap-2">
         <UBadge v-if="fileName.split('.').pop()" size="xs" color="neutral" variant="subtle">
           .{{ fileName.split('.').pop() }}
+        </UBadge>
+        <UBadge v-if="formattedDuration" size="xs" color="neutral" variant="subtle">
+          {{ formattedDuration }}
         </UBadge>
         <span class="text-xs text-neutral-500 truncate">
           {{ relativePath }}
