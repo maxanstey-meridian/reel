@@ -61,10 +61,17 @@ describe("useScrollPreservation", () => {
     );
   });
 
-  it("stores scroll position after debounce", () => {
+  it("stores scroll position after debounce", async () => {
+    const scrollTopRef = ref(0);
+    vi.stubGlobal("useState", <T>(_key: string, _init: () => T) => {
+      return scrollTopRef;
+    });
+
     const loading = ref(true);
     const currentPath = ref<string[]>([]);
-    useScrollPreservation(loading, currentPath);
+
+    const mod = await import("../useScrollPreservation");
+    mod.useScrollPreservation(loading, currentPath);
 
     mountedCallbacks.forEach((cb) => cb());
 
@@ -73,21 +80,27 @@ describe("useScrollPreservation", () => {
     mockMain.scrollTop = 250;
     scrollHandler();
 
-    // Before debounce fires, useState still at init value
-    vi.advanceTimersByTime(100);
+    // Before debounce fires, value unchanged
+    expect(scrollTopRef.value).toBe(0);
 
     // After full debounce (150ms)
-    vi.advanceTimersByTime(50);
-    // The useState was initialized fresh — check the scroll was captured
-    // We need to access the ref returned by useState for this composable instance
-    // Since useState stubs create a fresh ref each call, we verify via the scroll handler behavior
-    expect(true).toBe(true); // Scroll handler ran without error
+    vi.advanceTimersByTime(150);
+    expect(scrollTopRef.value).toBe(250);
+
+    vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
   });
 
-  it("debounces rapid scroll events — only last value persisted", () => {
+  it("debounces rapid scroll events — only last value persisted", async () => {
+    const scrollTopRef = ref(0);
+    vi.stubGlobal("useState", <T>(_key: string, _init: () => T) => {
+      return scrollTopRef;
+    });
+
     const loading = ref(true);
     const currentPath = ref<string[]>([]);
-    useScrollPreservation(loading, currentPath);
+
+    const mod = await import("../useScrollPreservation");
+    mod.useScrollPreservation(loading, currentPath);
 
     mountedCallbacks.forEach((cb) => cb());
 
@@ -106,7 +119,9 @@ describe("useScrollPreservation", () => {
 
     // Only after 150ms from the last call does the timer fire
     vi.advanceTimersByTime(150);
-    // The debounce should have cleared previous timers — no error
+    expect(scrollTopRef.value).toBe(300);
+
+    vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
   });
 
   it("restores scroll position when loading completes", async () => {
