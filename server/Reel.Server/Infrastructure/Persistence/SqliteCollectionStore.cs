@@ -141,7 +141,7 @@ public sealed class SqliteCollectionStore : ICollectionStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task AddItemAsync(int collectionId, string relativePath, CancellationToken ct)
+    public async Task AddItemAsync(int collectionId, int userId, string relativePath, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
 
@@ -153,28 +153,36 @@ public sealed class SqliteCollectionStore : ICollectionStore
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             INSERT OR IGNORE INTO collection_items (collection_id, relative_path, position, added_at)
-            VALUES (@collectionId, @path,
-                    COALESCE((SELECT MAX(position) FROM collection_items WHERE collection_id = @collectionId), 0) + 1,
-                    @addedAt);
+            SELECT @collectionId, @path,
+                   COALESCE((SELECT MAX(position) FROM collection_items WHERE collection_id = @collectionId), 0) + 1,
+                   @addedAt
+            FROM collections
+            WHERE id = @collectionId AND user_id = @userId;
             """;
         cmd.Parameters.AddWithValue("@collectionId", collectionId);
+        cmd.Parameters.AddWithValue("@userId", userId);
         cmd.Parameters.AddWithValue("@path", relativePath);
         cmd.Parameters.AddWithValue("@addedAt", DateTime.UtcNow.ToString("o"));
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task RemoveItemAsync(int collectionId, string relativePath, CancellationToken ct)
+    public async Task RemoveItemAsync(int collectionId, int userId, string relativePath, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
 
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM collection_items WHERE collection_id = @collectionId AND relative_path = @path;";
+        cmd.CommandText = """
+            DELETE FROM collection_items
+            WHERE collection_id = @collectionId AND relative_path = @path
+            AND collection_id IN (SELECT id FROM collections WHERE id = @collectionId AND user_id = @userId);
+            """;
         cmd.Parameters.AddWithValue("@collectionId", collectionId);
+        cmd.Parameters.AddWithValue("@userId", userId);
         cmd.Parameters.AddWithValue("@path", relativePath);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task ReorderAsync(int collectionId, string[] paths, CancellationToken ct)
+    public async Task ReorderAsync(int collectionId, int userId, string[] paths, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
         using var transaction = conn.BeginTransaction();
@@ -185,10 +193,12 @@ public sealed class SqliteCollectionStore : ICollectionStore
             cmd.Transaction = transaction;
             cmd.CommandText = """
                 UPDATE collection_items SET position = @position
-                WHERE collection_id = @collectionId AND relative_path = @path;
+                WHERE collection_id = @collectionId AND relative_path = @path
+                AND collection_id IN (SELECT id FROM collections WHERE id = @collectionId AND user_id = @userId);
                 """;
             cmd.Parameters.AddWithValue("@position", i + 1);
             cmd.Parameters.AddWithValue("@collectionId", collectionId);
+            cmd.Parameters.AddWithValue("@userId", userId);
             cmd.Parameters.AddWithValue("@path", paths[i]);
             await cmd.ExecuteNonQueryAsync(ct);
         }

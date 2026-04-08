@@ -78,6 +78,10 @@ public static class CollectionEndpoints
                                 throw new BadRequestException("Name is required");
 
                             await store.RenameAsync(id, userId, req.Name, ct);
+
+                            var all = await store.GetAllAsync(userId, ct);
+                            return all.FirstOrDefault(c => c.Id == id)
+                                ?? throw new NotFoundException("Collection not found");
                         }
                     )
                 ).ToResult()
@@ -110,10 +114,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            var collection = await store.GetWithItemsAsync(id, userId, ct)
-                                ?? throw new NotFoundException("Collection not found");
-
-                            await store.AddItemAsync(id, req.Path, ct);
+                            await store.AddItemAsync(id, userId, req.Path, ct);
                         }
                     )
                 ).ToResult()
@@ -128,10 +129,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            var collection = await store.GetWithItemsAsync(id, userId, ct)
-                                ?? throw new NotFoundException("Collection not found");
-
-                            await store.RemoveItemAsync(id, req.Path, ct);
+                            await store.RemoveItemAsync(id, userId, req.Path, ct);
                         }
                     )
                 ).ToResult()
@@ -153,10 +151,7 @@ public static class CollectionEndpoints
                         async req =>
                         {
                             var userId = context.GetUserId();
-                            var collection = await store.GetWithItemsAsync(id, userId, ct)
-                                ?? throw new NotFoundException("Collection not found");
-
-                            await store.ReorderAsync(id, req.Paths, ct);
+                            await store.ReorderAsync(id, userId, req.Paths, ct);
                         }
                     )
                 ).ToResult()

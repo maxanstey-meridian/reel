@@ -312,11 +312,11 @@ export function collectionsGet(id: string, opts?: { unwrap?: boolean }): Promise
   return rivetFetch<RivetResult<CollectionWithItems>>("GET", `/api/collections/${encodeURIComponent(String(id))}`, { unwrap: opts?.unwrap });
 }
 
-export function collectionsRename(id: number, body: RenameCollectionRequest): Promise<void>;
-export function collectionsRename(id: number, body: RenameCollectionRequest, opts: { unwrap: true }): Promise<void>;
-export function collectionsRename(id: number, body: RenameCollectionRequest, opts: { unwrap: false }): Promise<RivetResult<void>>;
-export function collectionsRename(id: number, body: RenameCollectionRequest, opts?: { unwrap?: boolean }): Promise<void | RivetResult<void>> {
-  return rivetFetch<RivetResult<void>>("PATCH", `/api/collections/${encodeURIComponent(String(id))}`, { body: body, unwrap: opts?.unwrap });
+export function collectionsRename(id: string, body: RenameCollectionRequest): Promise<Collection>;
+export function collectionsRename(id: string, body: RenameCollectionRequest, opts: { unwrap: true }): Promise<Collection>;
+export function collectionsRename(id: string, body: RenameCollectionRequest, opts: { unwrap: false }): Promise<RivetResult<Collection>>;
+export function collectionsRename(id: string, body: RenameCollectionRequest, opts?: { unwrap?: boolean }): Promise<Collection | RivetResult<Collection>> {
+  return rivetFetch<RivetResult<Collection>>("PATCH", `/api/collections/${encodeURIComponent(String(id))}`, { body: body, unwrap: opts?.unwrap });
 }
 
 export function collectionsDelete(id: string): Promise<void>;

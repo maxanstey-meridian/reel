@@ -93,7 +93,6 @@ export type CreateCollectionRequest = {
 };
 
 export type RenameCollectionRequest = {
-  id: number;
   name: string;
 };
 

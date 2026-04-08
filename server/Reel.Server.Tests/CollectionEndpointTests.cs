@@ -98,7 +98,7 @@ public sealed class CollectionEndpointTests : IClassFixture<WebApplicationFactor
         var created = await createResponse.Content.ReadFromJsonAsync<CollectionDto>();
 
         var patchResponse = await client.PatchAsJsonAsync($"/api/collections/{created!.Id}", new { name = "New" });
-        patchResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var getResponse = await client.GetAsync($"/api/collections/{created.Id}");
         var detail = await getResponse.Content.ReadFromJsonAsync<CollectionWithItemsDto>();

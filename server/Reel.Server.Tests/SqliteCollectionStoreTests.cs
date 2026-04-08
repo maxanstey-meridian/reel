@@ -57,8 +57,8 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task GetWithItems_ReturnsCollectionAndItems()
     {
         var created = await _store.CreateAsync(1, "Watch Later", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/a.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/b.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/a.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/b.mp4", CancellationToken.None);
 
         var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
 
@@ -93,7 +93,7 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task DeleteAsync_CascadeDeletesItems()
     {
         var created = await _store.CreateAsync(1, "Cascade Test", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/cascade.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/cascade.mp4", CancellationToken.None);
         await _store.DeleteAsync(created.Id, 1, CancellationToken.None);
 
         using var conn = _db.GetConnection();
@@ -107,9 +107,9 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task AddItemAsync_SetsPositionIncrementally()
     {
         var created = await _store.CreateAsync(1, "Ordered", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/first.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/second.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/third.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/first.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/second.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/third.mp4", CancellationToken.None);
 
         var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
 
@@ -122,8 +122,8 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task AddItemAsync_IsIdempotent()
     {
         var created = await _store.CreateAsync(1, "Idempotent", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/dup.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/dup.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/dup.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/dup.mp4", CancellationToken.None);
 
         var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
         result!.Items.Should().ContainSingle(i => i.RelativePath == "Films/dup.mp4");
@@ -133,8 +133,8 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task RemoveItemAsync_DeletesItem()
     {
         var created = await _store.CreateAsync(1, "Remove Test", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/remove.mp4", CancellationToken.None);
-        await _store.RemoveItemAsync(created.Id, "Films/remove.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/remove.mp4", CancellationToken.None);
+        await _store.RemoveItemAsync(created.Id, 1, "Films/remove.mp4", CancellationToken.None);
 
         var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
         result!.Items.Should().BeEmpty();
@@ -144,11 +144,11 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task ReorderAsync_UpdatesPositions()
     {
         var created = await _store.CreateAsync(1, "Reorder", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/a.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/b.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/c.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/a.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/b.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/c.mp4", CancellationToken.None);
 
-        await _store.ReorderAsync(created.Id, ["Films/c.mp4", "Films/a.mp4", "Films/b.mp4"], CancellationToken.None);
+        await _store.ReorderAsync(created.Id, 1, ["Films/c.mp4", "Films/a.mp4", "Films/b.mp4"], CancellationToken.None);
 
         var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
         result!.Items[0].RelativePath.Should().Be("Films/c.mp4");
@@ -198,8 +198,8 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task GetAllAsync_IncludesItemCount()
     {
         var created = await _store.CreateAsync(1, "Counted", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/one.mp4", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/two.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/one.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/two.mp4", CancellationToken.None);
 
         var all = await _store.GetAllAsync(1, CancellationToken.None);
         var collection = all.Single(c => c.Name == "Counted");
@@ -210,11 +210,66 @@ public sealed class SqliteCollectionStoreTests : IDisposable
     public async Task AddItemAsync_AutoCreatesMediaRow()
     {
         var created = await _store.CreateAsync(1, "Media Auto", CancellationToken.None);
-        await _store.AddItemAsync(created.Id, "Films/auto-media.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/auto-media.mp4", CancellationToken.None);
 
         using var conn = _db.GetConnection();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM media WHERE relative_path = 'Films/auto-media.mp4';";
         Convert.ToInt32(cmd.ExecuteScalar()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AddItemAsync_WrongUser_DoesNotInsert()
+    {
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO users (name) VALUES ('User2');";
+        cmd.ExecuteNonQuery();
+        conn.Dispose();
+
+        var created = await _store.CreateAsync(1, "User1 Collection", CancellationToken.None);
+
+        await _store.AddItemAsync(created.Id, 2, "Films/sneaky.mp4", CancellationToken.None);
+
+        var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
+        result!.Items.Should().BeEmpty("user 2 should not be able to add items to user 1's collection");
+    }
+
+    [Fact]
+    public async Task RemoveItemAsync_WrongUser_DoesNotDelete()
+    {
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO users (name) VALUES ('User2');";
+        cmd.ExecuteNonQuery();
+        conn.Dispose();
+
+        var created = await _store.CreateAsync(1, "User1 Collection", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/keep.mp4", CancellationToken.None);
+
+        await _store.RemoveItemAsync(created.Id, 2, "Films/keep.mp4", CancellationToken.None);
+
+        var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
+        result!.Items.Should().ContainSingle("user 2 should not be able to remove items from user 1's collection");
+    }
+
+    [Fact]
+    public async Task ReorderAsync_WrongUser_DoesNotUpdate()
+    {
+        using var conn = _db.GetConnection();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "INSERT INTO users (name) VALUES ('User2');";
+        cmd.ExecuteNonQuery();
+        conn.Dispose();
+
+        var created = await _store.CreateAsync(1, "User1 Collection", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/a.mp4", CancellationToken.None);
+        await _store.AddItemAsync(created.Id, 1, "Films/b.mp4", CancellationToken.None);
+
+        await _store.ReorderAsync(created.Id, 2, ["Films/b.mp4", "Films/a.mp4"], CancellationToken.None);
+
+        var result = await _store.GetWithItemsAsync(created.Id, 1, CancellationToken.None);
+        result!.Items[0].RelativePath.Should().Be("Films/a.mp4", "original order should be preserved");
+        result.Items[1].RelativePath.Should().Be("Films/b.mp4", "original order should be preserved");
     }
 }

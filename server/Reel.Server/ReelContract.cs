@@ -162,10 +162,10 @@ public static class ReelContract
         "/api/collections/{id}"
     );
 
-    public static readonly InputRouteDefinition<RenameCollectionRequest> CollectionsRename = Define
-        .Patch("/api/collections/{id}")
-        .Accepts<RenameCollectionRequest>()
-        .Status(204);
+    public static readonly RouteDefinition<RenameCollectionRequest, Collection> CollectionsRename = Define.Patch<
+        RenameCollectionRequest,
+        Collection
+    >("/api/collections/{id}");
 
     public static readonly RouteDefinition CollectionsDelete = Define.Delete("/api/collections/{id}").Status(204);
 
