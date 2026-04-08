@@ -5,7 +5,7 @@ import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
 import { useScrollPreservation } from "../composables/useScrollPreservation";
 import type { WatchProgress } from "../composables/useProgress";
-import { getNameInitial } from "../utils/alphabetScroller";
+import { getNameInitial, scrollToNameInitial } from "../utils/alphabetScroller";
 import { findNodeByPath } from "../utils/findNodeByPath";
 
 const { isConnected } = useConnection();
@@ -79,10 +79,7 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
 const childNames = computed(() => currentChildren.value.map((n: FileNode) => n.name));
 
 const handleScrollToLetter = (letter: string) => {
-  const el = document.querySelector(`[data-name-initial="${letter}"]`);
-  if (el) {
-    el.scrollIntoView({ block: "start", behavior: "smooth" });
-  }
+  scrollToNameInitial(letter);
 };
 </script>
 

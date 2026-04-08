@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { ALPHABET } from "~~/app/utils/alphabetScroller";
+import { ALPHABET, isScrollerVisible } from "~~/app/utils/alphabetScroller";
 
 const props = defineProps<{
   names: string[];
@@ -8,7 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ scrollTo: [letter: string] }>();
 
-const visible = computed(() => props.names.length > 10);
+const visible = computed(() => isScrollerVisible(props.names.length));
 const activeLetter = ref<string | null>(null);
 
 const handleTap = (letter: string) => {

@@ -35,3 +35,14 @@ export const getNameInitial = (name: string): string => {
   }
   return "#";
 };
+
+export const SCROLLER_MIN_ITEMS = 10;
+
+export const isScrollerVisible = (count: number): boolean => count > SCROLLER_MIN_ITEMS;
+
+export const scrollToNameInitial = (letter: string): void => {
+  const el = document.querySelector(`[data-name-initial="${letter}"]`);
+  if (el) {
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+};
