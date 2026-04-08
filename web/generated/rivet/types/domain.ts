@@ -12,6 +12,8 @@ export type FileNode = {
   parsedTitle: string | null;
   year: number | null;
   thumbnailUrl: string | null;
+  watched: boolean | null;
+  displayTitle: string | null;
 };
 
 export type CastCommand = {
@@ -33,4 +35,34 @@ export type WatchProgress = {
 export type Favourite = {
   relativePath: string;
   addedAt: string;
+};
+
+export type User = {
+  id: number;
+  name: string;
+  icon: string | null;
+};
+
+export type TagCount = {
+  tag: string;
+  count: number;
+};
+
+export type SubtitleTrack = {
+  index: number;
+  label: string;
+  language: string;
+  format: string;
+  source: string;
+  externalPath: string | null;
+};
+
+export type TrickplayMetadata = {
+  intervalMs: number;
+  columns: number;
+  rows: number;
+  thumbWidth: number;
+  thumbHeight: number;
+  totalThumbs: number;
+  spritePath: string;
 };

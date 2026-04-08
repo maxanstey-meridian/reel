@@ -35,3 +35,46 @@ export type MetadataResponse = {
   overview: string | null;
   releaseDate: string | null;
 };
+
+export type UserRequest = {
+  name: string | null;
+  icon: string | null;
+};
+
+export type MediaDetailResponse = {
+  relativePath: string;
+  parsedTitle: string | null;
+  year: number | null;
+  genre: string | null;
+  rating: string | null;
+  language: string | null;
+  notes: string | null;
+  displayTitle: string | null;
+  tmdbId: number | null;
+  posterUrl: string | null;
+  backdropUrl: string | null;
+  overview: string | null;
+  releaseDate: string | null;
+  addedAt: string;
+  updatedAt: string;
+  watched: boolean | null;
+  positionSeconds: number | null;
+  durationSeconds: number | null;
+  tags: string[];
+};
+
+export type MediaUpdateRequest = {
+  genre: string | null;
+  rating: string | null;
+  language: string | null;
+  notes: string | null;
+  displayTitle: string | null;
+};
+
+export type SetTagsRequest = {
+  tags: string[];
+};
+
+export type AddTagRequest = {
+  tag: string;
+};
