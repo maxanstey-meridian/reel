@@ -6,9 +6,9 @@ import { useWatchState } from "~~/app/composables/useWatchState";
 import { buildPatchBody, shouldRefreshLibrary } from "~~/app/utils/metadataEdit";
 import type { EditableField } from "~~/app/utils/metadataEdit";
 import { parseFilename } from "~~/app/utils/parseFilename";
-import { mediaDetail as fetchMediaDetail } from "~~/generated/rivet/client/reel";
+import { mediaDetail as fetchMediaDetail, subtitlesList } from "~~/generated/rivet/client/reel";
 import { rivetFetch } from "~~/generated/rivet/rivet";
-import type { FileNode } from "~~/generated/rivet/types/domain";
+import type { FileNode, SubtitleTrack } from "~~/generated/rivet/types/domain";
 import type { MediaDetailResponse } from "~~/generated/rivet/types/models";
 
 const props = defineProps<{
@@ -148,16 +148,28 @@ const fetchDetail = async (node: FileNode) => {
   }
 };
 
+const subtitles = ref<SubtitleTrack[]>([]);
+
+const fetchSubtitles = async (path: string) => {
+  try {
+    subtitles.value = await subtitlesList(path);
+  } catch {
+    subtitles.value = [];
+  }
+};
+
 watch(
   () => [props.node, props.open] as const,
   ([node, open]) => {
     if (open && node) {
       fetchDetail(node);
       getTags(node.relativePath);
+      fetchSubtitles(node.relativePath);
     }
     if (!open) {
       detail.value = null;
       tags.value = [];
+      subtitles.value = [];
       cancelEdit();
     }
   },
@@ -304,6 +316,20 @@ const handleCast = async () => {
             class="w-24"
             @keydown.enter="handleAddTag"
           />
+        </div>
+
+        <!-- Subtitles -->
+        <div v-if="subtitles.length > 0" class="space-y-1.5">
+          <span class="text-xs text-neutral-500">Subtitles</span>
+          <div
+            v-for="track in subtitles"
+            :key="track.index"
+            class="flex items-center gap-2 text-sm text-neutral-300"
+          >
+            <span class="truncate">{{ track.language || 'Unknown' }}</span>
+            <UBadge size="xs" color="neutral" variant="subtle">{{ track.format }}</UBadge>
+            <UBadge size="xs" color="neutral" variant="outline">{{ track.source }}</UBadge>
+          </div>
         </div>
 
         <UButton
