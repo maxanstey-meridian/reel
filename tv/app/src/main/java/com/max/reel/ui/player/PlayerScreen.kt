@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -44,7 +46,10 @@ import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 sealed interface PlayerError {
     data object CannotReachServer : PlayerError
@@ -78,7 +83,13 @@ internal fun playerErrorMessage(error: PlayerError): String = when (error) {
 @OptIn(UnstableApi::class)
 @ExperimentalTvMaterial3Api
 @Composable
-fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> Unit) {
+fun PlayerScreen(
+    prefs: PreferencesManager,
+    apiClient: ApiClient,
+    relativePath: String,
+    positionSeconds: Double? = null,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
 
     BackHandler {
@@ -87,14 +98,33 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
 
     val focusRequester = remember { FocusRequester() }
     val seekStepMs = 10_000L
+    val scope = rememberCoroutineScope()
 
     key(relativePath) {
         val streamUrl = "http://${prefs.serverIp}:${prefs.serverPort}/api/files/stream?path=${Uri.encode(relativePath)}"
 
         var playerError by remember { mutableStateOf<PlayerError?>(null) }
+        var markedWatched by remember { mutableStateOf(false) }
 
         val player = remember {
             ExoPlayer.Builder(context).build()
+        }
+
+        // Helper to report current progress
+        fun reportProgress() {
+            val posMs = player.currentPosition
+            val durMs = player.duration
+            if (durMs <= 0 || durMs == C.TIME_UNSET) return
+            val posSec = posMs / 1000.0
+            val durSec = durMs / 1000.0
+            scope.launch {
+                apiClient.updateProgress(relativePath, posSec, durSec)
+                // Auto-mark watched at >95% completion
+                if (!markedWatched && posSec / durSec > 0.95) {
+                    markedWatched = true
+                    apiClient.setWatched(relativePath)
+                }
+            }
         }
 
         DisposableEffect(Unit) {
@@ -108,6 +138,29 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
                 override fun onPlayerError(error: PlaybackException) {
                     playerError = classifyError(error)
                 }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    // Report on pause (isPlaying goes false while not in ended state)
+                    if (!isPlaying && player.playbackState != Player.STATE_ENDED) {
+                        reportProgress()
+                    }
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    when (playbackState) {
+                        Player.STATE_ENDED -> reportProgress()
+                        Player.STATE_READY -> {
+                            // Seek to resume position once media is ready
+                            if (positionSeconds != null && positionSeconds > 0) {
+                                val seekMs = (positionSeconds * 1000).toLong()
+                                if (player.currentPosition < seekMs - 1000) {
+                                    player.seekTo(seekMs)
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
+                }
             }
             player.addListener(listener)
             player.setMediaSource(mediaSource)
@@ -115,8 +168,20 @@ fun PlayerScreen(prefs: PreferencesManager, relativePath: String, onBack: () -> 
             player.playWhenReady = true
 
             onDispose {
+                // Final progress report before cleanup
+                reportProgress()
                 player.stop()
                 player.release()
+            }
+        }
+
+        // Periodic progress reporting every 10 seconds
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(10_000)
+                if (player.isPlaying) {
+                    reportProgress()
+                }
             }
         }
 

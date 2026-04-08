@@ -27,7 +27,7 @@ import okhttp3.OkHttpClient
 sealed interface Screen {
     data object Pairing : Screen
     data object WaitingForCast : Screen
-    data class Player(val relativePath: String) : Screen
+    data class Player(val relativePath: String, val positionSeconds: Double? = null) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -106,8 +106,8 @@ private fun ReelApp(
 
     // React to play commands from any screen
     LaunchedEffect(Unit) {
-        castPoller.playCommand.collect { relativePath ->
-            screen = Screen.Player(relativePath)
+        castPoller.playCommand.collect { command ->
+            screen = Screen.Player(command.relativePath, command.positionSeconds)
         }
     }
 
@@ -132,7 +132,9 @@ private fun ReelApp(
 
         is Screen.Player -> PlayerScreen(
             prefs = prefs,
+            apiClient = apiClient,
             relativePath = current.relativePath,
+            positionSeconds = current.positionSeconds,
             onBack = { screen = Screen.WaitingForCast },
         )
     }

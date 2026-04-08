@@ -242,7 +242,94 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         return client;
     }
 
-    private sealed record CastCommandDto(string Type, string? RelativePath);
+    [Fact]
+    public async Task PostCast_WithExplicitPosition_IncludesPositionInCommand()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var castResponse = await client.PostAsJsonAsync(
+            "/api/cast",
+            new { relativePath = "Films/resume-explicit.mp4", positionSeconds = 42.5 }
+        );
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/resume-explicit.mp4");
+        status.Command.PositionSeconds.Should().Be(42.5);
+    }
+
+    [Fact]
+    public async Task PostCast_WithoutPosition_AutoPopulatesFromProgressStore()
+    {
+        var client = CreateAuthenticatedClient();
+
+        // Seed progress for the file
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new { relativePath = "Films/resume-auto.mp4", positionSeconds = 300.0, durationSeconds = 7200.0 }
+        );
+
+        // Cast without explicit position
+        var castResponse = await client.PostAsJsonAsync(
+            "/api/cast",
+            new { relativePath = "Films/resume-auto.mp4" }
+        );
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/resume-auto.mp4");
+        status.Command.PositionSeconds.Should().Be(300.0);
+    }
+
+    [Fact]
+    public async Task PostCast_WithoutPosition_NoProgress_PositionIsNull()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var castResponse = await client.PostAsJsonAsync(
+            "/api/cast",
+            new { relativePath = "Films/no-progress.mp4" }
+        );
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/no-progress.mp4");
+        status.Command.PositionSeconds.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PostCastQueue_AutoPopulatesFirstItemPosition()
+    {
+        var client = CreateAuthenticatedClient();
+
+        // Seed progress for the first item only
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new { relativePath = "Films/queue-a.mp4", positionSeconds = 120.0, durationSeconds = 3600.0 }
+        );
+
+        var paths = new[] { "Films/queue-a.mp4", "Films/queue-b.mp4" };
+        var castResponse = await client.PostAsJsonAsync("/api/cast/queue", new { paths });
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // First item should have position from progress
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/queue-a.mp4");
+        status.Command.PositionSeconds.Should().Be(120.0);
+
+        // Ack first, second should have no position
+        await client.PostAsync("/api/cast/ack", null);
+        var secondResponse = await client.GetAsync("/api/cast/current");
+        var secondStatus = await secondResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        secondStatus!.Command!.RelativePath.Should().Be("Films/queue-b.mp4");
+        secondStatus.Command.PositionSeconds.Should().BeNull();
+    }
+
+    private sealed record CastCommandDto(string Type, string? RelativePath, double? PositionSeconds = null);
 
     private sealed record CastStatusDto(CastCommandDto? Command);
 }

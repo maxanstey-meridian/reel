@@ -19,6 +19,7 @@ export type FileNode = {
 export type CastCommand = {
   type: string;
   relativePath?: string | null;
+  positionSeconds?: number | null;
 };
 
 export type CastStatus = {

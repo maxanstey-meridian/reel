@@ -7,23 +7,23 @@ public sealed class CastService
     private readonly object _lock = new();
     private readonly List<CastCommand> _queue = new();
 
-    public void SetPlay(string relativePath)
+    public void SetPlay(string relativePath, double? positionSeconds = null)
     {
         lock (_lock)
         {
             _queue.Clear();
-            _queue.Add(new CastCommand("play", relativePath));
+            _queue.Add(new CastCommand("play", relativePath, positionSeconds));
         }
     }
 
-    public void SetPlayQueue(string[] paths)
+    public void SetPlayQueue(string[] paths, double? firstItemPosition = null)
     {
         lock (_lock)
         {
             _queue.Clear();
-            foreach (var path in paths)
+            for (var i = 0; i < paths.Length; i++)
             {
-                _queue.Add(new CastCommand("play", path));
+                _queue.Add(new CastCommand("play", paths[i], i == 0 ? firstItemPosition : null));
             }
         }
     }

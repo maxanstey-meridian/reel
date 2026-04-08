@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class CastCommand(
     val type: String,
     val relativePath: String? = null,
+    val positionSeconds: Double? = null,
 )
 
 @Serializable
@@ -18,6 +19,8 @@ sealed interface CastPollResult {
     data object Unauthorized : CastPollResult
     data class NetworkError(val message: String) : CastPollResult
 }
+
+data class PlayCommand(val relativePath: String, val positionSeconds: Double? = null)
 
 @Serializable
 data class LibraryStats(val totalFiles: Int, val totalBytes: Long)

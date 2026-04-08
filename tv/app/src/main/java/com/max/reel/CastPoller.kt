@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.max.reel.data.ApiClient
 import com.max.reel.data.CastPollResult
+import com.max.reel.data.PlayCommand
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -20,7 +21,7 @@ class CastPoller(
     private val _connectionOk = MutableStateFlow(true)
     val connectionOk: StateFlow<Boolean> = _connectionOk.asStateFlow()
 
-    private val _playCommand = Channel<String>(Channel.BUFFERED)
+    private val _playCommand = Channel<PlayCommand>(Channel.BUFFERED)
     val playCommand = _playCommand.receiveAsFlow()
 
     private var pollingJob: Job? = null
@@ -49,7 +50,7 @@ class CastPoller(
                     "play" -> {
                         val path = command.relativePath ?: return
                         apiClient.acknowledgeCast()
-                        _playCommand.send(path)
+                        _playCommand.send(PlayCommand(path, command.positionSeconds))
                     }
                     "stop" -> {
                         apiClient.acknowledgeCast()

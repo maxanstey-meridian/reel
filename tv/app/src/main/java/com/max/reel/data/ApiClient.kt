@@ -7,9 +7,11 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLParameter
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -129,7 +131,42 @@ class ApiClient(
         }
     }
 
+    suspend fun updateProgress(
+        path: String,
+        positionSeconds: Double,
+        durationSeconds: Double,
+    ): Boolean {
+        return try {
+            val response = client.post("$baseUrl/api/progress") {
+                header("X-Secret-Key", prefs.secretKey)
+                contentType(ContentType.Application.Json)
+                setBody(ProgressRequestBody(path, positionSeconds, durationSeconds))
+            }
+            response.status.value == 200
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun setWatched(path: String): Boolean {
+        return try {
+            val response = client.put("$baseUrl/api/media/watched?path=${path.encodeURLParameter()}") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            response.status.value == 204
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     fun close() {
         client.close()
     }
 }
+
+@Serializable
+private data class ProgressRequestBody(
+    val relativePath: String,
+    val positionSeconds: Double,
+    val durationSeconds: Double,
+)
