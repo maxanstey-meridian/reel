@@ -57,6 +57,7 @@ const clearSearch = () => {
         v-for="node in results"
         :key="node.relativePath"
         :node="node"
+        @select="navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`)"
       />
     </div>
 

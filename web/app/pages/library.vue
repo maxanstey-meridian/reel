@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
@@ -54,27 +53,17 @@ const files = computed(() => currentChildren.value.filter((n: FileNode) => n.typ
 // Show a clickable folder grid instead of expanding every dir into a MediaRow.
 const isNavigationLevel = computed(() => directories.value.length > 0 && files.value.length === 0);
 
-const selectedFile = ref<FileNode | null>(null);
-const detailOpen = ref(false);
-
-const openDetail = (node: FileNode) => {
-  selectedFile.value = node;
-  detailOpen.value = true;
-};
-
-const { cast } = useCast();
-
 const handleSelect = (node: FileNode) => {
   if (node.type === "directory") {
     enterDirectory(node.name);
   } else {
-    cast(node.relativePath);
+    navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`);
   }
 };
 
 const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
   if (node.type === "file") {
-    openDetail(node);
+    navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`);
   } else {
     enterDirectory(parentDir.name);
     if (node.type === "directory") {
@@ -193,7 +182,5 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
       </div>
     </div>
 
-    <!-- File detail drawer -->
-    <FileDetail :node="selectedFile" :open="detailOpen" @close="detailOpen = false" />
   </div>
 </template>

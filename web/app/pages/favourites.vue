@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useFavourites } from "../composables/useFavourites";
@@ -23,16 +22,6 @@ const favouriteNodes = computed(() =>
     .map((fav) => findNodeByPath(tree.value, fav.relativePath))
     .filter((node): node is FileNode => node !== null),
 );
-
-const selectedFile = ref<FileNode | null>(null);
-const detailOpen = ref(false);
-
-const openDetail = (node: FileNode) => {
-  if (node.type === "file") {
-    selectedFile.value = node;
-    detailOpen.value = true;
-  }
-};
 </script>
 
 <template>
@@ -62,11 +51,9 @@ const openDetail = (node: FileNode) => {
         v-for="node in favouriteNodes"
         :key="node.relativePath"
         :node="node"
-        @select="openDetail(node)"
+        @select="navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`)"
       />
     </div>
 
-    <!-- File detail drawer -->
-    <FileDetail :node="selectedFile" :open="detailOpen" @close="detailOpen = false" />
   </div>
 </template>
