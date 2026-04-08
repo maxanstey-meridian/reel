@@ -100,16 +100,16 @@ const setupDetailPage = (routePath: string | string[]) => {
   type HeroMode = "backdrop" | "thumbnail" | "poster" | "icon";
 
   const heroMode = computed<HeroMode>(() => {
-    if (detail.value?.backdropUrl && !backdropFailed.value) return "backdrop";
-    if (thumbnailSrc.value && !thumbnailFailed.value) return "thumbnail";
-    if (detail.value?.posterUrl && !posterFailed.value) return "poster";
+    if (detail.value?.backdropUrl && !backdropFailed.value) { return "backdrop"; }
+    if (thumbnailSrc.value && !thumbnailFailed.value) { return "thumbnail"; }
+    if (detail.value?.posterUrl && !posterFailed.value) { return "poster"; }
     return "icon";
   });
 
   const heroSrc = computed<string | null>(() => {
-    if (heroMode.value === "backdrop") return detail.value!.backdropUrl;
-    if (heroMode.value === "thumbnail") return thumbnailSrc.value;
-    if (heroMode.value === "poster") return detail.value!.posterUrl;
+    if (heroMode.value === "backdrop") { return detail.value!.backdropUrl; }
+    if (heroMode.value === "thumbnail") { return thumbnailSrc.value; }
+    if (heroMode.value === "poster") { return detail.value!.posterUrl; }
     return null;
   });
 
@@ -119,31 +119,31 @@ const setupDetailPage = (routePath: string | string[]) => {
 
   const formattedDuration = computed(() => {
     const dur = detail.value?.durationSeconds;
-    if (!dur || dur <= 0) return null;
+    if (!dur || dur <= 0) { return null; }
     return formatDuration(dur);
   });
 
   const progressPercent = computed(() => {
     const pos = detail.value?.positionSeconds;
     const dur = detail.value?.durationSeconds;
-    if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+    if (!pos || pos <= 0 || !dur || dur <= 0) { return null; }
     return (pos / dur) * 100;
   });
 
   const remainingTime = computed(() => {
     const pos = detail.value?.positionSeconds;
     const dur = detail.value?.durationSeconds;
-    if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+    if (!pos || pos <= 0 || !dur || dur <= 0) { return null; }
     const remaining = dur - pos;
-    if (remaining <= 0) return null;
+    if (remaining <= 0) { return null; }
     return `${formatDuration(remaining)} remaining`;
   });
 
   const formattedReleaseDate = computed(() => {
     const rd = detail.value?.releaseDate;
-    if (!rd) return null;
+    if (!rd) { return null; }
     const date = new Date(rd);
-    if (isNaN(date.getTime())) return null;
+    if (isNaN(date.getTime())) { return null; }
     return `Released ${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   });
 
@@ -169,7 +169,7 @@ const setupDetailPage = (routePath: string | string[]) => {
   };
 
   const saveEdit = async () => {
-    if (!editing.value) return;
+    if (!editing.value) { return; }
     const field = editing.value;
     const newVal = editValue.value.trim();
     const oldVal = (detail.value?.[field] as string | null) ?? "";
@@ -212,7 +212,7 @@ const setupDetailPage = (routePath: string | string[]) => {
 
   const handleAddTag = async () => {
     const trimmed = newTag.value.trim();
-    if (!trimmed) return;
+    if (!trimmed) { return; }
     newTag.value = "";
     await addTag(relativePath, trimmed);
   };
@@ -236,7 +236,7 @@ const setupDetailPage = (routePath: string | string[]) => {
 
   // Simulate onMounted data loading
   const loadData = async () => {
-    if (!relativePath) return;
+    if (!relativePath) { return; }
     detailLoading.value = true;
     try {
       const [detailResult, , subtitlesResult] = await Promise.all([

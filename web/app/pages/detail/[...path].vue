@@ -67,16 +67,16 @@ const posterInsetFailed = ref(false);
 type HeroMode = "backdrop" | "thumbnail" | "poster" | "icon";
 
 const heroMode = computed<HeroMode>(() => {
-  if (detail.value?.backdropUrl && !backdropFailed.value) return "backdrop";
-  if (thumbnailSrc.value && !thumbnailFailed.value) return "thumbnail";
-  if (detail.value?.posterUrl && !posterFailed.value) return "poster";
+  if (detail.value?.backdropUrl && !backdropFailed.value) { return "backdrop"; }
+  if (thumbnailSrc.value && !thumbnailFailed.value) { return "thumbnail"; }
+  if (detail.value?.posterUrl && !posterFailed.value) { return "poster"; }
   return "icon";
 });
 
 const heroSrc = computed<string | null>(() => {
-  if (heroMode.value === "backdrop") return detail.value!.backdropUrl;
-  if (heroMode.value === "thumbnail") return thumbnailSrc.value;
-  if (heroMode.value === "poster") return detail.value!.posterUrl;
+  if (heroMode.value === "backdrop") { return detail.value!.backdropUrl; }
+  if (heroMode.value === "thumbnail") { return thumbnailSrc.value; }
+  if (heroMode.value === "poster") { return detail.value!.posterUrl; }
   return null;
 });
 
@@ -87,32 +87,32 @@ const showPosterInset = computed(() =>
 // Duration & progress
 const formattedDuration = computed(() => {
   const dur = detail.value?.durationSeconds;
-  if (!dur || dur <= 0) return null;
+  if (!dur || dur <= 0) { return null; }
   return formatDuration(dur);
 });
 
 const progressPercent = computed(() => {
   const pos = detail.value?.positionSeconds;
   const dur = detail.value?.durationSeconds;
-  if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+  if (!pos || pos <= 0 || !dur || dur <= 0) { return null; }
   return (pos / dur) * 100;
 });
 
 const remainingTime = computed(() => {
   const pos = detail.value?.positionSeconds;
   const dur = detail.value?.durationSeconds;
-  if (!pos || pos <= 0 || !dur || dur <= 0) return null;
+  if (!pos || pos <= 0 || !dur || dur <= 0) { return null; }
   const remaining = dur - pos;
-  if (remaining <= 0) return null;
+  if (remaining <= 0) { return null; }
   return `${formatDuration(remaining)} remaining`;
 });
 
 // Release date
 const formattedReleaseDate = computed(() => {
   const rd = detail.value?.releaseDate;
-  if (!rd) return null;
+  if (!rd) { return null; }
   const date = new Date(rd);
-  if (isNaN(date.getTime())) return null;
+  if (isNaN(date.getTime())) { return null; }
   return `Released ${date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 });
 
