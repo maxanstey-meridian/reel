@@ -14,6 +14,11 @@ export type HealthResponse = {
   uptime: string;
 };
 
+export type LibraryStatsResponse = {
+  totalFiles: number;
+  totalBytes: number;
+};
+
 export type CastRequest = {
   relativePath: string;
 };
@@ -81,4 +86,23 @@ export type SetTagsRequest = {
 
 export type AddTagRequest = {
   tag: string;
+};
+
+export type CreateCollectionRequest = {
+  name: string;
+};
+
+export type RenameCollectionRequest = {
+  id: number;
+  name: string;
+};
+
+export type CollectionItemRequest = {
+  id: number;
+  path: string;
+};
+
+export type ReorderItemsRequest = {
+  id: number;
+  paths: string[];
 };

@@ -62,6 +62,12 @@ public sealed class DatabaseService
             MigrateJsonData(connection);
             _logger.LogInformation("Database migrated to version 1");
         }
+
+        if (currentVersion < 2)
+        {
+            RunMigrationV2(connection);
+            _logger.LogInformation("Database migrated to version 2");
+        }
     }
 
     private static int GetUserVersion(SqliteConnection connection)
@@ -179,6 +185,42 @@ public sealed class DatabaseService
 
         _logger.LogInformation("Migrated {Count} favourites entries from JSON to SQLite", entries.Count);
     }
+
+    private static void RunMigrationV2(SqliteConnection connection)
+    {
+        using var transaction = connection.BeginTransaction();
+
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = MigrationV2Sql;
+        cmd.ExecuteNonQuery();
+
+        using var versionCmd = connection.CreateCommand();
+        versionCmd.Transaction = transaction;
+        versionCmd.CommandText = "PRAGMA user_version = 2;";
+        versionCmd.ExecuteNonQuery();
+
+        transaction.Commit();
+    }
+
+    private const string MigrationV2Sql = """
+        CREATE TABLE IF NOT EXISTS collections (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name       TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_collections_user ON collections(user_id);
+
+        CREATE TABLE IF NOT EXISTS collection_items (
+            collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+            relative_path TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
+            position      INTEGER NOT NULL,
+            added_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (collection_id, relative_path)
+        );
+        CREATE INDEX IF NOT EXISTS idx_collection_items_collection ON collection_items(collection_id);
+        """;
 
     private const string MigrationV1Sql = """
         CREATE TABLE users (

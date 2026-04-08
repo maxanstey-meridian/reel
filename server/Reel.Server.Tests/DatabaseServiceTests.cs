@@ -43,7 +43,7 @@ public sealed class DatabaseServiceTests : IDisposable
     }
 
     [Fact]
-    public void CreatesAllEightTables()
+    public void CreatesAllTenTables()
     {
         var svc = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
 
@@ -61,6 +61,8 @@ public sealed class DatabaseServiceTests : IDisposable
                 "favourites",
                 "subtitles",
                 "trickplay",
+                "collections",
+                "collection_items",
             ]);
     }
 
@@ -91,7 +93,7 @@ public sealed class DatabaseServiceTests : IDisposable
     }
 
     [Fact]
-    public void SetsUserVersionToOne()
+    public void SetsUserVersionToTwo()
     {
         var svc = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
 
@@ -100,7 +102,7 @@ public sealed class DatabaseServiceTests : IDisposable
         cmd.CommandText = "PRAGMA user_version;";
         var version = Convert.ToInt32(cmd.ExecuteScalar());
 
-        version.Should().Be(1);
+        version.Should().Be(2);
     }
 
     [Fact]
@@ -129,7 +131,7 @@ public sealed class DatabaseServiceTests : IDisposable
 
         using var versionCmd = conn.CreateCommand();
         versionCmd.CommandText = "PRAGMA user_version;";
-        Convert.ToInt32(versionCmd.ExecuteScalar()).Should().Be(1);
+        Convert.ToInt32(versionCmd.ExecuteScalar()).Should().Be(2);
 
         using var countCmd = conn.CreateCommand();
         countCmd.CommandText = "SELECT COUNT(*) FROM users;";

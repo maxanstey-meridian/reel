@@ -174,9 +174,9 @@ public static class ReelContract
         .Accepts<CollectionItemRequest>()
         .Status(204);
 
-    public static readonly InputRouteDefinition<FileRequest> CollectionsRemoveItem = Define
+    public static readonly InputRouteDefinition<CollectionItemRequest> CollectionsRemoveItem = Define
         .Delete("/api/collections/{id}/items")
-        .Accepts<FileRequest>();
+        .Accepts<CollectionItemRequest>();
 
     public static readonly InputRouteDefinition<ReorderItemsRequest> CollectionsReorder = Define
         .Put("/api/collections/{id}/items/order")

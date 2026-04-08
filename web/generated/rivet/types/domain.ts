@@ -66,3 +66,23 @@ export type TrickplayMetadata = {
   totalThumbs: number;
   spritePath: string;
 };
+
+export type Collection = {
+  id: number;
+  name: string;
+  createdAt: string;
+  itemCount: number;
+};
+
+export type CollectionItem = {
+  relativePath: string;
+  position: number;
+  addedAt: string;
+};
+
+export type CollectionWithItems = {
+  id: number;
+  name: string;
+  createdAt: string;
+  items: CollectionItem[];
+};
