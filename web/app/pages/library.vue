@@ -3,6 +3,7 @@ import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
+import { useScrollPreservation } from "../composables/useScrollPreservation";
 import type { WatchProgress } from "../composables/useProgress";
 import { getNameInitial } from "../utils/alphabetScroller";
 import { findNodeByPath } from "../utils/findNodeByPath";
@@ -21,6 +22,8 @@ const {
 } = useLibrary();
 
 const { entries: progressEntries, fetch: fetchProgress } = useProgress();
+
+useScrollPreservation(loading, currentPath);
 
 const continueWatchingItems = computed(() => {
   if (currentPath.value.length > 0) {
