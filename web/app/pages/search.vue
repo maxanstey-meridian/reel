@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from "vue";
+import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useSearch } from "../composables/useSearch";
 import { useTags, type TagCount } from "../composables/useTags";
 
@@ -14,7 +15,11 @@ const allTags = ref<TagCount[]>([]);
 const tagPopoverOpen = ref(false);
 const recentSearches = ref<string[]>([]);
 
-const { results, loading, error, debouncedSearch } = useSearch();
+const { results, loading, error, search, debouncedSearch } = useSearch();
+
+const { refreshing, pullOffset } = usePullToRefresh(() =>
+  search(query.value, activeTag.value, null, watchedFilter.value),
+);
 const { getAllTags } = useTags();
 
 const searchInput = ref<{ $el: HTMLElement } | null>(null);
@@ -127,6 +132,19 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-4">
+    <!-- Pull to refresh indicator -->
+    <div
+      v-if="refreshing || pullOffset > 0"
+      class="flex justify-center overflow-hidden transition-all"
+      :style="{ height: refreshing ? '32px' : `${Math.min(pullOffset, 60)}px` }"
+    >
+      <UIcon
+        :name="refreshing ? 'i-lucide-loader-2' : 'i-lucide-arrow-down'"
+        class="size-5 text-neutral-500"
+        :class="{ 'animate-spin': refreshing }"
+      />
+    </div>
+
     <UInput
       ref="searchInput"
       v-model="query"

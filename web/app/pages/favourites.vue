@@ -3,10 +3,13 @@ import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useFavourites } from "../composables/useFavourites";
 import { useLibrary } from "../composables/useLibrary";
+import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { findNodeByPath } from "../utils/findNodeByPath";
 
 const { isConnected } = useConnection();
 const { favourites, loading, fetch: fetchFavourites } = useFavourites();
+
+const { refreshing, pullOffset } = usePullToRefresh(() => fetchFavourites());
 const { tree } = useLibrary();
 
 onMounted(() => {
@@ -26,6 +29,19 @@ const favouriteNodes = computed(() =>
 
 <template>
   <div class="space-y-4">
+    <!-- Pull to refresh indicator -->
+    <div
+      v-if="refreshing || pullOffset > 0"
+      class="flex justify-center overflow-hidden transition-all"
+      :style="{ height: refreshing ? '32px' : `${Math.min(pullOffset, 60)}px` }"
+    >
+      <UIcon
+        :name="refreshing ? 'i-lucide-loader-2' : 'i-lucide-arrow-down'"
+        class="size-5 text-neutral-500"
+        :class="{ 'animate-spin': refreshing }"
+      />
+    </div>
+
     <div class="page-header">
       <h1 class="page-title">Favourites</h1>
     </div>

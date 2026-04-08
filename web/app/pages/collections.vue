@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { useConnection } from "../composables/useConnection";
 import { useCollections } from "../composables/useCollections";
+import { usePullToRefresh } from "../composables/usePullToRefresh";
 
 const { isConnected } = useConnection();
 const { collections, loading, error, fetch: fetchCollections, create } = useCollections();
+
+const { refreshing, pullOffset } = usePullToRefresh(() => fetchCollections());
 
 // Inline create
 const adding = ref(false);
@@ -47,6 +50,19 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
+    <!-- Pull to refresh indicator -->
+    <div
+      v-if="refreshing || pullOffset > 0"
+      class="flex justify-center overflow-hidden transition-all"
+      :style="{ height: refreshing ? '32px' : `${Math.min(pullOffset, 60)}px` }"
+    >
+      <UIcon
+        :name="refreshing ? 'i-lucide-loader-2' : 'i-lucide-arrow-down'"
+        class="size-5 text-neutral-500"
+        :class="{ 'animate-spin': refreshing }"
+      />
+    </div>
+
     <div class="page-header flex items-center justify-between">
       <h1 class="page-title">Collections</h1>
       <UButton

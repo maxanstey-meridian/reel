@@ -3,6 +3,7 @@ import type { FileNode } from "~~/generated/rivet/types/domain";
 import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
+import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useScrollPreservation } from "../composables/useScrollPreservation";
 import type { WatchProgress } from "../composables/useProgress";
 import { getNameInitial, scrollToNameInitial } from "../utils/alphabetScroller";
@@ -24,6 +25,8 @@ const {
 const { entries: progressEntries, fetch: fetchProgress } = useProgress();
 
 useScrollPreservation(loading, currentPath);
+
+const { refreshing, pullOffset } = usePullToRefresh(() => refresh());
 
 const continueWatchingItems = computed(() => {
   if (currentPath.value.length > 0) {
@@ -85,6 +88,19 @@ const handleScrollToLetter = (letter: string) => {
 
 <template>
   <div class="space-y-4">
+    <!-- Pull to refresh indicator -->
+    <div
+      v-if="refreshing || pullOffset > 0"
+      class="flex justify-center overflow-hidden transition-all"
+      :style="{ height: refreshing ? '32px' : `${Math.min(pullOffset, 60)}px` }"
+    >
+      <UIcon
+        :name="refreshing ? 'i-lucide-loader-2' : 'i-lucide-arrow-down'"
+        class="size-5 text-neutral-500"
+        :class="{ 'animate-spin': refreshing }"
+      />
+    </div>
+
     <!-- Header -->
     <div class="page-header">
       <h1 class="page-title">Library</h1>
