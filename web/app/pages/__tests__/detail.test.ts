@@ -8,7 +8,8 @@ vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 vi.stubGlobal("watch", watch);
 vi.stubGlobal("onMounted", (fn: () => void) => fn());
-vi.stubGlobal("useToast", () => ({ add: vi.fn() }));
+const mockToastAdd = vi.fn();
+vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
 
 const mockNavigateTo = vi.fn();
 vi.stubGlobal("navigateTo", mockNavigateTo);
@@ -185,6 +186,8 @@ const setupDetailPage = (routePath: string | string[]) => {
       if (shouldRefreshLibrary(field)) {
         await mockRefresh();
       }
+      const toast = useToast();
+      toast.add({ title: "Saved", icon: "i-lucide-check" });
     } finally {
       saving.value = false;
       cancelEdit();
@@ -203,6 +206,8 @@ const setupDetailPage = (routePath: string | string[]) => {
         query: { path: relativePath },
       });
       detail.value = await mockMediaDetail(relativePath);
+      const toast = useToast();
+      toast.add({ title: "Saved", icon: "i-lucide-check" });
     } finally {
       saving.value = false;
       editing.value = null;
@@ -894,6 +899,55 @@ describe("Detail page", () => {
       await page.loadData();
 
       expect(page.formattedReleaseDate.value).toBeNull();
+    });
+  });
+
+  describe("toast notifications", () => {
+    it("shows toast after saveEdit succeeds", async () => {
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      mockMediaDetail.mockResolvedValue(makeDetail({ displayTitle: "New Title" }));
+
+      page.startEdit("displayTitle");
+      page.editValue.value = "New Title";
+      await page.saveEdit();
+
+      expect(mockToastAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Saved",
+          icon: "i-lucide-check",
+        }),
+      );
+    });
+
+    it("shows toast after saveNotes succeeds", async () => {
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      mockMediaDetail.mockResolvedValue(makeDetail({ notes: "Great movie" }));
+
+      page.startEdit("notes");
+      page.editValue.value = "Great movie";
+      await page.saveNotes();
+
+      expect(mockToastAdd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Saved",
+          icon: "i-lucide-check",
+        }),
+      );
+    });
+
+    it("does not show toast when saveEdit is a no-op (value unchanged)", async () => {
+      const page = setupDetailPage("Movies/Film.mkv");
+      await page.loadData();
+
+      page.startEdit("displayTitle");
+      page.editValue.value = "The Film"; // same as loaded value
+      await page.saveEdit();
+
+      expect(mockToastAdd).not.toHaveBeenCalled();
     });
   });
 });

@@ -39,8 +39,12 @@ export const useFavourites = () => {
     try {
       if (wasFavourited) {
         await favouritesRemove(relativePath);
+        const toast = useToast();
+        toast.add({ title: "Removed from favourites", icon: "i-lucide-heart-off", color: "neutral" });
       } else {
         await favouritesAdd({ relativePath });
+        const toast = useToast();
+        toast.add({ title: "Added to favourites", icon: "i-lucide-heart", color: "success" });
       }
     } catch (e) {
       // Revert optimistic update

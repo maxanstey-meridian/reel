@@ -25,6 +25,8 @@ export const useTags = () => {
     try {
       await rivetFetch("POST", "/api/media/tags", { body: { tag }, query: { path } });
       tags.value = await tagsList(path);
+      const toast = useToast();
+      toast.add({ title: "Tag added", icon: "i-lucide-tag" });
     } finally {
       loading.value = false;
     }
@@ -35,6 +37,8 @@ export const useTags = () => {
     try {
       await tagsRemove(path, tag);
       tags.value = await tagsList(path);
+      const toast = useToast();
+      toast.add({ title: "Tag removed", icon: "i-lucide-tag" });
     } finally {
       loading.value = false;
     }

@@ -161,6 +161,9 @@ const saveEdit = async () => {
     if (shouldRefreshLibrary(field)) {
       await useLibrary().refresh();
     }
+
+    const toast = useToast();
+    toast.add({ title: "Saved", icon: "i-lucide-check" });
   } finally {
     saving.value = false;
     cancelEdit();
@@ -183,6 +186,9 @@ const saveNotes = async () => {
       query: { path: relativePath.value },
     });
     detail.value = await fetchMediaDetail(relativePath.value);
+
+    const toast = useToast();
+    toast.add({ title: "Saved", icon: "i-lucide-check" });
   } finally {
     saving.value = false;
     editing.value = null;

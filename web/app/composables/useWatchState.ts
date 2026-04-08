@@ -13,6 +13,8 @@ export const useWatchState = () => {
     try {
       await rivetFetch("PUT", "/api/media/watched", { body: { path }, query: { path } });
       await useLibrary().refresh();
+      const toast = useToast();
+      toast.add({ title: "Marked as watched", icon: "i-lucide-eye" });
     } finally {
       loading.value = false;
     }
@@ -23,6 +25,8 @@ export const useWatchState = () => {
     try {
       await rivetFetch("PUT", "/api/media/unwatched", { body: { path }, query: { path } });
       await useLibrary().refresh();
+      const toast = useToast();
+      toast.add({ title: "Marked as unwatched", icon: "i-lucide-eye-off" });
     } finally {
       loading.value = false;
     }

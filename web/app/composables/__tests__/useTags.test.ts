@@ -7,6 +7,9 @@ import { ref, computed } from "vue";
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
+const mockToastAdd = vi.fn();
+vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
+
 // Mock Rivet client
 const mockTagsList = vi.fn();
 const mockTagsRemove = vi.fn();
@@ -123,5 +126,43 @@ describe("useTags", () => {
     await expect(addTag("Films/movie.mp4", "action")).rejects.toThrow("Network error");
 
     expect(loading.value).toBe(false);
+  });
+
+  it("shows toast after addTag succeeds", async () => {
+    mockTagsList.mockResolvedValue(["action"]);
+
+    const { addTag } = useTags();
+    await addTag("Films/movie.mp4", "action");
+
+    expect(mockToastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Tag added",
+        icon: "i-lucide-tag",
+      }),
+    );
+  });
+
+  it("shows toast after removeTag succeeds", async () => {
+    mockTagsList.mockResolvedValue([]);
+    mockTagsRemove.mockResolvedValue(undefined);
+
+    const { removeTag } = useTags();
+    await removeTag("Films/movie.mp4", "action");
+
+    expect(mockToastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Tag removed",
+        icon: "i-lucide-tag",
+      }),
+    );
+  });
+
+  it("does not show toast when addTag fails", async () => {
+    mockRivetFetch.mockRejectedValue(new Error("Network error"));
+
+    const { addTag } = useTags();
+    await expect(addTag("Films/movie.mp4", "action")).rejects.toThrow("Network error");
+
+    expect(mockToastAdd).not.toHaveBeenCalled();
   });
 });

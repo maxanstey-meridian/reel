@@ -7,6 +7,9 @@ import { ref, computed } from "vue";
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
+const mockToastAdd = vi.fn();
+vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
+
 // Mock Rivet client — only mediaClearWatched still uses the generated function
 const mockMediaClearWatched = vi.fn();
 
@@ -101,5 +104,38 @@ describe("useWatchState", () => {
     await expect(setWatched("Films/movie.mp4")).rejects.toThrow("Network error");
 
     expect(loading.value).toBe(false);
+  });
+
+  it("shows toast after setWatched succeeds", async () => {
+    const { setWatched } = useWatchState();
+    await setWatched("Films/movie.mp4");
+
+    expect(mockToastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Marked as watched",
+        icon: "i-lucide-eye",
+      }),
+    );
+  });
+
+  it("shows toast after setUnwatched succeeds", async () => {
+    const { setUnwatched } = useWatchState();
+    await setUnwatched("Films/movie.mp4");
+
+    expect(mockToastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Marked as unwatched",
+        icon: "i-lucide-eye-off",
+      }),
+    );
+  });
+
+  it("does not show toast when setWatched fails", async () => {
+    mockRivetFetch.mockRejectedValue(new Error("Network error"));
+
+    const { setWatched } = useWatchState();
+    await expect(setWatched("Films/movie.mp4")).rejects.toThrow("Network error");
+
+    expect(mockToastAdd).not.toHaveBeenCalled();
   });
 });

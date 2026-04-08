@@ -7,6 +7,9 @@ import { ref, computed } from "vue";
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
+const mockToastAdd = vi.fn();
+vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
+
 // Mock Rivet client
 const mockFavouritesAll = vi.fn();
 const mockFavouritesAdd = vi.fn();
@@ -89,5 +92,52 @@ describe("useFavourites", () => {
 
     // DELETE was called via generated Rivet client
     expect(mockFavouritesRemove).toHaveBeenCalledWith("Films/a.mp4");
+  });
+
+  it("shows toast after adding a favourite", async () => {
+    mockFavouritesAll.mockResolvedValue([]);
+    mockFavouritesAdd.mockResolvedValue(undefined);
+
+    const { toggle, fetch } = useFavourites();
+    await fetch();
+    await toggle("Films/new.mp4");
+
+    expect(mockToastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Added to favourites",
+        icon: "i-lucide-heart",
+        color: "success",
+      }),
+    );
+  });
+
+  it("shows toast after removing a favourite", async () => {
+    mockFavouritesAll.mockResolvedValue([
+      { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" },
+    ]);
+    mockFavouritesRemove.mockResolvedValue(undefined);
+
+    const { toggle, fetch } = useFavourites();
+    await fetch();
+    await toggle("Films/a.mp4");
+
+    expect(mockToastAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Removed from favourites",
+        icon: "i-lucide-heart-off",
+        color: "neutral",
+      }),
+    );
+  });
+
+  it("does not show toast when toggle fails", async () => {
+    mockFavouritesAll.mockResolvedValue([]);
+    mockFavouritesAdd.mockRejectedValue(new Error("Network error"));
+
+    const { toggle, fetch } = useFavourites();
+    await fetch();
+    await toggle("Films/new.mp4");
+
+    expect(mockToastAdd).not.toHaveBeenCalled();
   });
 });
