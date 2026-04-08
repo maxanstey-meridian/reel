@@ -213,6 +213,162 @@ describe("collection detail page", () => {
   });
 });
 
+describe("collection detail — Cast All", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("casts first item and navigates to now-playing", async () => {
+    const mockCast = vi.fn().mockResolvedValue(undefined);
+
+    const fullCollection = {
+      id: 1,
+      name: "My List",
+      createdAt: "2026-01-01T00:00:00Z",
+      items: [
+        { relativePath: "Films/a.mp4", position: 0, addedAt: "2026-01-01T00:00:00Z" },
+        { relativePath: "Films/b.mp4", position: 1, addedAt: "2026-01-01T00:00:00Z" },
+      ],
+    };
+
+    // Replicate handleCastAll from [id].vue
+    const collection = ref(fullCollection);
+    const handleCastAll = async () => {
+      if (!collection.value || collection.value.items.length === 0) return;
+      await mockCast(collection.value.items[0]!.relativePath);
+      mockNavigateTo("/now-playing");
+    };
+
+    await handleCastAll();
+
+    expect(mockCast).toHaveBeenCalledWith("Films/a.mp4");
+    expect(mockNavigateTo).toHaveBeenCalledWith("/now-playing");
+  });
+
+  it("is a no-op when collection has no items", async () => {
+    const mockCast = vi.fn();
+
+    const collection = ref({
+      id: 1,
+      name: "Empty",
+      createdAt: "2026-01-01T00:00:00Z",
+      items: [] as { relativePath: string; position: number; addedAt: string }[],
+    });
+
+    const handleCastAll = async () => {
+      if (!collection.value || collection.value.items.length === 0) return;
+      await mockCast(collection.value.items[0]!.relativePath);
+      mockNavigateTo("/now-playing");
+    };
+
+    await handleCastAll();
+
+    expect(mockCast).not.toHaveBeenCalled();
+    expect(mockNavigateTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddToCollectionPopover", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("opening fetches collections when list is empty", async () => {
+    mockCollectionsList.mockResolvedValue([
+      { id: 1, name: "Watchlist", createdAt: "2026-01-01T00:00:00Z", itemCount: 2 },
+    ]);
+
+    const { collections, fetch: fetchCollections } = useCollections();
+
+    // Replicate openPopover logic from AddToCollectionPopover.vue
+    const open = ref(false);
+    const openPopover = async () => {
+      if (collections.value.length === 0) {
+        await fetchCollections();
+      }
+      open.value = true;
+    };
+
+    expect(collections.value).toHaveLength(0);
+    await openPopover();
+
+    expect(mockCollectionsList).toHaveBeenCalled();
+    expect(collections.value).toHaveLength(1);
+    expect(open.value).toBe(true);
+  });
+
+  it("selecting a collection calls addItem and closes popover", async () => {
+    mockCollectionsList.mockResolvedValueOnce([
+      { id: 1, name: "Watchlist", createdAt: "2026-01-01T00:00:00Z", itemCount: 2 },
+    ]);
+    mockCollectionsAddItem.mockResolvedValue(undefined);
+    // Refetch after addItem
+    mockCollectionsList.mockResolvedValueOnce([
+      { id: 1, name: "Watchlist", createdAt: "2026-01-01T00:00:00Z", itemCount: 3 },
+    ]);
+
+    const { fetch: fetchCollections, addItem } = useCollections();
+    await fetchCollections();
+
+    const relativePath = "Films/movie.mp4";
+    const open = ref(true);
+
+    // Replicate handleAdd from AddToCollectionPopover.vue
+    const handleAdd = async (collectionId: number) => {
+      await addItem(collectionId, relativePath);
+      open.value = false;
+    };
+
+    await handleAdd(1);
+
+    expect(mockCollectionsAddItem).toHaveBeenCalledWith(1, { id: 1, path: "Films/movie.mp4" });
+    expect(open.value).toBe(false);
+  });
+
+  it("create-and-add creates collection, adds item, then closes", async () => {
+    mockCollectionsList.mockResolvedValue([]);
+    const created = { id: 5, name: "New List", createdAt: "2026-01-03T00:00:00Z", itemCount: 0 };
+    mockCollectionsCreate.mockResolvedValue(created);
+    mockCollectionsAddItem.mockResolvedValue(undefined);
+    // Refetch after addItem
+    mockCollectionsList.mockResolvedValueOnce([
+      { id: 5, name: "New List", createdAt: "2026-01-03T00:00:00Z", itemCount: 1 },
+    ]);
+
+    const { create: createCollection, addItem } = useCollections();
+
+    const relativePath = "Films/new.mp4";
+    const open = ref(true);
+    const newName = ref("New List");
+    const creating = ref(false);
+
+    // Replicate handleCreateAndAdd from AddToCollectionPopover.vue
+    const handleCreateAndAdd = async () => {
+      const name = newName.value.trim();
+      if (!name) return;
+      creating.value = true;
+      try {
+        const result = await createCollection(name);
+        if (result) {
+          await addItem(result.id, relativePath);
+        }
+        newName.value = "";
+        open.value = false;
+      } finally {
+        creating.value = false;
+      }
+    };
+
+    await handleCreateAndAdd();
+
+    expect(mockCollectionsCreate).toHaveBeenCalledWith({ name: "New List" });
+    expect(mockCollectionsAddItem).toHaveBeenCalledWith(5, { id: 5, path: "Films/new.mp4" });
+    expect(open.value).toBe(false);
+    expect(newName.value).toBe("");
+    expect(creating.value).toBe(false);
+  });
+});
+
 describe("nav bar", () => {
   it("has 5 tabs including Collections between Favourites and Now Playing", async () => {
     const { navItems } = await import("../../utils/navItems");
