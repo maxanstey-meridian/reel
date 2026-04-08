@@ -85,6 +85,9 @@ export const useCollections = () => {
 
     try {
       await collectionsAddItem({ collectionId, path });
+      // Refetch to reconcile counts — server is idempotent on duplicates,
+      // so the optimistic +1 may overcount if the item already existed.
+      collections.value = await collectionsList();
     } catch (e) {
       // Revert
       collections.value = collections.value.map((c) =>

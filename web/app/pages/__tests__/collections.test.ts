@@ -214,18 +214,22 @@ describe("collection detail page", () => {
 });
 
 describe("nav bar", () => {
-  it("has 5 tabs including Collections", () => {
-    const navItems = [
-      { path: "/library", label: "Library", icon: "i-lucide-film" },
-      { path: "/search", label: "Search", icon: "i-lucide-search" },
-      { path: "/favourites", label: "Favourites", icon: "i-lucide-heart" },
-      { path: "/collections", label: "Collections", icon: "i-lucide-list-video" },
-      { path: "/now-playing", label: "Now Playing", icon: "i-lucide-cast" },
-    ];
+  it("has 5 tabs including Collections between Favourites and Now Playing", async () => {
+    const { navItems } = await import("../../utils/navItems");
 
     expect(navItems).toHaveLength(5);
-    expect(navItems.find((i) => i.path === "/collections")).toBeDefined();
-    expect(navItems[3]!.label).toBe("Collections");
-    expect(navItems[3]!.icon).toBe("i-lucide-list-video");
+
+    const collectionsTab = navItems.find((i) => i.path === "/collections");
+    expect(collectionsTab).toBeDefined();
+    expect(collectionsTab!.label).toBe("Collections");
+    expect(collectionsTab!.icon).toBe("i-lucide-list-video");
+
+    // Collections must be between Favourites and Now Playing
+    const labels = navItems.map((i) => i.label);
+    const favIdx = labels.indexOf("Favourites");
+    const colIdx = labels.indexOf("Collections");
+    const npIdx = labels.indexOf("Now Playing");
+    expect(colIdx).toBe(favIdx + 1);
+    expect(npIdx).toBe(colIdx + 1);
   });
 });

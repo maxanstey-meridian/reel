@@ -140,11 +140,16 @@ describe("useCollections", () => {
     expect(collections.value[0]!.name).toBe("Keep Me");
   });
 
-  it("addItem optimistically increments item count", async () => {
-    mockCollectionsList.mockResolvedValue([
+  it("addItem calls API and refetches to reconcile counts", async () => {
+    // Initial fetch returns itemCount 2
+    mockCollectionsList.mockResolvedValueOnce([
       { id: 1, name: "List", createdAt: "2026-01-01T00:00:00Z", itemCount: 2 },
     ]);
     mockCollectionsAddItem.mockResolvedValue(undefined);
+    // Refetch after addItem returns the server's authoritative count
+    mockCollectionsList.mockResolvedValueOnce([
+      { id: 1, name: "List", createdAt: "2026-01-01T00:00:00Z", itemCount: 3 },
+    ]);
 
     const { collections, fetch, addItem } = useCollections();
     await fetch();
@@ -153,6 +158,29 @@ describe("useCollections", () => {
 
     expect(collections.value[0]!.itemCount).toBe(3);
     expect(mockCollectionsAddItem).toHaveBeenCalledWith({ collectionId: 1, path: "Films/movie.mp4" });
+    // collectionsList called twice: initial fetch + post-add refetch
+    expect(mockCollectionsList).toHaveBeenCalledTimes(2);
+  });
+
+  it("addItem duplicate does not inflate count — refetch reconciles", async () => {
+    // Initial fetch: item already exists, count is 3
+    mockCollectionsList.mockResolvedValueOnce([
+      { id: 1, name: "List", createdAt: "2026-01-01T00:00:00Z", itemCount: 3 },
+    ]);
+    // Server silently ignores duplicate — no error
+    mockCollectionsAddItem.mockResolvedValue(undefined);
+    // Refetch returns the real count (still 3, not 4)
+    mockCollectionsList.mockResolvedValueOnce([
+      { id: 1, name: "List", createdAt: "2026-01-01T00:00:00Z", itemCount: 3 },
+    ]);
+
+    const { collections, fetch, addItem } = useCollections();
+    await fetch();
+
+    await addItem(1, "Films/existing.mp4");
+
+    // Count should be 3 (reconciled from server), not 4 (optimistic drift)
+    expect(collections.value[0]!.itemCount).toBe(3);
   });
 
   it("addItem reverts item count on failure", async () => {
