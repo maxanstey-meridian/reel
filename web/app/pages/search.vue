@@ -3,12 +3,16 @@ import { ref, watch, onMounted, computed } from "vue";
 import { useSearch } from "../composables/useSearch";
 import { useTags, type TagCount } from "../composables/useTags";
 
+const RECENT_SEARCHES_KEY = "reel:recentSearches";
+const MAX_RECENT = 5;
+
 const query = ref("");
 const hasSearched = ref(false);
 const activeTag = ref<string | null>(null);
 const watchedFilter = ref<boolean | null>(null);
 const allTags = ref<TagCount[]>([]);
 const tagPopoverOpen = ref(false);
+const recentSearches = ref<string[]>([]);
 
 const { results, loading, error, debouncedSearch } = useSearch();
 const { getAllTags } = useTags();
@@ -27,12 +31,30 @@ watch(query, triggerSearch);
 watch(activeTag, triggerSearch);
 watch(watchedFilter, triggerSearch);
 
+watch(results, (newResults) => {
+  const trimmed = query.value.trim();
+  if (newResults.length > 0 && trimmed) {
+    const filtered = recentSearches.value.filter((s) => s !== trimmed);
+    recentSearches.value = [trimmed, ...filtered].slice(0, MAX_RECENT);
+    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recentSearches.value));
+  }
+});
+
 const clearSearch = () => {
   query.value = "";
   hasSearched.value = false;
   activeTag.value = null;
   watchedFilter.value = null;
   searchInput.value?.$el?.querySelector("input")?.focus();
+};
+
+const selectRecent = (term: string) => {
+  query.value = term;
+};
+
+const clearHistory = () => {
+  recentSearches.value = [];
+  localStorage.removeItem(RECENT_SEARCHES_KEY);
 };
 
 const clearTag = () => {
@@ -86,6 +108,15 @@ const noResultsMessage = computed(() => {
 });
 
 onMounted(async () => {
+  try {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (stored) {
+      recentSearches.value = JSON.parse(stored);
+    }
+  } catch {
+    // Corrupted localStorage — ignore
+  }
+
   try {
     allTags.value = await getAllTags();
   } catch {
@@ -196,12 +227,38 @@ onMounted(async () => {
     </div>
 
     <!-- Empty state — before any search -->
-    <div
-      v-else
-      class="flex flex-col items-center justify-center py-20 text-neutral-500"
-    >
-      <UIcon name="i-lucide-search" class="size-16 mb-4 text-neutral-700" />
-      <p class="text-sm">Search by title, tag, or genre</p>
+    <div v-else>
+      <!-- Recent searches -->
+      <div v-if="recentSearches.length > 0" class="space-y-3">
+        <p class="text-xs font-medium text-neutral-500 uppercase tracking-wide">Recent</p>
+        <div class="flex flex-wrap gap-2">
+          <UButton
+            v-for="term in recentSearches"
+            :key="term"
+            :label="term"
+            size="sm"
+            color="neutral"
+            variant="subtle"
+            icon="i-lucide-clock"
+            @click="selectRecent(term)"
+          />
+        </div>
+        <button
+          class="text-xs text-neutral-500 hover:text-neutral-400"
+          @click="clearHistory"
+        >
+          Clear history
+        </button>
+      </div>
+
+      <!-- No recent searches -->
+      <div
+        v-else
+        class="flex flex-col items-center justify-center py-20 text-neutral-500"
+      >
+        <UIcon name="i-lucide-search" class="size-16 mb-4 text-neutral-700" />
+        <p class="text-sm">Search by title, tag, or genre</p>
+      </div>
     </div>
   </div>
 </template>

@@ -25,13 +25,27 @@ const { useTags } = await import("../../composables/useTags");
  * Replicate the page's reactive wiring so we can test state transitions
  * without mounting the Vue component.
  */
+const RECENT_SEARCHES_KEY = "reel:recentSearches";
+const MAX_RECENT = 5;
+
 const setupSearchPage = () => {
   const query = ref("");
   const hasSearched = ref(false);
   const activeTag = ref<string | null>(null);
   const watchedFilter = ref<boolean | null>(null);
+  const recentSearches = ref<string[]>([]);
   const { results, loading, error, debouncedSearch } = useSearch();
   const { getAllTags } = useTags();
+
+  // Load recent searches from localStorage (mirrors onMounted)
+  try {
+    const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (stored) {
+      recentSearches.value = JSON.parse(stored);
+    }
+  } catch {
+    // ignore
+  }
 
   const triggerSearch = () => {
     const q = query.value;
@@ -45,11 +59,29 @@ const setupSearchPage = () => {
   watch(activeTag, triggerSearch);
   watch(watchedFilter, triggerSearch);
 
+  watch(results, (newResults) => {
+    const trimmed = query.value.trim();
+    if (newResults.length > 0 && trimmed) {
+      const filtered = recentSearches.value.filter((s) => s !== trimmed);
+      recentSearches.value = [trimmed, ...filtered].slice(0, MAX_RECENT);
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(recentSearches.value));
+    }
+  });
+
   const clearSearch = () => {
     query.value = "";
     hasSearched.value = false;
     activeTag.value = null;
     watchedFilter.value = null;
+  };
+
+  const selectRecent = (term: string) => {
+    query.value = term;
+  };
+
+  const clearHistory = () => {
+    recentSearches.value = [];
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
   };
 
   const hasActiveFilters = computed(() => activeTag.value !== null || watchedFilter.value !== null);
@@ -86,7 +118,7 @@ const setupSearchPage = () => {
   return {
     query, hasSearched, results, loading, error, clearSearch, viewState,
     debouncedSearch, activeTag, watchedFilter, hasActiveFilters, noResultsMessage,
-    getAllTags,
+    getAllTags, recentSearches, selectRecent, clearHistory,
   };
 };
 
@@ -96,6 +128,7 @@ describe("Search page", () => {
     vi.useFakeTimers();
     mockSearch.mockResolvedValue([]);
     mockTagsAll.mockResolvedValue([]);
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -481,6 +514,127 @@ describe("Search page", () => {
       await vi.advanceTimersByTimeAsync(300);
 
       expect(viewState()).toBe("empty");
+    });
+  });
+
+  describe("recent searches", () => {
+    it("saves query after successful search with results", async () => {
+      mockSearch.mockResolvedValue([fileNode]);
+      const { query, recentSearches } = setupSearchPage();
+
+      query.value = "movie";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(recentSearches.value).toEqual(["movie"]);
+      expect(JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY)!)).toEqual(["movie"]);
+    });
+
+    it("does not save when results are empty", async () => {
+      mockSearch.mockResolvedValue([]);
+      const { query, recentSearches } = setupSearchPage();
+
+      query.value = "nothing";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(recentSearches.value).toEqual([]);
+      expect(localStorage.getItem(RECENT_SEARCHES_KEY)).toBeNull();
+    });
+
+    it("does not save for filter-only search without text query", async () => {
+      mockSearch.mockResolvedValue([fileNode]);
+      const { activeTag, recentSearches } = setupSearchPage();
+
+      activeTag.value = "Action";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(recentSearches.value).toEqual([]);
+    });
+
+    it("deduplicates — searching same term moves it to front", async () => {
+      // Return new array each call so Vue watch detects the ref change
+      mockSearch.mockImplementation(() => Promise.resolve([{ ...fileNode }]));
+      const { query, recentSearches } = setupSearchPage();
+
+      query.value = "first";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      query.value = "second";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      query.value = "first";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(recentSearches.value).toEqual(["first", "second"]);
+    });
+
+    it("caps at 5 entries", async () => {
+      // Return new array each call so Vue watch detects the ref change
+      mockSearch.mockImplementation(() => Promise.resolve([{ ...fileNode }]));
+      const { query, recentSearches } = setupSearchPage();
+
+      for (const term of ["a", "b", "c", "d", "e", "f"]) {
+        query.value = term;
+        await nextTick();
+        await vi.advanceTimersByTimeAsync(300);
+      }
+
+      expect(recentSearches.value).toHaveLength(5);
+      expect(recentSearches.value).toEqual(["f", "e", "d", "c", "b"]);
+    });
+
+    it("tapping a recent chip sets query and triggers search", async () => {
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["old query"]));
+      const { query, recentSearches, selectRecent } = setupSearchPage();
+
+      expect(recentSearches.value).toEqual(["old query"]);
+
+      selectRecent("old query");
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(query.value).toBe("old query");
+      expect(mockSearch).toHaveBeenCalledWith("old query", null, null, null);
+    });
+
+    it("clearHistory empties list and removes from localStorage", async () => {
+      mockSearch.mockResolvedValue([fileNode]);
+      const { query, recentSearches, clearHistory } = setupSearchPage();
+
+      query.value = "test";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(recentSearches.value).toEqual(["test"]);
+
+      clearHistory();
+      expect(recentSearches.value).toEqual([]);
+      expect(localStorage.getItem(RECENT_SEARCHES_KEY)).toBeNull();
+    });
+
+    it("loads recent searches from localStorage on setup", () => {
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(["saved1", "saved2"]));
+      const { recentSearches } = setupSearchPage();
+
+      expect(recentSearches.value).toEqual(["saved1", "saved2"]);
+    });
+
+    it("clearSearch does not clear recent searches", async () => {
+      mockSearch.mockResolvedValue([fileNode]);
+      const { query, recentSearches, clearSearch } = setupSearchPage();
+
+      query.value = "test";
+      await nextTick();
+      await vi.advanceTimersByTimeAsync(300);
+      expect(recentSearches.value).toEqual(["test"]);
+
+      clearSearch();
+      await nextTick();
+      expect(recentSearches.value).toEqual(["test"]);
     });
   });
 });
