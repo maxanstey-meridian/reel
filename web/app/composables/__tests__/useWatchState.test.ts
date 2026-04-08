@@ -7,15 +7,18 @@ import { ref, computed } from "vue";
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
-// Mock Rivet client
-const mockMediaSetWatched = vi.fn();
-const mockMediaSetUnwatched = vi.fn();
+// Mock Rivet client — only mediaClearWatched still uses the generated function
 const mockMediaClearWatched = vi.fn();
 
 vi.mock("~~/generated/rivet/client/reel", () => ({
-  mediaSetWatched: (...args: unknown[]) => mockMediaSetWatched(...args),
-  mediaSetUnwatched: (...args: unknown[]) => mockMediaSetUnwatched(...args),
   mediaClearWatched: (...args: unknown[]) => mockMediaClearWatched(...args),
+}));
+
+// Mock rivetFetch — setWatched/setUnwatched use it directly to send path as query
+const mockRivetFetch = vi.fn();
+
+vi.mock("~~/generated/rivet/rivet", () => ({
+  rivetFetch: (...args: unknown[]) => mockRivetFetch(...args),
 }));
 
 // Mock useLibrary
@@ -28,27 +31,34 @@ const { useWatchState } = await import("../useWatchState");
 describe("useWatchState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockMediaSetWatched.mockResolvedValue(undefined);
-    mockMediaSetUnwatched.mockResolvedValue(undefined);
+    mockRivetFetch.mockResolvedValue(undefined);
     mockMediaClearWatched.mockResolvedValue(undefined);
     mockRefresh.mockResolvedValue(undefined);
   });
 
-  it("setWatched calls mediaSetWatched with path and refreshes library", async () => {
+  it("setWatched sends path as query param via rivetFetch and refreshes library", async () => {
     const { setWatched } = useWatchState();
 
     await setWatched("Films/movie.mp4");
 
-    expect(mockMediaSetWatched).toHaveBeenCalledWith({ path: "Films/movie.mp4" });
+    expect(mockRivetFetch).toHaveBeenCalledWith(
+      "PUT",
+      "/api/media/watched",
+      { body: { path: "Films/movie.mp4" }, query: { path: "Films/movie.mp4" } },
+    );
     expect(mockRefresh).toHaveBeenCalled();
   });
 
-  it("setUnwatched calls mediaSetUnwatched with path and refreshes library", async () => {
+  it("setUnwatched sends path as query param via rivetFetch and refreshes library", async () => {
     const { setUnwatched } = useWatchState();
 
     await setUnwatched("Films/movie.mp4");
 
-    expect(mockMediaSetUnwatched).toHaveBeenCalledWith({ path: "Films/movie.mp4" });
+    expect(mockRivetFetch).toHaveBeenCalledWith(
+      "PUT",
+      "/api/media/unwatched",
+      { body: { path: "Films/movie.mp4" }, query: { path: "Films/movie.mp4" } },
+    );
     expect(mockRefresh).toHaveBeenCalled();
   });
 
@@ -63,7 +73,7 @@ describe("useWatchState", () => {
 
   it("loading is true during API call and false after", async () => {
     let resolveApi: () => void;
-    mockMediaSetWatched.mockReturnValue(
+    mockRivetFetch.mockReturnValue(
       new Promise<void>((resolve) => {
         resolveApi = resolve;
       }),
@@ -84,7 +94,7 @@ describe("useWatchState", () => {
   });
 
   it("loading resets to false even if API call fails", async () => {
-    mockMediaSetWatched.mockRejectedValue(new Error("Network error"));
+    mockRivetFetch.mockRejectedValue(new Error("Network error"));
 
     const { loading, setWatched } = useWatchState();
 
