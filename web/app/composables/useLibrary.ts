@@ -3,7 +3,7 @@ import type { FileNode } from "~~/generated/rivet/types/domain";
 
 export const useLibrary = () => {
   const tree = ref<FileNode | null>(null);
-  const currentPath = ref<string[]>([]);
+  const currentPath = useState<string[]>("library:currentPath", () => []);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
