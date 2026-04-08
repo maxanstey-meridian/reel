@@ -7,7 +7,7 @@ import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { findNodeByPath } from "../utils/findNodeByPath";
 
 const { isConnected } = useConnection();
-const { favourites, loading, fetch: fetchFavourites } = useFavourites();
+const { favourites, loading, error, fetch: fetchFavourites } = useFavourites();
 
 const { refreshing, pullOffset } = usePullToRefresh(() => fetchFavourites());
 const { tree } = useLibrary();
@@ -49,6 +49,12 @@ const favouriteNodes = computed(() =>
     <!-- Loading -->
     <div v-if="loading" class="space-y-3">
       <USkeleton v-for="i in 4" :key="i" class="h-[192px] w-[140px]" />
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="space-y-4">
+      <UAlert color="error" icon="i-lucide-alert-circle" :title="error" />
+      <UButton block @click="fetchFavourites()">Retry</UButton>
     </div>
 
     <!-- Empty state -->

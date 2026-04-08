@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import { useConnection } from "~~/app/composables/useConnection";
 import { useFavourites } from "~~/app/composables/useFavourites";
 import { countDirectFiles, findFirstFile } from "~~/app/utils/directoryHelpers";
-import { parseFilename } from "~~/app/utils/parseFilename";
 import { thumbnailUrl } from "~~/generated/rivet/client/reel";
 import type { FileNode } from "~~/generated/rivet/types/domain";
 
@@ -19,9 +18,7 @@ const { isFavourite, toggle } = useFavourites();
 const showHeart = computed(() => props.node.type === "file");
 const favourited = computed(() => isFavourite(props.node.relativePath));
 
-const parsed = computed(() => (props.node.type === "file" ? parseFilename(props.node.name) : null));
-
-const displayName = computed(() => props.node.displayTitle ?? props.node.name);
+const displayName = computed(() => props.node.displayTitle ?? props.node.parsedTitle ?? props.node.name);
 
 const isWatched = computed(() => props.node.watched === true);
 
@@ -137,8 +134,8 @@ const formatSize = (bytes: number | null): string => {
       <span class="text-xs font-medium leading-tight line-clamp-2">
         {{ displayName }}
       </span>
-      <span v-if="parsed?.year" class="text-xs text-neutral-500">
-        {{ parsed.year }}
+      <span v-if="node.year" class="text-xs text-neutral-500">
+        {{ node.year }}
       </span>
       <span v-if="fileCount != null" class="text-[10px] text-neutral-500">
         {{ fileCount }} {{ fileCount === 1 ? "file" : "files" }}

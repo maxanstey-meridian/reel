@@ -10,13 +10,6 @@ vi.stubGlobal("computed", computed);
 const mockToastAdd = vi.fn();
 vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
 
-// Mock Rivet client — only mediaClearWatched still uses the generated function
-const mockMediaClearWatched = vi.fn();
-
-vi.mock("~~/generated/rivet/client/reel", () => ({
-  mediaClearWatched: (...args: unknown[]) => mockMediaClearWatched(...args),
-}));
-
 // Mock rivetFetch — setWatched/setUnwatched use it directly to send path as query
 const mockRivetFetch = vi.fn();
 
@@ -35,7 +28,6 @@ describe("useWatchState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRivetFetch.mockResolvedValue(undefined);
-    mockMediaClearWatched.mockResolvedValue(undefined);
     mockRefresh.mockResolvedValue(undefined);
   });
 
@@ -62,15 +54,6 @@ describe("useWatchState", () => {
       "/api/media/unwatched",
       { body: { path: "Films/movie.mp4" }, query: { path: "Films/movie.mp4" } },
     );
-    expect(mockRefresh).toHaveBeenCalled();
-  });
-
-  it("clearWatchState calls mediaClearWatched with path and refreshes library", async () => {
-    const { clearWatchState } = useWatchState();
-
-    await clearWatchState("Films/movie.mp4");
-
-    expect(mockMediaClearWatched).toHaveBeenCalledWith("Films/movie.mp4");
     expect(mockRefresh).toHaveBeenCalled();
   });
 

@@ -1,5 +1,4 @@
 import { ref } from "vue";
-import { mediaClearWatched } from "~~/generated/rivet/client/reel";
 import { rivetFetch } from "~~/generated/rivet/rivet";
 
 export const useWatchState = () => {
@@ -32,15 +31,5 @@ export const useWatchState = () => {
     }
   };
 
-  const clearWatchState = async (path: string) => {
-    loading.value = true;
-    try {
-      await mediaClearWatched(path);
-      await useLibrary().refresh();
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  return { loading, setWatched, setUnwatched, clearWatchState };
+  return { loading, setWatched, setUnwatched };
 };

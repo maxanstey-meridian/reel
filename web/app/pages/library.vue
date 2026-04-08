@@ -68,14 +68,11 @@ const handleSelect = (node: FileNode) => {
   }
 };
 
-const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
+const handleRowSelect = (_parentDir: FileNode, node: FileNode) => {
   if (node.type === "file") {
     navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`);
-  } else {
-    enterDirectory(parentDir.name);
-    if (node.type === "directory") {
-      enterDirectory(node.name);
-    }
+  } else if (node.type === "directory") {
+    enterDirectory(node.name);
   }
 };
 
