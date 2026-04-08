@@ -9,7 +9,7 @@ using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
 
-public sealed class FfmpegTrickplayGenerator : ITrickplayGenerator
+public class FfmpegTrickplayGenerator : ITrickplayGenerator
 {
     private const int IntervalSeconds = 10;
     private const int TileColumns = 10;
@@ -147,7 +147,7 @@ public sealed class FfmpegTrickplayGenerator : ITrickplayGenerator
         return (int)Math.Ceiling((double)thumbsOnSheet / TileColumns);
     }
 
-    private async Task<double?> GetDuration(string fullPath, CancellationToken ct)
+    protected virtual async Task<double?> GetDuration(string fullPath, CancellationToken ct)
     {
         try
         {
@@ -194,7 +194,7 @@ public sealed class FfmpegTrickplayGenerator : ITrickplayGenerator
         }
     }
 
-    private async Task<bool> GenerateSpriteSheet(
+    protected virtual async Task<bool> GenerateSpriteSheet(
         string fullPath,
         string outputPath,
         int sheetIndex,
