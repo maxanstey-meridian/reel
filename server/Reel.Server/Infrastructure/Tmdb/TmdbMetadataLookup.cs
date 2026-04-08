@@ -104,7 +104,7 @@ public sealed class TmdbMetadataLookup : IMetadataLookup
         {
             var json = File.ReadAllText(cachePath);
             result = JsonSerializer.Deserialize<TmdbResult>(json, JsonOptions);
-            return true;
+            return result is not null;
         }
         catch (Exception ex)
         {

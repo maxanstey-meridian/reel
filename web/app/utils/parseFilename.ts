@@ -1,7 +1,3 @@
-// Regex match groups and array-last access are runtime-safe but TS can't narrow them.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-nocheck
-
 const EXTENSIONS_RE = /\.(mp4|mkv|avi|mov|wmv|flv|webm|m4v|ts|divx|ogm)$/i;
 
 const TAGS = [
@@ -57,8 +53,10 @@ export const parseFilename = (filename: string): { title: string; year: number |
 
   const parenMatches = [...working.matchAll(YEAR_PAREN_RE)];
   for (const m of parenMatches) {
-    const y = parseInt(m[1], 10);
-    if (y >= 1920 && y <= 2099 && m.index !== undefined && m.index > yearIndex) {
+    const captured = m[1];
+    if (captured === undefined || m.index === undefined) continue;
+    const y = parseInt(captured, 10);
+    if (y >= 1920 && y <= 2099 && m.index > yearIndex) {
       year = y;
       yearIndex = m.index;
     }
@@ -77,10 +75,12 @@ export const parseFilename = (filename: string): { title: string; year: number |
     let bestIndex = -1;
 
     for (const m of bareMatches) {
-      const y = parseInt(m[1], 10);
-      if (y >= 1920 && y <= 2099 && m.index !== undefined) {
+      const captured = m[1];
+      if (captured === undefined || m.index === undefined) continue;
+      const y = parseInt(captured, 10);
+      if (y >= 1920 && y <= 2099) {
         const after = working
-          .slice(m.index + m[1].length)
+          .slice(m.index + captured.length)
           .replace(TAGS_RE, "")
           .trim();
 
@@ -94,11 +94,14 @@ export const parseFilename = (filename: string): { title: string; year: number |
 
     // If no year had a tag-only remainder, fall back to the last bare year
     if (bestYear === null && bareMatches.length > 0) {
-      const last = bareMatches[bareMatches.length - 1];
-      const y = parseInt(last[1], 10);
-      if (y >= 1920 && y <= 2099 && last.index !== undefined) {
-        bestYear = y;
-        bestIndex = last.index;
+      const last = bareMatches[bareMatches.length - 1]!;
+      const lastCaptured = last[1];
+      if (lastCaptured !== undefined && last.index !== undefined) {
+        const y = parseInt(lastCaptured, 10);
+        if (y >= 1920 && y <= 2099) {
+          bestYear = y;
+          bestIndex = last.index;
+        }
       }
     }
 

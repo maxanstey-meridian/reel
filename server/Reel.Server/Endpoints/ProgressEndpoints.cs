@@ -3,6 +3,7 @@ namespace Reel.Server.Endpoints;
 using Microsoft.AspNetCore.Mvc;
 using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
+using Reel.Server.Extensions;
 
 public static class ProgressEndpoints
 {
@@ -21,7 +22,7 @@ public static class ProgressEndpoints
                         request,
                         async req =>
                         {
-                            var userId = (int)context.Items["UserId"]!;
+                            var userId = context.GetUserId();
                             await store.UpdateAsync(
                                 userId,
                                 req.RelativePath,
@@ -40,7 +41,7 @@ public static class ProgressEndpoints
                 (
                     await ReelContract.ProgressAll.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         var progress = await store.GetAllAsync(userId, ct);
                         return progress.ToArray();
                     })

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain.Exceptions;
+using Reel.Server.Extensions;
 using Reel.Server.Infrastructure.Configuration;
 
 public static class MediaEndpoints
@@ -27,7 +28,7 @@ public static class MediaEndpoints
                             if (string.IsNullOrWhiteSpace(req.Path))
                                 throw new BadRequestException("Missing required query parameter: path");
 
-                            var userId = (int)context.Items["UserId"]!;
+                            var userId = context.GetUserId();
                             var record = await mediaStore.GetAsync(req.Path, ct);
 
                             if (record is null)
@@ -35,7 +36,6 @@ public static class MediaEndpoints
 
                             var watched = await mediaStore.IsWatchedAsync(userId, req.Path, ct);
                             var progress = await progressStore.GetAsync(userId, req.Path, ct);
-
                             var tags = await mediaStore.GetTagsAsync(userId, req.Path, ct);
 
                             return new MediaDetailResponse(
@@ -75,23 +75,22 @@ public static class MediaEndpoints
                 ReelConfig config,
                 CancellationToken ct
             ) =>
-            {
-                if (string.IsNullOrWhiteSpace(path))
-                    throw new BadRequestException("Missing required query parameter: path");
+                (
+                    await ReelContract.MediaUpdate.Invoke(
+                        request,
+                        async req =>
+                        {
+                            if (string.IsNullOrWhiteSpace(path))
+                                throw new BadRequestException("Missing required query parameter: path");
 
-                var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
-                if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
-                    throw new ForbiddenException("Access denied.");
+                            var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
+                            if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
+                                throw new ForbiddenException("Access denied.");
 
-                var validatedPath = path;
-
-                return (
-                    await ReelContract.MediaUpdate.Invoke(request, async req =>
-                    {
-                        await mediaStore.UpdateMetaAsync(validatedPath, req, ct);
-                    })
-                ).ToResult();
-            }
+                            await mediaStore.UpdateMetaAsync(path, req, ct);
+                        }
+                    )
+                ).ToResult()
         );
 
         app.MapPut(
@@ -105,7 +104,7 @@ public static class MediaEndpoints
                 (
                     await ReelContract.MediaSetWatched.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         await mediaStore.SetWatchStateAsync(userId, path, "watched", ct);
                     })
                 ).ToResult()
@@ -122,7 +121,7 @@ public static class MediaEndpoints
                 (
                     await ReelContract.MediaSetUnwatched.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         await mediaStore.SetWatchStateAsync(userId, path, "unwatched", ct);
                     })
                 ).ToResult()
@@ -139,7 +138,7 @@ public static class MediaEndpoints
                 (
                     await ReelContract.MediaClearWatched.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         await mediaStore.SetWatchStateAsync(userId, path, null, ct);
                     })
                 ).ToResult()
@@ -162,7 +161,7 @@ public static class MediaEndpoints
                             if (string.IsNullOrWhiteSpace(req.Path))
                                 throw new BadRequestException("Missing required query parameter: path");
 
-                            var userId = (int)context.Items["UserId"]!;
+                            var userId = context.GetUserId();
                             var tags = await mediaStore.GetTagsAsync(userId, req.Path, ct);
                             return tags.ToArray();
                         }
@@ -179,19 +178,19 @@ public static class MediaEndpoints
                 IMediaStore mediaStore,
                 CancellationToken ct
             ) =>
-            {
-                if (string.IsNullOrWhiteSpace(path))
-                    throw new BadRequestException("Missing required query parameter: path");
+                (
+                    await ReelContract.TagsReplace.Invoke(
+                        request,
+                        async req =>
+                        {
+                            if (string.IsNullOrWhiteSpace(path))
+                                throw new BadRequestException("Missing required query parameter: path");
 
-                var userId = (int)context.Items["UserId"]!;
-
-                return (
-                    await ReelContract.TagsReplace.Invoke(request, async req =>
-                    {
-                        await mediaStore.SetTagsAsync(userId, path, req.Tags, ct);
-                    })
-                ).ToResult();
-            }
+                            var userId = context.GetUserId();
+                            await mediaStore.SetTagsAsync(userId, path, req.Tags, ct);
+                        }
+                    )
+                ).ToResult()
         );
 
         app.MapPost(
@@ -203,19 +202,19 @@ public static class MediaEndpoints
                 IMediaStore mediaStore,
                 CancellationToken ct
             ) =>
-            {
-                if (string.IsNullOrWhiteSpace(path))
-                    throw new BadRequestException("Missing required query parameter: path");
+                (
+                    await ReelContract.TagsAdd.Invoke(
+                        request,
+                        async req =>
+                        {
+                            if (string.IsNullOrWhiteSpace(path))
+                                throw new BadRequestException("Missing required query parameter: path");
 
-                var userId = (int)context.Items["UserId"]!;
-
-                return (
-                    await ReelContract.TagsAdd.Invoke(request, async req =>
-                    {
-                        await mediaStore.AddTagAsync(userId, path, req.Tag, ct);
-                    })
-                ).ToResult();
-            }
+                            var userId = context.GetUserId();
+                            await mediaStore.AddTagAsync(userId, path, req.Tag, ct);
+                        }
+                    )
+                ).ToResult()
         );
 
         app.MapDelete(
@@ -227,21 +226,18 @@ public static class MediaEndpoints
                 IMediaStore mediaStore,
                 CancellationToken ct
             ) =>
-            {
-                if (string.IsNullOrWhiteSpace(path))
-                    throw new BadRequestException("Missing required query parameter: path");
-                if (string.IsNullOrWhiteSpace(tag))
-                    throw new BadRequestException("Missing required query parameter: tag");
-
-                var userId = (int)context.Items["UserId"]!;
-
-                return (
+                (
                     await ReelContract.TagsRemove.Invoke(async () =>
                     {
+                        if (string.IsNullOrWhiteSpace(path))
+                            throw new BadRequestException("Missing required query parameter: path");
+                        if (string.IsNullOrWhiteSpace(tag))
+                            throw new BadRequestException("Missing required query parameter: tag");
+
+                        var userId = context.GetUserId();
                         await mediaStore.RemoveTagAsync(userId, path, tag, ct);
                     })
-                ).ToResult();
-            }
+                ).ToResult()
         );
 
         app.MapGet(
@@ -250,7 +246,7 @@ public static class MediaEndpoints
                 (
                     await ReelContract.TagsAll.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         var tags = await mediaStore.GetAllTagsAsync(userId, ct);
                         return tags.ToArray();
                     })

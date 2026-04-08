@@ -2,6 +2,7 @@ namespace Reel.Server.Endpoints;
 
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
+using Reel.Server.Extensions;
 
 public static class LibraryEndpoints
 {
@@ -13,7 +14,7 @@ public static class LibraryEndpoints
                 (
                     await ReelContract.Library.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         var tree = await scanner.BuildTreeAsync(ct);
                         return await EnrichWithWatchedAsync(tree, userId, mediaStore, ct);
                     })

@@ -3,6 +3,7 @@ namespace Reel.Server.Endpoints;
 using Microsoft.AspNetCore.Mvc;
 using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
+using Reel.Server.Extensions;
 
 public static class SearchEndpoints
 {
@@ -22,7 +23,7 @@ public static class SearchEndpoints
                 (
                     await ReelContract.Search.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         var query = new SearchQuery(q, tag, genre, watched);
                         var results = await mediaStore.SearchAsync(userId, query, ct);
                         return results.ToArray();

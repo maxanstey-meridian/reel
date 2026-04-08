@@ -3,6 +3,7 @@ namespace Reel.Server.Endpoints;
 using Microsoft.AspNetCore.Mvc;
 using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
+using Reel.Server.Extensions;
 
 public static class FavouritesEndpoints
 {
@@ -21,7 +22,7 @@ public static class FavouritesEndpoints
                         request,
                         async req =>
                         {
-                            var userId = (int)context.Items["UserId"]!;
+                            var userId = context.GetUserId();
                             await store.AddAsync(userId, req.RelativePath, ct);
                         }
                     )
@@ -36,7 +37,7 @@ public static class FavouritesEndpoints
                         new FileRequest(path),
                         async req =>
                         {
-                            var userId = (int)context.Items["UserId"]!;
+                            var userId = context.GetUserId();
                             await store.RemoveAsync(userId, req.Path, ct);
                         }
                     )
@@ -49,7 +50,7 @@ public static class FavouritesEndpoints
                 (
                     await ReelContract.FavouritesAll.Invoke(async () =>
                     {
-                        var userId = (int)context.Items["UserId"]!;
+                        var userId = context.GetUserId();
                         var favourites = await store.GetAllAsync(userId, ct);
                         return favourites.ToArray();
                     })

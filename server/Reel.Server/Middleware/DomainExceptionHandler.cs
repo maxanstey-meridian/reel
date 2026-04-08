@@ -14,16 +14,13 @@ public sealed class DomainExceptionHandler : IExceptionHandler
     {
         var (statusCode, body) = exception switch
         {
-            BadRequestException e => (StatusCodes.Status400BadRequest, (object)new { error = e.Message }),
-            JsonException => (StatusCodes.Status400BadRequest, (object)new { error = "Invalid request body" }),
-            BadHttpRequestException => (
-                StatusCodes.Status400BadRequest,
-                (object)new { error = "Invalid request body" }
-            ),
-            UnauthorizedException e => (StatusCodes.Status401Unauthorized, e.Body ?? new { error = e.Message }),
-            ForbiddenException e => (StatusCodes.Status403Forbidden, (object)new { error = e.Message }),
-            NotFoundException e => (StatusCodes.Status404NotFound, (object)new { error = e.Message }),
-            _ => (0, (object?)null),
+            BadRequestException e => (StatusCodes.Status400BadRequest, new ErrorBody(e.Message)),
+            JsonException => (StatusCodes.Status400BadRequest, new ErrorBody("Invalid request body")),
+            BadHttpRequestException => (StatusCodes.Status400BadRequest, new ErrorBody("Invalid request body")),
+            UnauthorizedException e => (StatusCodes.Status401Unauthorized, new ErrorBody(e.Message)),
+            ForbiddenException e => (StatusCodes.Status403Forbidden, new ErrorBody(e.Message)),
+            NotFoundException e => (StatusCodes.Status404NotFound, new ErrorBody(e.Message)),
+            _ => (0, (ErrorBody?)null),
         };
 
         if (statusCode == 0)
@@ -34,3 +31,5 @@ public sealed class DomainExceptionHandler : IExceptionHandler
         return true;
     }
 }
+
+internal sealed record ErrorBody(string Error);
