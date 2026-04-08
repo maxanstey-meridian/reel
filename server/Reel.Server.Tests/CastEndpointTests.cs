@@ -43,7 +43,9 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
     {
         var client = CreateAuthenticatedClient();
 
-        // Clear any leftover state from other tests
+        // Clear any leftover state from other tests — stop clears queue
+        // and adds a stop command; ack removes the stop command.
+        await client.PostAsync("/api/cast/stop", null);
         await client.PostAsync("/api/cast/ack", null);
 
         var response = await client.GetAsync("/api/cast/current");
