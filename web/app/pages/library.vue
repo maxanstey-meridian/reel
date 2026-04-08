@@ -4,6 +4,7 @@ import { useConnection } from "../composables/useConnection";
 import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
 import type { WatchProgress } from "../composables/useProgress";
+import { getNameInitial } from "../utils/alphabetScroller";
 import { findNodeByPath } from "../utils/findNodeByPath";
 
 const { isConnected } = useConnection();
@@ -69,6 +70,15 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
     if (node.type === "directory") {
       enterDirectory(node.name);
     }
+  }
+};
+
+const childNames = computed(() => currentChildren.value.map((n: FileNode) => n.name));
+
+const handleScrollToLetter = (letter: string) => {
+  const el = document.querySelector(`[data-name-initial="${letter}"]`);
+  if (el) {
+    el.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 };
 </script>
@@ -141,11 +151,12 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
       </div>
 
       <!-- Navigation level: folder grid -->
-      <div v-if="isNavigationLevel" class="grid grid-cols-2 gap-3 [&>button]:w-full">
+      <div v-if="isNavigationLevel" class="grid grid-cols-2 gap-3 pr-6 [&>button]:w-full">
         <MediaCard
           v-for="dir in directories"
           :key="dir.relativePath"
           :node="dir"
+          :data-name-initial="getNameInitial(dir.name)"
           @select="enterDirectory(dir.name)"
         />
       </div>
@@ -162,11 +173,12 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
       <!-- Loose files grid -->
       <div v-if="files.length > 0" class="space-y-2">
         <h3 v-if="directories.length > 0" class="text-sm font-medium text-neutral-400">Files</h3>
-        <div class="grid grid-cols-2 gap-3 [&>button]:w-full">
+        <div class="grid grid-cols-2 gap-3 pr-6 [&>button]:w-full">
           <MediaCard
             v-for="file in files"
             :key="file.relativePath"
             :node="file"
+            :data-name-initial="getNameInitial(file.name)"
             @select="handleSelect(file)"
           />
         </div>
@@ -180,6 +192,9 @@ const handleRowSelect = (parentDir: FileNode, node: FileNode) => {
         <UIcon name="i-lucide-folder-open" class="size-12 mb-3" />
         <p class="text-sm">This folder is empty</p>
       </div>
+
+      <!-- Alphabet scroller -->
+      <AlphabetScroller :names="childNames" @scroll-to="handleScrollToLetter" />
     </div>
 
   </div>
