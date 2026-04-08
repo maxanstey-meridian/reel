@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useConnection } from "~~/app/composables/useConnection";
 import { useFavourites } from "~~/app/composables/useFavourites";
+import { countDirectFiles, findFirstFile } from "~~/app/utils/directoryHelpers";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { thumbnailUrl } from "~~/generated/rivet/client/reel";
 import type { FileNode } from "~~/generated/rivet/types/domain";
@@ -24,11 +25,17 @@ const displayName = computed(() => props.node.displayTitle ?? props.node.name);
 
 const isWatched = computed(() => props.node.watched === true);
 
-const thumbnailSrc = computed(() =>
-  props.node.relativePath && secretKey.value
-    ? thumbnailUrl(props.node.relativePath, secretKey.value)
-    : null,
-);
+const isDirectory = computed(() => props.node.type === "directory");
+
+const folderFirstFile = computed(() => (isDirectory.value ? findFirstFile(props.node) : null));
+
+const fileCount = computed(() => (isDirectory.value ? countDirectFiles(props.node) : null));
+
+const thumbnailSrc = computed(() => {
+  const file = isDirectory.value ? folderFirstFile.value : props.node;
+  if (!file?.relativePath || !secretKey.value) return null;
+  return thumbnailUrl(file.relativePath, secretKey.value);
+});
 
 const imgFailed = ref(false);
 const showImage = computed(() => thumbnailSrc.value && !imgFailed.value);
@@ -113,6 +120,9 @@ const formatSize = (bytes: number | null): string => {
       </span>
       <span v-if="parsed?.year" class="text-xs text-neutral-500">
         {{ parsed.year }}
+      </span>
+      <span v-if="fileCount != null" class="text-[10px] text-neutral-500">
+        {{ fileCount }} {{ fileCount === 1 ? "file" : "files" }}
       </span>
 
       <div class="flex items-center gap-1 mt-auto">
