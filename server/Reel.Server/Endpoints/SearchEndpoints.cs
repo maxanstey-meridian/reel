@@ -21,13 +21,16 @@ public static class SearchEndpoints
                 CancellationToken ct
             ) =>
                 (
-                    await ReelContract.Search.Invoke(async () =>
-                    {
-                        var userId = context.GetUserId();
-                        var query = new SearchQuery(q, tag, genre, watched);
-                        var results = await mediaStore.SearchAsync(userId, query, ct);
-                        return results.ToArray();
-                    })
+                    await ReelContract.Search.Invoke(
+                        new SearchRequest(q, tag, genre, watched),
+                        async req =>
+                        {
+                            var userId = context.GetUserId();
+                            var query = new SearchQuery(req.Q, req.Tag, req.Genre, req.Watched);
+                            var results = await mediaStore.SearchAsync(userId, query, ct);
+                            return results.ToArray();
+                        }
+                    )
                 ).ToResult()
         );
 

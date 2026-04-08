@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
 using Reel.Server.Infrastructure.Persistence;
 
@@ -92,7 +93,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
     {
         await _store.UpsertFromScanAsync("Films/test.mp4", "Test", 2024, CancellationToken.None);
         await InsertProgress(1, "Films/test.mp4", 10.0, 100.0); // only 10%
-        await _store.SetWatchStateAsync(1, "Films/test.mp4", "watched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/test.mp4", WatchState.Watched, CancellationToken.None);
 
         var result = await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None);
 
@@ -104,7 +105,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
     {
         await _store.UpsertFromScanAsync("Films/test.mp4", "Test", 2024, CancellationToken.None);
         await InsertProgress(1, "Films/test.mp4", 95.0, 100.0); // 95%
-        await _store.SetWatchStateAsync(1, "Films/test.mp4", "unwatched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/test.mp4", WatchState.Unwatched, CancellationToken.None);
 
         var result = await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None);
 
@@ -116,7 +117,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
     {
         await _store.UpsertFromScanAsync("Films/test.mp4", "Test", 2024, CancellationToken.None);
         await InsertProgress(1, "Films/test.mp4", 95.0, 100.0);
-        await _store.SetWatchStateAsync(1, "Films/test.mp4", "unwatched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/test.mp4", WatchState.Unwatched, CancellationToken.None);
 
         // Verify override is active
         (await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None))
@@ -135,7 +136,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
     public async Task SetWatchStateAsync_NullState_DeletesOverrideRow()
     {
         await _store.UpsertFromScanAsync("Films/test.mp4", "Test", 2024, CancellationToken.None);
-        await _store.SetWatchStateAsync(1, "Films/test.mp4", "watched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/test.mp4", WatchState.Watched, CancellationToken.None);
         await _store.SetWatchStateAsync(1, "Films/test.mp4", null, CancellationToken.None);
 
         using var conn = _db.GetConnection();
@@ -147,7 +148,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
     [Fact]
     public async Task SetWatchStateAsync_AutoCreatesMediaRow()
     {
-        await _store.SetWatchStateAsync(1, "Films/new.mp4", "watched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/new.mp4", WatchState.Watched, CancellationToken.None);
 
         using var conn = _db.GetConnection();
         using var cmd = conn.CreateCommand();
@@ -166,7 +167,7 @@ public sealed class SqliteMediaStoreWatchStateTests : IDisposable
         conn.Dispose();
 
         await _store.UpsertFromScanAsync("Films/test.mp4", "Test", 2024, CancellationToken.None);
-        await _store.SetWatchStateAsync(1, "Films/test.mp4", "watched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/test.mp4", WatchState.Watched, CancellationToken.None);
 
         // User 1 has override, user 2 does not
         (await _store.IsWatchedAsync(1, "Films/test.mp4", CancellationToken.None))

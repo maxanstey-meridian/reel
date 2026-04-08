@@ -29,7 +29,7 @@ public sealed class SqliteMediaStore : IMediaStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task SetWatchStateAsync(int userId, string relativePath, string? state, CancellationToken ct)
+    public async Task SetWatchStateAsync(int userId, string relativePath, WatchState? state, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
 
@@ -52,6 +52,7 @@ public sealed class SqliteMediaStore : IMediaStore
         }
         else
         {
+            var dbState = state == WatchState.Watched ? "watched" : "unwatched";
             using var upsertCmd = conn.CreateCommand();
             upsertCmd.CommandText = """
                 INSERT OR REPLACE INTO watch_state (user_id, relative_path, state)
@@ -59,7 +60,7 @@ public sealed class SqliteMediaStore : IMediaStore
                 """;
             upsertCmd.Parameters.AddWithValue("@userId", userId);
             upsertCmd.Parameters.AddWithValue("@path", relativePath);
-            upsertCmd.Parameters.AddWithValue("@state", state);
+            upsertCmd.Parameters.AddWithValue("@state", dbState);
             await upsertCmd.ExecuteNonQueryAsync(ct);
         }
     }

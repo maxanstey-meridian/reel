@@ -209,7 +209,7 @@ public sealed class LibraryServiceTests : IDisposable
         public Task<MediaRecord?> GetAsync(string relativePath, CancellationToken ct) =>
             Task.FromResult<MediaRecord?>(null);
 
-        public Task SetWatchStateAsync(int userId, string relativePath, string? state, CancellationToken ct) =>
+        public Task SetWatchStateAsync(int userId, string relativePath, WatchState? state, CancellationToken ct) =>
             Task.CompletedTask;
 
         public Task<bool?> IsWatchedAsync(int userId, string relativePath, CancellationToken ct) =>

@@ -80,11 +80,20 @@ public static class ReelContract
         .Accepts<MediaUpdateRequest>()
         .Status(204);
 
-    public static readonly RouteDefinition MediaSetWatched = Define.Put("/api/media/watched").Status(204);
+    public static readonly InputRouteDefinition<FileRequest> MediaSetWatched = Define
+        .Put("/api/media/watched")
+        .Accepts<FileRequest>()
+        .Status(204);
 
-    public static readonly RouteDefinition MediaSetUnwatched = Define.Put("/api/media/unwatched").Status(204);
+    public static readonly InputRouteDefinition<FileRequest> MediaSetUnwatched = Define
+        .Put("/api/media/unwatched")
+        .Accepts<FileRequest>()
+        .Status(204);
 
-    public static readonly RouteDefinition MediaClearWatched = Define.Delete("/api/media/watched").Status(204);
+    public static readonly InputRouteDefinition<FileRequest> MediaClearWatched = Define
+        .Delete("/api/media/watched")
+        .Accepts<FileRequest>()
+        .Status(204);
 
     public static readonly RouteDefinition<FileRequest, string[]> TagsList = Define.Get<FileRequest, string[]>(
         "/api/media/tags"
@@ -100,11 +109,16 @@ public static class ReelContract
         .Accepts<AddTagRequest>()
         .Status(204);
 
-    public static readonly RouteDefinition TagsRemove = Define.Delete("/api/media/tags").Status(204);
+    public static readonly InputRouteDefinition<RemoveTagRequest> TagsRemove = Define
+        .Delete("/api/media/tags")
+        .Accepts<RemoveTagRequest>()
+        .Status(204);
 
     public static readonly RouteDefinition<TagCount[]> TagsAll = Define.Get<TagCount[]>("/api/tags");
 
-    public static readonly RouteDefinition<FileNode[]> Search = Define.Get<FileNode[]>("/api/search");
+    public static readonly RouteDefinition<SearchRequest, FileNode[]> Search = Define.Get<SearchRequest, FileNode[]>(
+        "/api/search"
+    );
 
     public static readonly RouteDefinition<FileRequest, FileNode> NextFile = Define.Get<FileRequest, FileNode>(
         "/api/files/next"

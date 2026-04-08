@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Reel.Server.Application.Models;
+using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
 using Reel.Server.Infrastructure.Persistence;
 
@@ -177,7 +178,7 @@ public sealed class SqliteMediaStoreSearchTests : IDisposable
 
         // 95% progress would make it watched, but override to unwatched
         await _progressStore.UpdateAsync(1, "Films/movie.mp4", 95, 100, CancellationToken.None);
-        await _store.SetWatchStateAsync(1, "Films/movie.mp4", "unwatched", CancellationToken.None);
+        await _store.SetWatchStateAsync(1, "Films/movie.mp4", WatchState.Unwatched, CancellationToken.None);
 
         var watchedResults = await _store.SearchAsync(
             1,
