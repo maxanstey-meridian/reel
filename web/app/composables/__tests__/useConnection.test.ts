@@ -7,6 +7,10 @@ import { ref, computed } from "vue";
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
+// Mock useUser auto-import
+const mockCurrentUserId = ref(1);
+vi.stubGlobal("useUser", () => ({ currentUserId: mockCurrentUserId }));
+
 // Mock Rivet modules
 const mockConfigureRivet = vi.fn();
 const mockRivetConnect = vi.fn();
@@ -26,6 +30,7 @@ describe("useConnection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    mockCurrentUserId.value = 1;
   });
 
   it("isConnected is true only when both serverUrl and secretKey are set", () => {
@@ -63,7 +68,7 @@ describe("useConnection", () => {
 
     // Verify headers function returns correct header
     const headersArg = mockConfigureRivet.mock.calls[0]![0];
-    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123" });
+    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123", "X-User-Id": "1" });
   });
 
   it("connect() throws and does not persist when Rivet connect fails", async () => {
@@ -96,7 +101,7 @@ describe("useConnection", () => {
 
     // Verify headers function returns correct header
     const headersArg = mockConfigureRivet.mock.calls[0]![0];
-    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "saved-key" });
+    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "saved-key", "X-User-Id": "1" });
   });
 
   it("restore() does nothing when localStorage is empty", () => {
@@ -106,6 +111,20 @@ describe("useConnection", () => {
     expect(mockConfigureRivet).not.toHaveBeenCalled();
     expect(serverUrl.value).toBe("");
     expect(secretKey.value).toBe("");
+  });
+
+  it("headers function reflects current userId reactively", async () => {
+    mockRivetConnect.mockResolvedValue({ status: "connected", serverName: null });
+
+    const { connect } = useConnection();
+    await connect("http://10.0.0.1:8080", "secret123");
+
+    const headersArg = mockConfigureRivet.mock.calls[0]![0];
+    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123", "X-User-Id": "1" });
+
+    // Change user id — headers function should reflect the new value
+    mockCurrentUserId.value = 42;
+    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123", "X-User-Id": "42" });
   });
 
   it("disconnect() clears localStorage and resets state", async () => {

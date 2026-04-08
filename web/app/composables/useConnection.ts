@@ -11,9 +11,13 @@ export const useConnection = () => {
   const isConnected = computed(() => !!serverUrl.value && !!secretKey.value);
 
   const connect = async (url: string, key: string) => {
+    const { currentUserId } = useUser();
     configureRivet({
       baseUrl: url,
-      headers: () => ({ "X-Secret-Key": key }),
+      headers: () => ({
+        "X-Secret-Key": key,
+        "X-User-Id": String(currentUserId.value),
+      }),
     });
 
     await rivetConnect({ key });
@@ -37,9 +41,13 @@ export const useConnection = () => {
     const storedKey = localStorage.getItem(STORAGE_KEY_SECRET);
 
     if (storedUrl && storedKey) {
+      const { currentUserId } = useUser();
       configureRivet({
         baseUrl: storedUrl,
-        headers: () => ({ "X-Secret-Key": storedKey }),
+        headers: () => ({
+          "X-Secret-Key": storedKey,
+          "X-User-Id": String(currentUserId.value),
+        }),
       });
       serverUrl.value = storedUrl;
       secretKey.value = storedKey;
