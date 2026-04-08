@@ -13,6 +13,19 @@ const isActive = (path: string) => route.path.startsWith(path);
 
 <template>
   <div class="h-dvh flex flex-col bg-neutral-950 text-white">
+    <header class="shrink-0">
+      <div class="mx-auto w-full max-w-md flex justify-end px-4 pt-3">
+        <NuxtLink
+          to="/settings"
+          class="transition-colors"
+          :class="route.path === '/settings' ? 'text-white' : 'text-neutral-500 hover:text-white'"
+          data-testid="settings-link"
+        >
+          <UIcon name="i-lucide-settings" class="size-5" />
+        </NuxtLink>
+      </div>
+    </header>
+
     <main class="flex-1 overflow-y-auto">
       <div class="mx-auto w-full max-w-md p-4">
         <slot />
