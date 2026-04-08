@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { parseFilename } from "~~/app/utils/parseFilename";
 import { useCast } from "../composables/useCast";
 import { useConnection } from "../composables/useConnection";
+import { nextFile, thumbnailUrl } from "~~/generated/rivet/client/reel";
+import type { FileNode } from "~~/generated/rivet/types/domain";
 
-const { isConnected } = useConnection();
-const { currentFile, stop, error } = useCast();
+const { isConnected, secretKey } = useConnection();
+const { currentFile, stop, error, cast, casting } = useCast();
 
 onMounted(() => {
   if (!isConnected.value) {
@@ -26,6 +28,49 @@ const parsed = computed(() => {
   }
   return parseFilename(filename.value);
 });
+
+// Up Next
+const upNext = ref<FileNode | null>(null);
+const loadingNext = ref(false);
+
+const fetchUpNext = async (path: string) => {
+  const requestedPath = path;
+  loadingNext.value = true;
+  try {
+    const result = await nextFile(path, { unwrap: false });
+    // Discard stale response if currentFile changed during fetch
+    if (currentFile.value !== requestedPath) return;
+    if (result.status === 200) {
+      upNext.value = result.data;
+    } else {
+      upNext.value = null;
+    }
+  } catch {
+    upNext.value = null;
+  } finally {
+    loadingNext.value = false;
+  }
+};
+
+watch(currentFile, (path) => {
+  if (path) {
+    fetchUpNext(path);
+  } else {
+    upNext.value = null;
+  }
+}, { immediate: true });
+
+const upNextThumb = computed(() =>
+  upNext.value?.relativePath && secretKey.value
+    ? thumbnailUrl(upNext.value.relativePath, secretKey.value)
+    : null,
+);
+
+const castNext = () => {
+  if (upNext.value) {
+    cast(upNext.value.relativePath);
+  }
+};
 
 // Transport controls (play/pause/seek) are deferred — they require
 // bidirectional communication with the TV's ExoPlayer state, which
@@ -59,6 +104,33 @@ const parsed = computed(() => {
       <UButton color="error" size="lg" icon="i-lucide-square" class="mt-8 w-full" @click="stop()">
         Stop Casting
       </UButton>
+
+      <!-- Up Next -->
+      <div v-if="upNext" class="mt-8 w-full">
+        <h2 class="text-sm font-medium text-neutral-400 mb-3">Up Next</h2>
+        <button
+          class="w-full flex items-center gap-3 rounded-lg bg-neutral-900 p-3 text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
+          :disabled="casting"
+          @click="castNext"
+        >
+          <div class="relative size-16 shrink-0 rounded overflow-hidden bg-neutral-800 flex items-center justify-center text-neutral-500">
+            <img
+              v-if="upNextThumb"
+              :src="upNextThumb"
+              class="w-full h-full object-cover"
+              loading="lazy"
+            />
+            <UIcon v-else name="i-lucide-film" class="size-6" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">
+              {{ upNext.displayTitle ?? upNext.name }}
+            </p>
+            <p class="text-xs text-neutral-500 mt-0.5">Tap to cast</p>
+          </div>
+          <UIcon name="i-lucide-cast" class="size-5 text-green-500 shrink-0" />
+        </button>
+      </div>
     </template>
 
     <!-- Idle state -->
