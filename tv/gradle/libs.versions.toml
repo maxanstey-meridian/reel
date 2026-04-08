@@ -53,6 +53,14 @@ lifecycle-runtime-compose   = { module = "androidx.lifecycle:lifecycle-runtime-c
 # Coil (image loading)
 coil-compose                = { module = "io.coil-kt:coil-compose",                          version.ref = "coil" }
 
+# Testing
+junit                       = { module = "junit:junit",                                       version = "4.13.2" }
+ktor-client-mock            = { module = "io.ktor:ktor-client-mock",                          version.ref = "ktor" }
+kotlinx-coroutines-test     = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test",     version.ref = "coroutines" }
+robolectric                 = { module = "org.robolectric:robolectric",                        version = "4.14.1" }
+compose-ui-test-junit4      = { module = "androidx.compose.ui:ui-test-junit4",                 version.ref = "compose-material3" }
+compose-ui-test-manifest    = { module = "androidx.compose.ui:ui-test-manifest",               version.ref = "compose-material3" }
+
 [plugins]
 android-application         = { id = "com.android.application",            version.ref = "agp" }
 kotlin-android              = { id = "org.jetbrains.kotlin.android",       version.ref = "kotlin" }
