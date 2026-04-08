@@ -157,7 +157,7 @@ describe("useCollections", () => {
     await addItem(1, "Films/movie.mp4");
 
     expect(collections.value[0]!.itemCount).toBe(3);
-    expect(mockCollectionsAddItem).toHaveBeenCalledWith(1, { id: 1, path: "Films/movie.mp4" });
+    expect(mockCollectionsAddItem).toHaveBeenCalledWith("1", { path: "Films/movie.mp4" });
     // collectionsList called twice: initial fetch + post-add refetch
     expect(mockCollectionsList).toHaveBeenCalledTimes(2);
   });
@@ -209,7 +209,7 @@ describe("useCollections", () => {
     await removeItem(1, "Films/old.mp4");
 
     expect(collections.value[0]!.itemCount).toBe(2);
-    expect(mockCollectionsRemoveItem).toHaveBeenCalledWith(1, "Films/old.mp4");
+    expect(mockCollectionsRemoveItem).toHaveBeenCalledWith("1", "Films/old.mp4");
   });
 
   it("removeItem reverts item count on failure", async () => {

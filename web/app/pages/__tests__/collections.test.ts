@@ -178,7 +178,7 @@ describe("collection detail page", () => {
     await removeItem(1, "Films/b.mp4");
 
     expect(collections.value[0]!.itemCount).toBe(2);
-    expect(mockCollectionsRemoveItem).toHaveBeenCalledWith(1, "Films/b.mp4");
+    expect(mockCollectionsRemoveItem).toHaveBeenCalledWith("1", "Films/b.mp4");
   });
 
   it("rename updates collection name optimistically", async () => {
@@ -321,7 +321,7 @@ describe("AddToCollectionPopover", () => {
 
     await handleAdd(1);
 
-    expect(mockCollectionsAddItem).toHaveBeenCalledWith(1, { id: 1, path: "Films/movie.mp4" });
+    expect(mockCollectionsAddItem).toHaveBeenCalledWith("1", { path: "Films/movie.mp4" });
     expect(open.value).toBe(false);
   });
 
@@ -362,7 +362,7 @@ describe("AddToCollectionPopover", () => {
     await handleCreateAndAdd();
 
     expect(mockCollectionsCreate).toHaveBeenCalledWith({ name: "New List" });
-    expect(mockCollectionsAddItem).toHaveBeenCalledWith(5, { id: 5, path: "Films/new.mp4" });
+    expect(mockCollectionsAddItem).toHaveBeenCalledWith("5", { path: "Films/new.mp4" });
     expect(open.value).toBe(false);
     expect(newName.value).toBe("");
     expect(creating.value).toBe(false);
