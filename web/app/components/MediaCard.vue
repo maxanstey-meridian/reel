@@ -33,7 +33,9 @@ const fileCount = computed(() => (isDirectory.value ? countDirectFiles(props.nod
 
 const thumbnailSrc = computed(() => {
   const file = isDirectory.value ? folderFirstFile.value : props.node;
-  if (!file?.relativePath || !secretKey.value) return null;
+  if (!file?.relativePath || !secretKey.value) {
+    return null;
+  }
   return thumbnailUrl(file.relativePath, secretKey.value);
 });
 
