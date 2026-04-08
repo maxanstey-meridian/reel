@@ -18,3 +18,9 @@ sealed interface CastPollResult {
     data object Unauthorized : CastPollResult
     data class NetworkError(val message: String) : CastPollResult
 }
+
+@Serializable
+data class LibraryStats(val totalFiles: Int, val totalBytes: Long)
+
+@Serializable
+data class UserInfo(val id: Int, val name: String, val icon: String? = null)

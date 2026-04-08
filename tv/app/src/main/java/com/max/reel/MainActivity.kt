@@ -126,6 +126,7 @@ private fun ReelApp(
             WaitingForCastScreen(
                 connectionOk = connectionOk,
                 prefs = prefs,
+                apiClient = apiClient,
             )
         }
 

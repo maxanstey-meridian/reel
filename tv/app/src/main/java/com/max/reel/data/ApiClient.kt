@@ -95,6 +95,39 @@ class ApiClient(private val prefs: PreferencesManager) {
         }
     }
 
+    suspend fun fetchPosters(count: Int = 20): List<String> {
+        return try {
+            val response = client.get("$baseUrl/api/library/posters?count=$count") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<List<String>>() else emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun fetchStats(): LibraryStats? {
+        return try {
+            val response = client.get("$baseUrl/api/library/stats") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<LibraryStats>() else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun fetchUsers(): List<UserInfo> {
+        return try {
+            val response = client.get("$baseUrl/api/users") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<List<UserInfo>>() else emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     fun close() {
         client.close()
     }
