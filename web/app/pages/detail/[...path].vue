@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useCollections } from "~~/app/composables/useCollections";
 import { useConnection } from "~~/app/composables/useConnection";
 import { useCast } from "~~/app/composables/useCast";
 import { useTags } from "~~/app/composables/useTags";
@@ -46,7 +47,41 @@ const subtitles = ref<SubtitleTrack[]>([]);
 const { casting, error: castError, cast } = useCast();
 const { loading: watchLoading, setWatched, setUnwatched } = useWatchState();
 const { tags, loading: tagsLoading, getTags, addTag, removeTag } = useTags();
+const { collections, fetch: fetchCollections, addItem: addToCollection, create: createCollection } = useCollections();
 const newTag = ref("");
+
+// Collection popover
+const collectionPopoverOpen = ref(false);
+const newCollectionName = ref("");
+const creatingInCollection = ref(false);
+
+const openCollectionPopover = async () => {
+  if (collections.value.length === 0) {
+    await fetchCollections();
+  }
+  collectionPopoverOpen.value = true;
+};
+
+const handleAddToCollection = async (collectionId: number) => {
+  await addToCollection(collectionId, relativePath.value);
+  collectionPopoverOpen.value = false;
+};
+
+const handleCreateAndAddCollection = async () => {
+  const name = newCollectionName.value.trim();
+  if (!name) return;
+  creatingInCollection.value = true;
+  try {
+    const created = await createCollection(name);
+    if (created) {
+      await addToCollection(created.id, relativePath.value);
+    }
+    newCollectionName.value = "";
+    collectionPopoverOpen.value = false;
+  } finally {
+    creatingInCollection.value = false;
+  }
+};
 
 const isWatched = computed(() => detail.value?.watched === true);
 
@@ -440,6 +475,54 @@ onMounted(async () => {
       <UButton block size="lg" icon="i-lucide-cast" :loading="casting" @click="handleCast">
         Cast to TV
       </UButton>
+
+      <!-- Add to collection -->
+      <UPopover v-model:open="collectionPopoverOpen">
+        <UButton
+          block
+          size="lg"
+          variant="outline"
+          icon="i-lucide-list-plus"
+          data-testid="detail-add-to-collection-btn"
+          @click="openCollectionPopover"
+        >
+          Add to Collection
+        </UButton>
+        <template #content>
+          <div class="p-2 w-56 space-y-1">
+            <p class="text-xs text-neutral-500 px-1 mb-1">Add to collection</p>
+            <button
+              v-for="c in collections"
+              :key="c.id"
+              class="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors truncate"
+              @click="handleAddToCollection(c.id)"
+            >
+              {{ c.name }}
+            </button>
+            <div v-if="collections.length === 0" class="text-xs text-neutral-500 px-2 py-1">
+              No collections yet
+            </div>
+            <div class="border-t border-neutral-800 pt-1 mt-1">
+              <form class="flex items-center gap-1" @submit.prevent="handleCreateAndAddCollection">
+                <input
+                  v-model="newCollectionName"
+                  type="text"
+                  placeholder="New collection..."
+                  class="flex-1 text-xs bg-transparent border border-neutral-700 rounded px-2 py-1 text-neutral-300 placeholder-neutral-600 outline-none focus:border-green-500"
+                  :disabled="creatingInCollection"
+                />
+                <button
+                  type="submit"
+                  class="text-xs text-green-500 hover:text-green-400 px-1 disabled:opacity-50"
+                  :disabled="!newCollectionName.trim() || creatingInCollection"
+                >
+                  Add
+                </button>
+              </form>
+            </div>
+          </div>
+        </template>
+      </UPopover>
 
       <!-- Subtitles -->
       <div v-if="subtitles.length > 0" class="space-y-1.5">
