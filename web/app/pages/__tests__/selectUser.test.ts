@@ -95,7 +95,9 @@ describe("index.vue boot guard logic", () => {
    * We test the decision function directly rather than mounting the page.
    */
   const runGuard = (isConnected: boolean, hasValidCachedUser: boolean) => {
-    if (!isConnected) return mockNavigateTo("/connect", { replace: true });
+    if (!isConnected) {
+      return mockNavigateTo("/connect", { replace: true });
+    }
     return mockNavigateTo(
       hasValidCachedUser ? "/library" : "/select-user",
       { replace: true },

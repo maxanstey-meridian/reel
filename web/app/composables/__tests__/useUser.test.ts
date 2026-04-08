@@ -112,7 +112,7 @@ describe("useUser", () => {
       { id: 2, name: "Alice", icon: null },
     ]);
 
-    const { fetchUsers, deleteUser, switchUser, currentUserId, users } = useUser();
+    const { deleteUser, switchUser, currentUserId, users } = useUser();
     switchUser(2);
     expect(currentUserId.value).toBe(2);
 
