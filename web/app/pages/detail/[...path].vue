@@ -67,7 +67,7 @@ const saving = ref(false);
 
 const startEdit = (field: EditableField) => {
   editing.value = field;
-  editValue.value = (detail.value?.[field] as string | null) ?? "";
+  editValue.value = detail.value?.[field] ?? "";
 };
 
 const cancelEdit = () => {
@@ -81,7 +81,7 @@ const saveEdit = async () => {
   }
   const field = editing.value;
   const newVal = editValue.value.trim();
-  const oldVal = (detail.value?.[field] as string | null) ?? "";
+  const oldVal = detail.value?.[field] ?? "";
   if (newVal === oldVal) {
     cancelEdit();
     return;

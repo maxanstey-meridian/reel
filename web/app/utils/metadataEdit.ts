@@ -1,6 +1,6 @@
-import type { MediaUpdateRequest } from "~~/generated/rivet/types/models";
+import type { MediaDetailResponse, MediaUpdateRequest } from "~~/generated/rivet/types/models";
 
-export type EditableField = keyof MediaUpdateRequest;
+export type EditableField = keyof MediaUpdateRequest & keyof MediaDetailResponse;
 
 export const buildPatchBody = (field: EditableField, value: string): MediaUpdateRequest => {
   const body: MediaUpdateRequest = {
