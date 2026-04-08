@@ -15,6 +15,12 @@ public static class ReelContract
 
     public static readonly RouteDefinition<FileNode> Library = Define.Get<FileNode>("/api/library");
 
+    public static readonly RouteDefinition<LibraryStatsResponse> LibraryStats =
+        Define.Get<LibraryStatsResponse>("/api/library/stats");
+
+    public static readonly RouteDefinition<string[]> LibraryPosters =
+        Define.Get<string[]>("/api/library/posters");
+
     public static readonly InputRouteDefinition<CastRequest> Cast = Define
         .Post("/api/cast")
         .Accepts<CastRequest>()
@@ -142,4 +148,38 @@ public static class ReelContract
         .File<TrickplaySpriteRequest>("/api/files/trickplay/sprite")
         .ContentType("image/jpeg")
         .QueryAuth();
+
+    public static readonly RouteDefinition<Collection[]> CollectionsList = Define.Get<Collection[]>(
+        "/api/collections"
+    );
+
+    public static readonly RouteDefinition<CreateCollectionRequest, Collection> CollectionsCreate = Define.Post<
+        CreateCollectionRequest,
+        Collection
+    >("/api/collections");
+
+    public static readonly RouteDefinition<CollectionWithItems> CollectionsGet = Define.Get<CollectionWithItems>(
+        "/api/collections/{id}"
+    );
+
+    public static readonly InputRouteDefinition<RenameCollectionRequest> CollectionsRename = Define
+        .Patch("/api/collections/{id}")
+        .Accepts<RenameCollectionRequest>()
+        .Status(204);
+
+    public static readonly RouteDefinition CollectionsDelete = Define.Delete("/api/collections/{id}").Status(204);
+
+    public static readonly InputRouteDefinition<CollectionItemRequest> CollectionsAddItem = Define
+        .Post("/api/collections/{id}/items")
+        .Accepts<CollectionItemRequest>()
+        .Status(204);
+
+    public static readonly InputRouteDefinition<FileRequest> CollectionsRemoveItem = Define
+        .Delete("/api/collections/{id}/items")
+        .Accepts<FileRequest>();
+
+    public static readonly InputRouteDefinition<ReorderItemsRequest> CollectionsReorder = Define
+        .Put("/api/collections/{id}/items/order")
+        .Accepts<ReorderItemsRequest>()
+        .Status(204);
 }
