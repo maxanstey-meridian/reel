@@ -22,6 +22,8 @@ const parsed = computed(() => (props.node.type === "file" ? parseFilename(props.
 
 const displayName = computed(() => props.node.displayTitle ?? props.node.name);
 
+const isWatched = computed(() => props.node.watched === true);
+
 const thumbnailSrc = computed(() =>
   props.node.relativePath && secretKey.value
     ? thumbnailUrl(props.node.relativePath, secretKey.value)
@@ -63,6 +65,7 @@ const formatSize = (bytes: number | null): string => {
 <template>
   <button
     class="w-[140px] shrink-0 flex flex-col rounded bg-neutral-900 overflow-hidden text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
+    :class="{ 'opacity-60': isWatched }"
     @click="$emit('select', node)"
   >
     <div
@@ -83,6 +86,14 @@ const formatSize = (bytes: number | null): string => {
         class="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700"
       >
         <div class="h-full bg-green-500" :style="{ width: `${Math.min(progress * 100, 100)}%` }" />
+      </div>
+
+      <!-- Watched indicator -->
+      <div
+        v-if="isWatched"
+        class="absolute bottom-2 left-1 p-1 rounded-full bg-black/50 text-green-500"
+      >
+        <UIcon name="i-lucide-circle-check" class="size-4" />
       </div>
 
       <!-- Favourite heart -->
