@@ -17,6 +17,7 @@ const { secretKey } = useConnection();
 const { isFavourite, toggle } = useFavourites();
 
 const showHeart = computed(() => props.node.type === "file");
+const favourited = computed(() => isFavourite(props.node.relativePath));
 
 const parsed = computed(() => (props.node.type === "file" ? parseFilename(props.node.name) : null));
 
