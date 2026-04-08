@@ -104,4 +104,36 @@ describe("useUser", () => {
     expect(mockUserDelete).toHaveBeenCalledWith("2");
     expect(mockUserList).toHaveBeenCalledOnce();
   });
+
+  it("after deleting current user, switchUser can switch to a remaining user", async () => {
+    mockUserList.mockResolvedValue([
+      { id: 1, name: "Default", icon: null },
+      { id: 2, name: "Alice", icon: null },
+    ]);
+
+    const { fetchUsers, deleteUser, switchUser, currentUserId, users } = useUser();
+    switchUser(2);
+    expect(currentUserId.value).toBe(2);
+
+    // Simulate deletion — after delete, useUser re-fetches and only user 1 remains
+    mockUserList.mockResolvedValue([{ id: 1, name: "Default", icon: null }]);
+    await deleteUser(2);
+
+    // users list is now updated
+    expect(users.value).toEqual([{ id: 1, name: "Default", icon: null }]);
+
+    // Page would switch to first remaining user
+    const remaining = users.value[0]!;
+    switchUser(remaining.id);
+    expect(currentUserId.value).toBe(1);
+    expect(localStorage.getItem("reel:userId")).toBe("1");
+  });
+
+  it("deleteUser surfaces errors to the caller", async () => {
+    mockUserDelete.mockRejectedValue(new Error("Cannot delete last user"));
+
+    const { deleteUser } = useUser();
+
+    await expect(deleteUser(1)).rejects.toThrow("Cannot delete last user");
+  });
 });

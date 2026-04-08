@@ -82,9 +82,11 @@ const saveEdit = async () => {
 const deleteTarget = ref<User | null>(null);
 const deleteModalOpen = ref(false);
 const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const confirmDelete = (user: User) => {
   deleteTarget.value = user;
+  deleteError.value = null;
   deleteModalOpen.value = true;
 };
 
@@ -92,11 +94,27 @@ const handleDelete = async () => {
   if (!deleteTarget.value) {
     return;
   }
+  const deletedId = deleteTarget.value.id;
+  const wasCurrent = deletedId === currentUserId.value;
   deleting.value = true;
+  deleteError.value = null;
   try {
-    await deleteUser(deleteTarget.value.id);
+    await deleteUser(deletedId);
+
+    if (wasCurrent) {
+      const remaining = users.value.filter((u) => u.id !== deletedId);
+      if (remaining.length > 0) {
+        switchUser(remaining[0]!.id);
+      } else {
+        switchUser(1);
+      }
+      await Promise.all([refreshLibrary(), fetchProgress(), fetchFavourites()]);
+    }
+
     deleteModalOpen.value = false;
     deleteTarget.value = null;
+  } catch (e) {
+    deleteError.value = e instanceof Error ? e.message : "Failed to delete user";
   } finally {
     deleting.value = false;
   }
@@ -254,6 +272,12 @@ onMounted(() => {
             >? This will permanently delete all their data including progress, favourites, tags, and
             watched state.
           </p>
+          <UAlert
+            v-if="deleteError"
+            color="error"
+            icon="i-lucide-alert-circle"
+            :title="deleteError"
+          />
           <div class="flex justify-end gap-2">
             <UButton variant="ghost" @click="deleteModalOpen = false">Cancel</UButton>
             <UButton color="error" :loading="deleting" @click="handleDelete">
