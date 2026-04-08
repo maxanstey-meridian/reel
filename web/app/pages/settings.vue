@@ -15,7 +15,9 @@ const creating = ref(false);
 
 const handleCreate = async () => {
   const name = newUserName.value.trim();
-  if (!name) return;
+  if (!name) {
+    return;
+  }
   creating.value = true;
   try {
     await createUser(name);
@@ -29,7 +31,9 @@ const handleCreate = async () => {
 const switching = ref(false);
 
 const handleSwitch = async (id: number) => {
-  if (id === currentUserId.value) return;
+  if (id === currentUserId.value) {
+    return;
+  }
   switching.value = true;
   try {
     switchUser(id);
@@ -58,9 +62,13 @@ const cancelEdit = () => {
 };
 
 const saveEdit = async () => {
-  if (editingUser.value === null) return;
+  if (editingUser.value === null) {
+    return;
+  }
   const name = editName.value.trim();
-  if (!name) return;
+  if (!name) {
+    return;
+  }
   saving.value = true;
   try {
     await updateUser(editingUser.value, name, editIcon.value.trim() || undefined);
@@ -81,7 +89,9 @@ const confirmDelete = (user: User) => {
 };
 
 const handleDelete = async () => {
-  if (!deleteTarget.value) return;
+  if (!deleteTarget.value) {
+    return;
+  }
   deleting.value = true;
   try {
     await deleteUser(deleteTarget.value.id);
