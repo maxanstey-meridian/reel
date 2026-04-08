@@ -8,6 +8,16 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,6 +32,8 @@ class WaitingForCastScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
+    private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+
     private fun createPrefs(): PreferencesManager {
         val context = RuntimeEnvironment.getApplication()
         val prefs = PreferencesManager(context)
@@ -29,11 +41,24 @@ class WaitingForCastScreenTest {
         return prefs
     }
 
+    private fun createApiClient(prefs: PreferencesManager): ApiClient {
+        val mockEngine = MockEngine {
+            respond("[]", HttpStatusCode.OK, jsonHeaders)
+        }
+        val mockClient = HttpClient(mockEngine) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+            expectSuccess = false
+        }
+        return ApiClient(prefs, mockClient)
+    }
+
     @OptIn(ExperimentalTvMaterial3Api::class)
     @Test
     fun `shows Connected text when connectionOk is true`() {
         val prefs = createPrefs()
-        val apiClient = ApiClient(prefs)
+        val apiClient = createApiClient(prefs)
 
         composeTestRule.setContent {
             WaitingForCastScreen(
@@ -52,7 +77,7 @@ class WaitingForCastScreenTest {
     @Test
     fun `shows Disconnected indicator text when connectionOk is false`() {
         val prefs = createPrefs()
-        val apiClient = ApiClient(prefs)
+        val apiClient = createApiClient(prefs)
 
         composeTestRule.setContent {
             WaitingForCastScreen(
@@ -70,7 +95,7 @@ class WaitingForCastScreenTest {
     @Test
     fun `shows disconnected overlay with subtitle when connectionOk is false`() {
         val prefs = createPrefs()
-        val apiClient = ApiClient(prefs)
+        val apiClient = createApiClient(prefs)
 
         composeTestRule.setContent {
             WaitingForCastScreen(
@@ -87,7 +112,7 @@ class WaitingForCastScreenTest {
     @Test
     fun `does not show disconnected overlay when connectionOk is true`() {
         val prefs = createPrefs()
-        val apiClient = ApiClient(prefs)
+        val apiClient = createApiClient(prefs)
 
         composeTestRule.setContent {
             WaitingForCastScreen(
