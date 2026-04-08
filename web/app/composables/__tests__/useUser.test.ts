@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ref, readonly } from "vue";
+import { ref, readonly, computed } from "vue";
 
 // Mock Nuxt auto-imports
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("readonly", readonly);
+vi.stubGlobal("computed", computed);
 
 // Mock Rivet client
 const mockUserList = vi.fn();
@@ -135,5 +136,38 @@ describe("useUser", () => {
     const { deleteUser } = useUser();
 
     await expect(deleteUser(1)).rejects.toThrow("Cannot delete last user");
+  });
+
+  describe("hasValidCachedUser", () => {
+    it("returns true when currentUserId matches a user in the list", async () => {
+      mockUserList.mockResolvedValue([
+        { id: 1, name: "Default", icon: null },
+        { id: 2, name: "Alice", icon: null },
+      ]);
+
+      const { fetchUsers, hasValidCachedUser, switchUser } = useUser();
+      await fetchUsers();
+      switchUser(2);
+
+      expect(hasValidCachedUser.value).toBe(true);
+    });
+
+    it("returns false when currentUserId does not match any user", async () => {
+      mockUserList.mockResolvedValue([
+        { id: 1, name: "Default", icon: null },
+      ]);
+
+      const { fetchUsers, hasValidCachedUser, switchUser } = useUser();
+      await fetchUsers();
+      switchUser(99);
+
+      expect(hasValidCachedUser.value).toBe(false);
+    });
+
+    it("returns false when users list is empty", () => {
+      const { hasValidCachedUser } = useUser();
+
+      expect(hasValidCachedUser.value).toBe(false);
+    });
   });
 });

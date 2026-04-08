@@ -11,6 +11,10 @@ export const useUser = () => {
 
   const users = useState<User[]>("reel:users", () => []);
 
+  const hasValidCachedUser = computed(
+    () => users.value.some((u) => u.id === currentUserId.value),
+  );
+
   const persistUserId = (id: number) => {
     currentUserId.value = id;
     localStorage.setItem(STORAGE_KEY, String(id));
@@ -42,6 +46,7 @@ export const useUser = () => {
   return {
     currentUserId: readonly(currentUserId),
     users: readonly(users),
+    hasValidCachedUser,
     fetchUsers,
     switchUser,
     createUser: createNewUser,
