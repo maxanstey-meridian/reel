@@ -42,10 +42,12 @@ fun WaitingForCastScreen(
     var stats by remember { mutableStateOf<LibraryStats?>(null) }
     var userName by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
-        posterPaths = apiClient.fetchPosters(30)
-        stats = apiClient.fetchStats()
-        userName = apiClient.fetchUsers().firstOrNull()?.name
+    LaunchedEffect(connectionOk) {
+        if (connectionOk) {
+            posterPaths = apiClient.fetchPosters(30)
+            stats = apiClient.fetchStats()
+            userName = apiClient.fetchUsers().firstOrNull()?.name
+        }
     }
 
     val indicatorColor = if (connectionOk) ReelColors.connected else ReelColors.disconnected
@@ -103,6 +105,23 @@ fun WaitingForCastScreen(
                         color = indicatorTextColor,
                     )
                 }
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // QR code for phone pairing
+                val pairUrl = "http://${prefs.serverIp}:${prefs.serverPort}/pair?key=${prefs.secretKey}"
+                QrCodeImage(
+                    content = pairUrl,
+                    size = 160.dp,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Scan to connect",
+                    fontSize = 13.sp,
+                    color = ReelColors.textSecondary,
+                )
             }
 
             // Right panel — poster mosaic

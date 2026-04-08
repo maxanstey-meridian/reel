@@ -1,10 +1,11 @@
 <script setup lang="ts">
 definePageMeta({ layout: "blank" });
 
+const route = useRoute();
 const { connect } = useConnection();
 
-const url = ref("http://localhost:8080");
-const key = ref("");
+const url = ref((route.query.url as string) || "http://localhost:8080");
+const key = ref((route.query.key as string) || "");
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -14,13 +15,22 @@ const handleConnect = async () => {
 
   try {
     await connect(url.value, key.value);
-    await navigateTo("/library", { replace: true });
+    const { fetchUsers } = useUser();
+    await fetchUsers();
+    await navigateTo("/", { replace: true });
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Connection failed";
   } finally {
     loading.value = false;
   }
 };
+
+// Auto-connect when both params are provided (QR code flow)
+onMounted(async () => {
+  if (route.query.url && route.query.key) {
+    await handleConnect();
+  }
+});
 </script>
 
 <template>
@@ -41,7 +51,7 @@ const handleConnect = async () => {
         <UFormField label="Secret Key">
           <UInput
             v-model="key"
-            type="password"
+            type="text"
             placeholder="Enter secret key"
             icon="i-lucide-key-round"
           />

@@ -4,7 +4,7 @@ using Reel.Server.Infrastructure.Configuration;
 
 public sealed class SecretKeyMiddleware
 {
-    private static readonly string[] ExcludedPaths = ["/api/connect", "/api/health"];
+    private static readonly string[] ExcludedPaths = ["/api/connect", "/api/health", "/pair"];
 
     private readonly RequestDelegate _next;
     private readonly ReelConfig _config;

@@ -19,6 +19,7 @@ import coil.Coil
 import coil.ImageLoader
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
+import com.max.reel.data.ServerDiscovery
 import com.max.reel.ui.cast.WaitingForCastScreen
 import com.max.reel.ui.pairing.PairingScreen
 import com.max.reel.ui.player.PlayerScreen
@@ -39,6 +40,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val prefs = PreferencesManager(applicationContext)
+        val discovery = ServerDiscovery()
         apiClient = ApiClient(prefs)
 
         Coil.setImageLoader(
@@ -63,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 startPaired = prefs.isPaired,
                 prefs = prefs,
                 apiClient = apiClient,
+                discovery = discovery,
             )
         }
     }
@@ -79,6 +82,7 @@ private fun ReelApp(
     startPaired: Boolean,
     prefs: PreferencesManager,
     apiClient: ApiClient,
+    discovery: ServerDiscovery,
 ) {
     var screen: Screen by remember {
         mutableStateOf(
@@ -118,6 +122,7 @@ private fun ReelApp(
             PairingScreen(
                 apiClient = apiClient,
                 prefs = prefs,
+                discovery = discovery,
                 onPaired = { screen = Screen.WaitingForCast },
             )
         }

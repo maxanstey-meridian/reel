@@ -80,6 +80,9 @@ dependencies {
     // Coil (image loading)
     implementation(libs.coil.compose)
 
+    // QR code generation
+    implementation("com.google.zxing:core:3.5.3")
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.ktor.client.mock)

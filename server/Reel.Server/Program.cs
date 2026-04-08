@@ -11,6 +11,7 @@ using Reel.Server.Infrastructure.Ffmpeg;
 using Reel.Server.Infrastructure.FileSystem;
 using Reel.Server.Infrastructure.Persistence;
 using Reel.Server.Infrastructure.Tmdb;
+using Makaretu.Dns;
 using Reel.Server.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -62,11 +63,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
+app.UseMiddleware<PrivateNetworkMiddleware>();
 app.UseMiddleware<SecretKeyMiddleware>();
 app.UseMiddleware<UserMiddleware>();
 
 app.MapHealthEndpoints();
 app.MapConnectEndpoints();
+app.MapPairEndpoints();
 app.MapLibraryEndpoints();
 app.MapStreamEndpoints();
 app.MapCastEndpoints();
@@ -85,6 +88,14 @@ app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
 
 var localIp = GetLocalIpAddress() ?? "unknown (check network connection)";
+
+// Advertise via mDNS so TV app can auto-discover
+var mdns = new ServiceDiscovery();
+var serviceProfile = new ServiceProfile("Reel", "_reel._tcp", (ushort)reelConfig.Port);
+serviceProfile.AddProperty("key", reelConfig.SecretKey);
+serviceProfile.AddProperty("version", "1");
+mdns.Advertise(serviceProfile);
+app.Lifetime.ApplicationStopping.Register(() => mdns.Dispose());
 
 Console.WriteLine();
 Console.WriteLine("  Reel is running");

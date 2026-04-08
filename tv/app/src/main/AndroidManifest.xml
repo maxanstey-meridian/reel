@@ -3,6 +3,7 @@
 
     <!-- Network access for Ktor and ExoPlayer -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!--
         Declare leanback support — required for the app to appear in the
