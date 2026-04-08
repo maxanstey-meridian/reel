@@ -57,10 +57,10 @@ describe("metadata PATCH body construction", () => {
     });
   });
 
-  it("sends null value to clear a field", () => {
-    const body = buildPatchBody("genre", null);
+  it("sends empty string to clear a field", () => {
+    const body = buildPatchBody("genre", "");
     expect(body).toEqual({
-      genre: null,
+      genre: "",
       rating: null,
       language: null,
       notes: null,

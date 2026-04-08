@@ -50,8 +50,8 @@ const saveEdit = async () => {
     return;
   }
   const field = editing.value;
-  const newVal = editValue.value.trim() || null;
-  const oldVal = (detail.value?.[field] as string | null) ?? null;
+  const newVal = editValue.value.trim();
+  const oldVal = (detail.value?.[field] as string | null) ?? "";
   if (newVal === oldVal) {
     cancelEdit();
     return;
@@ -90,8 +90,8 @@ const saveNotes = async () => {
   if (!props.node) {
     return;
   }
-  const newVal = editValue.value.trim() || null;
-  const oldVal = detail.value?.notes ?? null;
+  const newVal = editValue.value.trim();
+  const oldVal = detail.value?.notes ?? "";
   if (newVal === oldVal) {
     editing.value = null;
     editValue.value = "";
