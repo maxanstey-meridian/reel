@@ -140,4 +140,38 @@ describe("useSearch", () => {
     expect(mockSearch).toHaveBeenCalledTimes(1);
     expect(mockSearch).toHaveBeenCalledWith("second", null, null, null);
   });
+
+  it("debouncedSearch with tag filter and empty query does not short-circuit", async () => {
+    mockSearch.mockResolvedValue([]);
+
+    const { debouncedSearch } = useSearch();
+
+    debouncedSearch("", "action", null, null);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(mockSearch).toHaveBeenCalledTimes(1);
+    expect(mockSearch).toHaveBeenCalledWith(null, "action", null, null);
+  });
+
+  it("debouncedSearch with watched filter and empty query does not short-circuit", async () => {
+    mockSearch.mockResolvedValue([]);
+
+    const { debouncedSearch } = useSearch();
+
+    debouncedSearch("", null, null, false);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(mockSearch).toHaveBeenCalledTimes(1);
+    expect(mockSearch).toHaveBeenCalledWith(null, null, null, false);
+  });
+
+  it("debouncedSearch with no query and no filters still short-circuits", () => {
+    const { results, debouncedSearch } = useSearch();
+    results.value = [fileNode];
+
+    debouncedSearch("", null, null, null);
+
+    expect(results.value).toEqual([]);
+    expect(mockSearch).not.toHaveBeenCalled();
+  });
 });
