@@ -621,7 +621,7 @@ describe("Detail page", () => {
       await page.handleCast();
 
       expect(mockCast).toHaveBeenCalledWith(
-        { relativePath: "Movies/Film.mkv", subtitleIndex: null },
+        { relativePath: "Movies/Film.mkv" },
       );
     });
 
@@ -635,13 +635,13 @@ describe("Detail page", () => {
       );
     });
 
-    it("passes undefined subtitleIndex when none selected", async () => {
+    it("does not include subtitleIndex when none selected", async () => {
       const page = setupDetailPage("Movies/Film.mkv");
       page.selectedSubtitleIndex.value = null;
       await page.handleCast();
 
       expect(mockCast).toHaveBeenCalledWith(
-        { relativePath: "Movies/Film.mkv", subtitleIndex: null },
+        { relativePath: "Movies/Film.mkv" },
       );
     });
   });

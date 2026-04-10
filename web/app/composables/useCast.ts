@@ -12,7 +12,7 @@ export const useCast = () => {
     error.value = null;
 
     try {
-      await rivetCast({ relativePath, subtitleIndex: opts?.subtitleIndex ?? null });
+      await rivetCast({ relativePath, ...(opts?.subtitleIndex != null && { subtitleIndex: opts.subtitleIndex }) });
       currentFile.value = relativePath;
 
       const toast = useToast();
