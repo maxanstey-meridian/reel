@@ -17,10 +17,14 @@ vi.stubGlobal("useToast", () => ({ add: mockToastAdd }));
 const mockNextFile = vi.fn();
 const mockCast = vi.fn();
 const mockCastStop = vi.fn();
+const mockCastQueuePlay = vi.fn();
+const mockCastQueueGet = vi.fn().mockResolvedValue([]);
 vi.mock("~~/generated/rivet/client/reel", () => ({
   nextFile: (...args: unknown[]) => mockNextFile(...args),
   cast: (...args: unknown[]) => mockCast(...args),
   castStop: (...args: unknown[]) => mockCastStop(...args),
+  castQueuePlay: (...args: unknown[]) => mockCastQueuePlay(...args),
+  castQueueGet: (...args: unknown[]) => mockCastQueueGet(...args),
   thumbnailUrl: (path: string, token: string) => `http://test/thumb?path=${path}&token=${token}`,
 }));
 

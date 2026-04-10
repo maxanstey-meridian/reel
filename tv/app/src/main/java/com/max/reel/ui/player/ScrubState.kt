@@ -1,13 +1,16 @@
 package com.max.reel.ui.player
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.max.reel.data.TrickplayMetadata
 
 class ScrubState {
-    var active: Boolean = false
+    var active: Boolean by mutableStateOf(false)
         private set
-    var positionMs: Long = 0L
+    var positionMs: Long by mutableStateOf(0L)
         private set
-    var metadata: TrickplayMetadata? = null
+    var metadata: TrickplayMetadata? by mutableStateOf(null)
 
     fun enterScrub(currentPositionMs: Long) {
         active = true

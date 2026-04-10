@@ -107,10 +107,7 @@ fun PlayerScreen(
 
         var playerError by remember { mutableStateOf<PlayerError?>(null) }
         var markedWatched by remember { mutableStateOf(false) }
-        var trickplayMetadata by remember { mutableStateOf<TrickplayMetadata?>(null) }
         val scrubState = remember { ScrubState() }
-        var scrubActive by remember { mutableStateOf(false) }
-        var scrubPositionMs by remember { mutableStateOf(0L) }
 
         val dataSourceFactory = remember {
             DefaultHttpDataSource.Factory()
@@ -124,9 +121,8 @@ fun PlayerScreen(
         }
 
         BackHandler {
-            if (scrubActive) {
+            if (scrubState.active) {
                 scrubState.cancelScrub()
-                scrubActive = false
                 player.play()
             } else {
                 onBack()
@@ -179,9 +175,7 @@ fun PlayerScreen(
         }
 
         LaunchedEffect(Unit) {
-            val meta = apiClient.fetchTrickplayMetadata(relativePath)
-            trickplayMetadata = meta
-            scrubState.metadata = meta
+            scrubState.metadata = apiClient.fetchTrickplayMetadata(relativePath)
         }
 
         DisposableEffect(Unit) {
@@ -267,12 +261,11 @@ fun PlayerScreen(
                 .focusRequester(focusRequester)
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                    val meta = trickplayMetadata
+                    val meta = scrubState.metadata
                     when (event.key) {
                         Key.DirectionCenter, Key.MediaPlayPause -> {
-                            if (scrubActive) {
+                            if (scrubState.active) {
                                 val pos = scrubState.commitScrub()
-                                scrubActive = false
                                 player.seekTo(pos)
                                 player.play()
                             } else {
@@ -282,14 +275,11 @@ fun PlayerScreen(
                         }
                         Key.DirectionRight, Key.MediaFastForward -> {
                             if (meta != null) {
-                                if (!scrubActive) {
+                                if (!scrubState.active) {
                                     scrubState.enterScrub(player.currentPosition)
-                                    scrubActive = true
-                                    scrubPositionMs = scrubState.positionMs
                                     player.pause()
                                 } else {
                                     scrubState.moveScrub(meta.intervalMs.toLong())
-                                    scrubPositionMs = scrubState.positionMs
                                 }
                             } else {
                                 player.seekTo(player.currentPosition + seekStepMs)
@@ -298,14 +288,11 @@ fun PlayerScreen(
                         }
                         Key.DirectionLeft, Key.MediaRewind -> {
                             if (meta != null) {
-                                if (!scrubActive) {
+                                if (!scrubState.active) {
                                     scrubState.enterScrub(player.currentPosition)
-                                    scrubActive = true
-                                    scrubPositionMs = scrubState.positionMs
                                     player.pause()
                                 } else {
                                     scrubState.moveScrub(-meta.intervalMs.toLong())
-                                    scrubPositionMs = scrubState.positionMs
                                 }
                             } else {
                                 player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
@@ -330,10 +317,10 @@ fun PlayerScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
 
-                val meta = trickplayMetadata
-                if (scrubActive && meta != null) {
+                val meta = scrubState.metadata
+                if (scrubState.active && meta != null) {
                     PlayerScrubber(
-                        scrubPositionMs = scrubPositionMs,
+                        scrubPositionMs = scrubState.positionMs,
                         durationMs = player.duration.coerceAtLeast(1L),
                         metadata = meta,
                         spriteUrlBuilder = { sheet -> apiClient.trickplaySpriteUrl(relativePath, sheet) },
