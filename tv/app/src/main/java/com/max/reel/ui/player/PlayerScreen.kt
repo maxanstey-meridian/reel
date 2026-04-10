@@ -108,16 +108,9 @@ fun PlayerScreen(
         var playerError by remember { mutableStateOf<PlayerError?>(null) }
         var markedWatched by remember { mutableStateOf(false) }
         var trickplayMetadata by remember { mutableStateOf<TrickplayMetadata?>(null) }
+        val scrubState = remember { ScrubState() }
         var scrubActive by remember { mutableStateOf(false) }
         var scrubPositionMs by remember { mutableStateOf(0L) }
-
-        BackHandler {
-            if (scrubActive) {
-                scrubActive = false
-            } else {
-                onBack()
-            }
-        }
 
         val dataSourceFactory = remember {
             DefaultHttpDataSource.Factory()
@@ -128,6 +121,16 @@ fun PlayerScreen(
             ExoPlayer.Builder(context)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
                 .build()
+        }
+
+        BackHandler {
+            if (scrubActive) {
+                scrubState.cancelScrub()
+                scrubActive = false
+                player.play()
+            } else {
+                onBack()
+            }
         }
 
         // Helper to report current progress
@@ -176,7 +179,9 @@ fun PlayerScreen(
         }
 
         LaunchedEffect(Unit) {
-            trickplayMetadata = apiClient.fetchTrickplayMetadata(relativePath)
+            val meta = apiClient.fetchTrickplayMetadata(relativePath)
+            trickplayMetadata = meta
+            scrubState.metadata = meta
         }
 
         DisposableEffect(Unit) {
@@ -266,9 +271,10 @@ fun PlayerScreen(
                     when (event.key) {
                         Key.DirectionCenter, Key.MediaPlayPause -> {
                             if (scrubActive) {
-                                player.seekTo(scrubPositionMs)
-                                player.play()
+                                val pos = scrubState.commitScrub()
                                 scrubActive = false
+                                player.seekTo(pos)
+                                player.play()
                             } else {
                                 if (player.isPlaying) player.pause() else player.play()
                             }
@@ -277,12 +283,14 @@ fun PlayerScreen(
                         Key.DirectionRight, Key.MediaFastForward -> {
                             if (meta != null) {
                                 if (!scrubActive) {
-                                    scrubPositionMs = player.currentPosition
+                                    scrubState.enterScrub(player.currentPosition)
                                     scrubActive = true
+                                    scrubPositionMs = scrubState.positionMs
                                     player.pause()
+                                } else {
+                                    scrubState.moveScrub(meta.intervalMs.toLong())
+                                    scrubPositionMs = scrubState.positionMs
                                 }
-                                val max = (meta.totalThumbs - 1).toLong() * meta.intervalMs.toLong()
-                                scrubPositionMs = (scrubPositionMs + meta.intervalMs).coerceIn(0L, max)
                             } else {
                                 player.seekTo(player.currentPosition + seekStepMs)
                             }
@@ -291,12 +299,14 @@ fun PlayerScreen(
                         Key.DirectionLeft, Key.MediaRewind -> {
                             if (meta != null) {
                                 if (!scrubActive) {
-                                    scrubPositionMs = player.currentPosition
+                                    scrubState.enterScrub(player.currentPosition)
                                     scrubActive = true
+                                    scrubPositionMs = scrubState.positionMs
                                     player.pause()
+                                } else {
+                                    scrubState.moveScrub(-meta.intervalMs.toLong())
+                                    scrubPositionMs = scrubState.positionMs
                                 }
-                                val max = (meta.totalThumbs - 1).toLong() * meta.intervalMs.toLong()
-                                scrubPositionMs = (scrubPositionMs - meta.intervalMs).coerceIn(0L, max)
                             } else {
                                 player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
                             }
