@@ -18,6 +18,12 @@ class PreferencesManager(context: Context) {
     val secretKey: String
         get() = prefs.getString("reel_secret_key", "") ?: ""
 
+    var autoAdvance: Boolean
+        get() = prefs.getBoolean("reel_auto_advance", true)
+        set(value) {
+            prefs.edit().putBoolean("reel_auto_advance", value).apply()
+        }
+
     fun savePairing(ip: String, port: String, secretKey: String) {
         prefs.edit()
             .putString("reel_server_ip", ip)

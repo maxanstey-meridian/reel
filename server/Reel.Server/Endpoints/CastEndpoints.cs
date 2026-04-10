@@ -32,7 +32,7 @@ public static class CastEndpoints
                                 var progress = await progressStore.GetAsync(userId, req.RelativePath, ct);
                                 position = progress?.PositionSeconds;
                             }
-                            castService.SetPlay(req.RelativePath, position);
+                            castService.SetPlay(req.RelativePath, position, req.SubtitleIndex);
                         }
                     )
                 ).ToResult()

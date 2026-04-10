@@ -35,12 +35,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -90,7 +91,9 @@ fun PlayerScreen(
     apiClient: ApiClient,
     relativePath: String,
     positionSeconds: Double? = null,
+    subtitleIndex: Int? = null,
     onBack: () -> Unit,
+    onPlayNext: (relativePath: String) -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -108,8 +111,15 @@ fun PlayerScreen(
         var playerError by remember { mutableStateOf<PlayerError?>(null) }
         var markedWatched by remember { mutableStateOf(false) }
 
+        val dataSourceFactory = remember {
+            DefaultHttpDataSource.Factory()
+                .setDefaultRequestProperties(mapOf("X-Secret-Key" to prefs.secretKey))
+        }
+
         val player = remember {
-            ExoPlayer.Builder(context).build()
+            ExoPlayer.Builder(context)
+                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+                .build()
         }
 
         // Helper to report current progress
@@ -129,12 +139,35 @@ fun PlayerScreen(
             }
         }
 
-        DisposableEffect(Unit) {
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setDefaultRequestProperties(mapOf("X-Secret-Key" to prefs.secretKey))
+        // Fetch subtitles and configure media item
+        LaunchedEffect(Unit) {
+            val tracks = apiClient.fetchSubtitles(relativePath)
+            val selectedTracks = if (subtitleIndex != null) {
+                tracks.filter { it.index == subtitleIndex }
+            } else {
+                tracks.take(1)
+            }
+            val subtitleConfigs = selectedTracks.map { track ->
+                MediaItem.SubtitleConfiguration.Builder(
+                    Uri.parse(apiClient.subtitleContentUrl(relativePath, track.index))
+                )
+                    .setMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage(track.language)
+                    .setLabel(track.label.ifEmpty { track.language.ifEmpty { "Subtitles" } })
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .build()
+            }
 
-            val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-                .createMediaSource(MediaItem.fromUri(streamUrl))
+            val mediaItem = MediaItem.Builder()
+                .setUri(streamUrl)
+                .setSubtitleConfigurations(subtitleConfigs)
+                .build()
+
+            player.setMediaItem(mediaItem)
+            player.prepare()
+        }
+
+        DisposableEffect(Unit) {
 
             val listener = object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
@@ -150,7 +183,20 @@ fun PlayerScreen(
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
-                        Player.STATE_ENDED -> reportProgress()
+                        Player.STATE_ENDED -> {
+                            reportProgress()
+                            if (prefs.autoAdvance) {
+                                scope.launch {
+                                    val queue = apiClient.fetchCastQueue()
+                                    if (queue.isEmpty()) {
+                                        val next = apiClient.nextFile(relativePath)
+                                        if (next != null) {
+                                            onPlayNext(next.relativePath)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         Player.STATE_READY -> {
                             // Seek to resume position once media is ready
                             if (positionSeconds != null && positionSeconds > 0) {
@@ -165,8 +211,6 @@ fun PlayerScreen(
                 }
             }
             player.addListener(listener)
-            player.setMediaSource(mediaSource)
-            player.prepare()
             player.playWhenReady = true
 
             onDispose {

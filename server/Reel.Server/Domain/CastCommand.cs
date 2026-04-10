@@ -6,4 +6,4 @@ public enum CastCommandType
     Stop,
 }
 
-public sealed record CastCommand(CastCommandType Type, string? RelativePath, double? PositionSeconds = null);
+public sealed record CastCommand(CastCommandType Type, string? RelativePath, double? PositionSeconds = null, int? SubtitleIndex = null);

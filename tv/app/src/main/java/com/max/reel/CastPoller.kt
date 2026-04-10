@@ -51,7 +51,7 @@ class CastPoller(
                     CastCommandType.Play -> {
                         val path = command.relativePath ?: return
                         apiClient.acknowledgeCast()
-                        _playCommand.send(PlayCommand(path, command.positionSeconds))
+                        _playCommand.send(PlayCommand(path, command.positionSeconds, command.subtitleIndex))
                     }
                     CastCommandType.Stop -> {
                         apiClient.acknowledgeCast()

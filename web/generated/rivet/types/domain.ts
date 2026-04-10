@@ -20,6 +20,7 @@ export type CastCommand = {
   type: string;
   relativePath?: string | null;
   positionSeconds?: number | null;
+  subtitleIndex?: number | null;
 };
 
 export type CastStatus = {

@@ -194,4 +194,80 @@ class ApiClientTest {
         apiClient.fetchPosters(1)
         assertEquals("test-key", capturedAuthHeader)
     }
+
+    // --- nextFile ---
+
+    @Test
+    fun `nextFile returns response on 200`() = runTest {
+        val apiClient = createApiClient { url ->
+            if (url.encodedPath == "/api/files/next") {
+                respond(
+                    """{"relativePath":"Films/b.mp4","name":"b.mp4","type":"file"}""",
+                    HttpStatusCode.OK,
+                    jsonHeaders,
+                )
+            } else {
+                respond("", HttpStatusCode.NotFound)
+            }
+        }
+
+        val result = apiClient.nextFile("Films/a.mp4")
+        assertEquals("Films/b.mp4", result?.relativePath)
+    }
+
+    @Test
+    fun `nextFile returns null on 204`() = runTest {
+        val apiClient = createApiClient {
+            respond("", HttpStatusCode.NoContent)
+        }
+
+        val result = apiClient.nextFile("Films/last.mp4")
+        assertNull(result)
+    }
+
+    @Test
+    fun `nextFile returns null on network error`() = runTest {
+        val apiClient = createApiClientWithEngine(
+            MockEngine { throw java.io.IOException("Timeout") },
+        )
+
+        val result = apiClient.nextFile("Films/a.mp4")
+        assertNull(result)
+    }
+
+    // --- fetchCastQueue ---
+
+    @Test
+    fun `fetchCastQueue returns paths on 200`() = runTest {
+        val apiClient = createApiClient { url ->
+            if (url.encodedPath == "/api/cast/queue") {
+                respond("""["Films/b.mp4","Films/c.mp4"]""", HttpStatusCode.OK, jsonHeaders)
+            } else {
+                respond("", HttpStatusCode.NotFound)
+            }
+        }
+
+        val result = apiClient.fetchCastQueue()
+        assertEquals(listOf("Films/b.mp4", "Films/c.mp4"), result)
+    }
+
+    @Test
+    fun `fetchCastQueue returns empty list on non-200`() = runTest {
+        val apiClient = createApiClient {
+            respond("", HttpStatusCode.InternalServerError)
+        }
+
+        val result = apiClient.fetchCastQueue()
+        assertEquals(emptyList<String>(), result)
+    }
+
+    @Test
+    fun `fetchCastQueue returns empty list on network error`() = runTest {
+        val apiClient = createApiClientWithEngine(
+            MockEngine { throw java.io.IOException("Timeout") },
+        )
+
+        val result = apiClient.fetchCastQueue()
+        assertEquals(emptyList<String>(), result)
+    }
 }

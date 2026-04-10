@@ -7,12 +7,12 @@ export const useCast = () => {
   const queue = useState<string[]>("reel:castQueue", () => []);
   const error = ref<string | null>(null);
 
-  const cast = async (relativePath: string) => {
+  const cast = async (relativePath: string, opts?: { subtitleIndex?: number }) => {
     casting.value = true;
     error.value = null;
 
     try {
-      await rivetCast({ relativePath });
+      await rivetCast({ relativePath, subtitleIndex: opts?.subtitleIndex ?? null });
       currentFile.value = relativePath;
 
       const toast = useToast();

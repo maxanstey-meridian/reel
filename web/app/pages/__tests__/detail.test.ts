@@ -80,6 +80,7 @@ const setupDetailPage = (routePath: string | string[]) => {
   const subtitles = ref<SubtitleTrack[]>([]);
 
   const { casting, error: castError, cast } = useCast();
+  const selectedSubtitleIndex = ref<number | null>(null);
   const { loading: watchLoading, setWatched, setUnwatched } = useWatchState();
   const { tags, loading: tagsLoading, getTags, addTag, removeTag } = useTags();
   const newTag = ref("");
@@ -240,7 +241,9 @@ const setupDetailPage = (routePath: string | string[]) => {
   };
 
   const handleCast = async () => {
-    await cast(relativePath);
+    await cast(relativePath, {
+      subtitleIndex: selectedSubtitleIndex.value ?? undefined,
+    });
   };
 
   // Simulate onMounted data loading
@@ -289,6 +292,7 @@ const setupDetailPage = (routePath: string | string[]) => {
     handleRemoveTag,
     handleToggleWatched,
     handleCast,
+    selectedSubtitleIndex,
     loadData,
     // TMDB imagery & metadata
     heroMode,
@@ -616,7 +620,29 @@ describe("Detail page", () => {
       const page = setupDetailPage("Movies/Film.mkv");
       await page.handleCast();
 
-      expect(mockCast).toHaveBeenCalledWith({ relativePath: "Movies/Film.mkv" });
+      expect(mockCast).toHaveBeenCalledWith(
+        { relativePath: "Movies/Film.mkv", subtitleIndex: null },
+      );
+    });
+
+    it("passes selected subtitle index to cast", async () => {
+      const page = setupDetailPage("Movies/Film.mkv");
+      page.selectedSubtitleIndex.value = 2;
+      await page.handleCast();
+
+      expect(mockCast).toHaveBeenCalledWith(
+        { relativePath: "Movies/Film.mkv", subtitleIndex: 2 },
+      );
+    });
+
+    it("passes undefined subtitleIndex when none selected", async () => {
+      const page = setupDetailPage("Movies/Film.mkv");
+      page.selectedSubtitleIndex.value = null;
+      await page.handleCast();
+
+      expect(mockCast).toHaveBeenCalledWith(
+        { relativePath: "Movies/Film.mkv", subtitleIndex: null },
+      );
     });
   });
 

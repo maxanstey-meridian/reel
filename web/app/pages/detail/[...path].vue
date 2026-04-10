@@ -44,6 +44,7 @@ const detailLoading = ref(false);
 const subtitles = ref<SubtitleTrack[]>([]);
 
 const { casting, error: castError, cast } = useCast();
+const selectedSubtitleIndex = ref<number | null>(null);
 const { loading: watchLoading, setWatched, setUnwatched } = useWatchState();
 const { tags, loading: tagsLoading, getTags, addTag, removeTag } = useTags();
 const newTag = ref("");
@@ -225,7 +226,9 @@ const handleToggleWatched = async () => {
 };
 
 const handleCast = async () => {
-  await cast(relativePath.value);
+  await cast(relativePath.value, {
+    subtitleIndex: selectedSubtitleIndex.value ?? undefined,
+  });
 };
 
 // Load data on mount
@@ -471,15 +474,24 @@ onMounted(async () => {
       <!-- Subtitles -->
       <div v-if="subtitles.length > 0" class="space-y-1.5">
         <span class="text-xs text-neutral-500">Subtitles</span>
-        <div
+        <button
+          class="flex items-center gap-2 text-sm w-full rounded px-2 py-1"
+          :class="selectedSubtitleIndex === null ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'"
+          @click="selectedSubtitleIndex = null"
+        >
+          None
+        </button>
+        <button
           v-for="track in subtitles"
           :key="track.index"
-          class="flex items-center gap-2 text-sm text-neutral-300"
+          class="flex items-center gap-2 text-sm w-full rounded px-2 py-1"
+          :class="selectedSubtitleIndex === track.index ? 'bg-neutral-700 text-white' : 'text-neutral-400 hover:text-neutral-200'"
+          @click="selectedSubtitleIndex = track.index"
         >
           <span class="truncate">{{ track.language || 'Unknown' }}</span>
           <UBadge size="xs" color="neutral" variant="subtle">{{ track.format }}</UBadge>
           <UBadge size="xs" color="neutral" variant="outline">{{ track.source }}</UBadge>
-        </div>
+        </button>
       </div>
     </template>
   </div>

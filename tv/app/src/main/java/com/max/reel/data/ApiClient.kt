@@ -156,6 +156,46 @@ class ApiClient(
         }
     }
 
+    suspend fun fetchSubtitles(path: String): List<SubtitleTrack> {
+        return try {
+            val response = client.get("$baseUrl/api/files/subtitles?path=${path.encodeURLParameter()}") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<List<SubtitleTrack>>() else emptyList()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+    }
+
+    fun subtitleContentUrl(path: String, index: Int, format: String = "webvtt"): String {
+        return "$baseUrl/api/files/subtitles/content?path=${path.encodeURLParameter()}&index=$index&format=$format"
+    }
+
+    suspend fun nextFile(path: String): NextFileResponse? {
+        return try {
+            val response = client.get("$baseUrl/api/files/next?path=${path.encodeURLParameter()}") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<NextFileResponse>() else null
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            null
+        }
+    }
+
+    suspend fun fetchCastQueue(): List<String> {
+        return try {
+            val response = client.get("$baseUrl/api/cast/queue") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<List<String>>() else emptyList()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+    }
+
     suspend fun setWatched(path: String): Boolean {
         return try {
             val response = client.put("$baseUrl/api/media/watched?path=${path.encodeURLParameter()}") {

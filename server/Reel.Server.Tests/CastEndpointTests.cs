@@ -329,7 +329,59 @@ public sealed class CastEndpointTests : IClassFixture<WebApplicationFactory<Prog
         secondStatus.Command.PositionSeconds.Should().BeNull();
     }
 
-    private sealed record CastCommandDto(string Type, string? RelativePath, double? PositionSeconds = null);
+    [Fact]
+    public async Task PostCast_WithSubtitleIndex_IncludesSubtitleIndexInCommand()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var castResponse = await client.PostAsJsonAsync(
+            "/api/cast",
+            new { relativePath = "Films/subs.mp4", subtitleIndex = 2 }
+        );
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/subs.mp4");
+        status.Command.SubtitleIndex.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task PostCast_WithoutSubtitleIndex_SubtitleIndexIsNull()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var castResponse = await client.PostAsJsonAsync(
+            "/api/cast",
+            new { relativePath = "Films/no-subs.mp4" }
+        );
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/no-subs.mp4");
+        status.Command.SubtitleIndex.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PostCast_SubtitleIndex_RoundTripsWithPosition()
+    {
+        var client = CreateAuthenticatedClient();
+
+        var castResponse = await client.PostAsJsonAsync(
+            "/api/cast",
+            new { relativePath = "Films/both.mp4", positionSeconds = 60.0, subtitleIndex = 1 }
+        );
+        castResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var currentResponse = await client.GetAsync("/api/cast/current");
+        var status = await currentResponse.Content.ReadFromJsonAsync<CastStatusDto>();
+        status!.Command!.RelativePath.Should().Be("Films/both.mp4");
+        status.Command.PositionSeconds.Should().Be(60.0);
+        status.Command.SubtitleIndex.Should().Be(1);
+    }
+
+    private sealed record CastCommandDto(string Type, string? RelativePath, double? PositionSeconds = null, int? SubtitleIndex = null);
 
     private sealed record CastStatusDto(CastCommandDto? Command);
 }

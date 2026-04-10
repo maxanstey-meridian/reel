@@ -22,6 +22,7 @@ export type LibraryStatsResponse = {
 export type CastRequest = {
   relativePath: string;
   positionSeconds?: number | null;
+  subtitleIndex?: number | null;
 };
 
 export type CastQueueRequest = {

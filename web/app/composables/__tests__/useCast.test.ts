@@ -37,8 +37,26 @@ describe("useCast", () => {
     const { cast, currentFile } = useCast();
     await cast("Films/test.mp4");
 
-    expect(mockCast).toHaveBeenCalledWith({ relativePath: "Films/test.mp4" });
+    expect(mockCast).toHaveBeenCalledWith({ relativePath: "Films/test.mp4", subtitleIndex: null });
     expect(currentFile.value).toBe("Films/test.mp4");
+  });
+
+  it("cast passes subtitleIndex to rivet client", async () => {
+    mockCast.mockResolvedValue(undefined);
+
+    const { cast } = useCast();
+    await cast("Films/test.mp4", { subtitleIndex: 2 });
+
+    expect(mockCast).toHaveBeenCalledWith({ relativePath: "Films/test.mp4", subtitleIndex: 2 });
+  });
+
+  it("cast passes null subtitleIndex when not provided", async () => {
+    mockCast.mockResolvedValue(undefined);
+
+    const { cast } = useCast();
+    await cast("Films/test.mp4");
+
+    expect(mockCast).toHaveBeenCalledWith({ relativePath: "Films/test.mp4", subtitleIndex: null });
   });
 
   it("cast sets casting to true during request", async () => {
