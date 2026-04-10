@@ -48,3 +48,14 @@ data class SubtitleTrack(
     val format: String,
     val source: String,
 )
+
+@Serializable
+data class TrickplayMetadata(
+    val intervalMs: Int,
+    val columns: Int,
+    val rows: Int,
+    val thumbWidth: Int,
+    val thumbHeight: Int,
+    val totalThumbs: Int,
+    val spritePath: String,
+)

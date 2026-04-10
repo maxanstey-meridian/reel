@@ -172,6 +172,22 @@ class ApiClient(
         return "$baseUrl/api/files/subtitles/content?path=${path.encodeURLParameter()}&index=$index&format=$format"
     }
 
+    suspend fun fetchTrickplayMetadata(path: String): TrickplayMetadata? {
+        return try {
+            val response = client.get("$baseUrl/api/files/trickplay?path=${path.encodeURLParameter()}") {
+                header("X-Secret-Key", prefs.secretKey)
+            }
+            if (response.status.value == 200) response.body<TrickplayMetadata>() else null
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            null
+        }
+    }
+
+    fun trickplaySpriteUrl(path: String, sheet: Int): String {
+        return "$baseUrl/api/files/trickplay/sprite?path=${path.encodeURLParameter()}&sheet=$sheet&key=${prefs.secretKey.encodeURLParameter()}"
+    }
+
     suspend fun fetchNextFile(path: String): FileNode? {
         return try {
             val response = client.get("$baseUrl/api/files/next?path=${path.encodeURLParameter()}") {

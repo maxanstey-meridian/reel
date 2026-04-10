@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -193,6 +194,61 @@ class ApiClientTest {
 
         apiClient.fetchPosters(1)
         assertEquals("test-key", capturedAuthHeader)
+    }
+
+    // --- fetchTrickplayMetadata ---
+
+    @Test
+    fun `fetchTrickplayMetadata returns metadata on 200`() = runTest {
+        val apiClient = createApiClient { url ->
+            if (url.encodedPath == "/api/files/trickplay") {
+                respond(
+                    """{"intervalMs":5000,"columns":5,"rows":5,"thumbWidth":160,"thumbHeight":90,"totalThumbs":120,"spritePath":"cache/test"}""",
+                    HttpStatusCode.OK,
+                    jsonHeaders,
+                )
+            } else {
+                respond("", HttpStatusCode.NotFound)
+            }
+        }
+
+        val result = apiClient.fetchTrickplayMetadata("Films/movie.mp4")
+        assertEquals(5000, result?.intervalMs)
+        assertEquals(5, result?.columns)
+        assertEquals(5, result?.rows)
+        assertEquals(160, result?.thumbWidth)
+        assertEquals(90, result?.thumbHeight)
+        assertEquals(120, result?.totalThumbs)
+    }
+
+    @Test
+    fun `fetchTrickplayMetadata returns null on non-200`() = runTest {
+        val apiClient = createApiClient {
+            respond("", HttpStatusCode.NotFound)
+        }
+
+        val result = apiClient.fetchTrickplayMetadata("Films/no-trickplay.mp4")
+        assertNull(result)
+    }
+
+    @Test
+    fun `fetchTrickplayMetadata returns null on network error`() = runTest {
+        val apiClient = createApiClientWithEngine(
+            MockEngine { throw java.io.IOException("Timeout") },
+        )
+
+        val result = apiClient.fetchTrickplayMetadata("Films/movie.mp4")
+        assertNull(result)
+    }
+
+    @Test
+    fun `trickplaySpriteUrl constructs URL with query auth`() {
+        val prefs = createPrefs()
+        val apiClient = ApiClient(prefs)
+        val url = apiClient.trickplaySpriteUrl("Films/movie.mp4", 2)
+        assertTrue(url.contains("/api/files/trickplay/sprite"))
+        assertTrue(url.contains("sheet=2"))
+        assertTrue(url.contains("key="))
     }
 
     // --- fetchNextFile ---

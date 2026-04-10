@@ -49,6 +49,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PreferencesManager
+import com.max.reel.data.TrickplayMetadata
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -97,11 +98,6 @@ fun PlayerScreen(
     onFileEnded: (nextPath: String?) -> Unit = {},
 ) {
     val context = LocalContext.current
-
-    BackHandler {
-        onBack()
-    }
-
     val focusRequester = remember { FocusRequester() }
     val seekStepMs = 10_000L
     val scope = rememberCoroutineScope()
@@ -111,6 +107,17 @@ fun PlayerScreen(
 
         var playerError by remember { mutableStateOf<PlayerError?>(null) }
         var markedWatched by remember { mutableStateOf(false) }
+        var trickplayMetadata by remember { mutableStateOf<TrickplayMetadata?>(null) }
+        var scrubActive by remember { mutableStateOf(false) }
+        var scrubPositionMs by remember { mutableStateOf(0L) }
+
+        BackHandler {
+            if (scrubActive) {
+                scrubActive = false
+            } else {
+                onBack()
+            }
+        }
 
         val dataSourceFactory = remember {
             DefaultHttpDataSource.Factory()
@@ -166,6 +173,10 @@ fun PlayerScreen(
 
             player.setMediaItem(mediaItem)
             player.prepare()
+        }
+
+        LaunchedEffect(Unit) {
+            trickplayMetadata = apiClient.fetchTrickplayMetadata(relativePath)
         }
 
         DisposableEffect(Unit) {
@@ -251,17 +262,44 @@ fun PlayerScreen(
                 .focusRequester(focusRequester)
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    val meta = trickplayMetadata
                     when (event.key) {
                         Key.DirectionCenter, Key.MediaPlayPause -> {
-                            if (player.isPlaying) player.pause() else player.play()
+                            if (scrubActive) {
+                                player.seekTo(scrubPositionMs)
+                                player.play()
+                                scrubActive = false
+                            } else {
+                                if (player.isPlaying) player.pause() else player.play()
+                            }
                             true
                         }
                         Key.DirectionRight, Key.MediaFastForward -> {
-                            player.seekTo(player.currentPosition + seekStepMs)
+                            if (meta != null) {
+                                if (!scrubActive) {
+                                    scrubPositionMs = player.currentPosition
+                                    scrubActive = true
+                                    player.pause()
+                                }
+                                val max = (meta.totalThumbs - 1).toLong() * meta.intervalMs.toLong()
+                                scrubPositionMs = (scrubPositionMs + meta.intervalMs).coerceIn(0L, max)
+                            } else {
+                                player.seekTo(player.currentPosition + seekStepMs)
+                            }
                             true
                         }
                         Key.DirectionLeft, Key.MediaRewind -> {
-                            player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
+                            if (meta != null) {
+                                if (!scrubActive) {
+                                    scrubPositionMs = player.currentPosition
+                                    scrubActive = true
+                                    player.pause()
+                                }
+                                val max = (meta.totalThumbs - 1).toLong() * meta.intervalMs.toLong()
+                                scrubPositionMs = (scrubPositionMs - meta.intervalMs).coerceIn(0L, max)
+                            } else {
+                                player.seekTo((player.currentPosition - seekStepMs).coerceAtLeast(0))
+                            }
                             true
                         }
                         else -> false
@@ -281,6 +319,17 @@ fun PlayerScreen(
                     surfaceType = SURFACE_TYPE_SURFACE_VIEW,
                     modifier = Modifier.fillMaxSize(),
                 )
+
+                val meta = trickplayMetadata
+                if (scrubActive && meta != null) {
+                    PlayerScrubber(
+                        scrubPositionMs = scrubPositionMs,
+                        durationMs = player.duration.coerceAtLeast(1L),
+                        metadata = meta,
+                        spriteUrlBuilder = { sheet -> apiClient.trickplaySpriteUrl(relativePath, sheet) },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
             }
         }
 
