@@ -195,10 +195,10 @@ class ApiClientTest {
         assertEquals("test-key", capturedAuthHeader)
     }
 
-    // --- nextFile ---
+    // --- fetchNextFile ---
 
     @Test
-    fun `nextFile returns response on 200`() = runTest {
+    fun `fetchNextFile returns FileNode on 200`() = runTest {
         val apiClient = createApiClient { url ->
             if (url.encodedPath == "/api/files/next") {
                 respond(
@@ -211,27 +211,27 @@ class ApiClientTest {
             }
         }
 
-        val result = apiClient.nextFile("Films/a.mp4")
+        val result = apiClient.fetchNextFile("Films/a.mp4")
         assertEquals("Films/b.mp4", result?.relativePath)
     }
 
     @Test
-    fun `nextFile returns null on 204`() = runTest {
+    fun `fetchNextFile returns null on 204`() = runTest {
         val apiClient = createApiClient {
             respond("", HttpStatusCode.NoContent)
         }
 
-        val result = apiClient.nextFile("Films/last.mp4")
+        val result = apiClient.fetchNextFile("Films/last.mp4")
         assertNull(result)
     }
 
     @Test
-    fun `nextFile returns null on network error`() = runTest {
+    fun `fetchNextFile returns null on network error`() = runTest {
         val apiClient = createApiClientWithEngine(
             MockEngine { throw java.io.IOException("Timeout") },
         )
 
-        val result = apiClient.nextFile("Films/a.mp4")
+        val result = apiClient.fetchNextFile("Films/a.mp4")
         assertNull(result)
     }
 
