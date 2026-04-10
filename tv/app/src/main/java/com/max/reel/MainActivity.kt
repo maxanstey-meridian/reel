@@ -28,7 +28,7 @@ import okhttp3.OkHttpClient
 sealed interface Screen {
     data object Pairing : Screen
     data object WaitingForCast : Screen
-    data class Player(val relativePath: String, val positionSeconds: Double? = null, val subtitleIndex: Int? = null) : Screen
+    data class Player(val relativePath: String, val positionSeconds: Double? = null, val subtitleIndex: Int? = null, val isQueuePlayback: Boolean = false) : Screen
 }
 
 class MainActivity : ComponentActivity() {
@@ -141,8 +141,11 @@ private fun ReelApp(
             relativePath = current.relativePath,
             positionSeconds = current.positionSeconds,
             subtitleIndex = current.subtitleIndex,
+            isQueuePlayback = current.isQueuePlayback,
             onBack = { screen = Screen.WaitingForCast },
-            onPlayNext = { nextPath -> screen = Screen.Player(nextPath) },
+            onFileEnded = { nextPath ->
+                screen = if (nextPath != null) Screen.Player(nextPath) else Screen.WaitingForCast
+            },
         )
     }
 }

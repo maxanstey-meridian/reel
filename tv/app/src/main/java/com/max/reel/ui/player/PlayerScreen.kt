@@ -92,8 +92,9 @@ fun PlayerScreen(
     relativePath: String,
     positionSeconds: Double? = null,
     subtitleIndex: Int? = null,
+    isQueuePlayback: Boolean = false,
     onBack: () -> Unit,
-    onPlayNext: (relativePath: String) -> Unit = {},
+    onFileEnded: (nextPath: String?) -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -185,15 +186,14 @@ fun PlayerScreen(
                     when (playbackState) {
                         Player.STATE_ENDED -> {
                             reportProgress()
-                            if (prefs.autoAdvance) {
-                                scope.launch {
-                                    val queue = apiClient.fetchCastQueue()
-                                    if (queue.isEmpty()) {
-                                        val next = apiClient.nextFile(relativePath)
-                                        if (next != null) {
-                                            onPlayNext(next.relativePath)
-                                        }
+                            if (!isQueuePlayback) {
+                                if (prefs.autoAdvance) {
+                                    scope.launch {
+                                        val next = apiClient.fetchNextFile(relativePath)
+                                        onFileEnded(next?.relativePath)
                                     }
+                                } else {
+                                    onFileEnded(null)
                                 }
                             }
                         }

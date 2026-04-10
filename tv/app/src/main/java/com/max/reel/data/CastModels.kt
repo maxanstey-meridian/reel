@@ -32,7 +32,7 @@ sealed interface CastPollResult {
 data class PlayCommand(val relativePath: String, val positionSeconds: Double? = null, val subtitleIndex: Int? = null)
 
 @Serializable
-data class NextFileResponse(val relativePath: String)
+data class FileNode(val name: String, val type: String, val relativePath: String)
 
 @Serializable
 data class LibraryStats(val totalFiles: Int, val totalBytes: Long)

@@ -172,12 +172,12 @@ class ApiClient(
         return "$baseUrl/api/files/subtitles/content?path=${path.encodeURLParameter()}&index=$index&format=$format"
     }
 
-    suspend fun nextFile(path: String): NextFileResponse? {
+    suspend fun fetchNextFile(path: String): FileNode? {
         return try {
             val response = client.get("$baseUrl/api/files/next?path=${path.encodeURLParameter()}") {
                 header("X-Secret-Key", prefs.secretKey)
             }
-            if (response.status.value == 200) response.body<NextFileResponse>() else null
+            if (response.status.value == 200) response.body<FileNode>() else null
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             null
