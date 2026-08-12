@@ -1,31 +1,4 @@
-import type { FileNode } from "~~/generated/rivet/types/domain";
-
-/**
- * Recursively walks a directory node depth-first and returns the first
- * descendant with type === 'file', or null if none exist.
- */
-export const findFirstFile = (node: FileNode): FileNode | null => {
-  if (!node.children) {
-    return null;
-  }
-
-  for (const child of node.children) {
-    if (child.type === "file") {
-      return child;
-    }
-  }
-
-  for (const child of node.children) {
-    if (child.type === "directory") {
-      const found = findFirstFile(child);
-      if (found) {
-        return found;
-      }
-    }
-  }
-
-  return null;
-};
+import type { FileNode } from "~~/app/lib/api";
 
 /**
  * Counts direct children of a directory node that are files.

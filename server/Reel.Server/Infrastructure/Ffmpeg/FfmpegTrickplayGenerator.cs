@@ -3,11 +3,10 @@ namespace Reel.Server.Infrastructure.Ffmpeg;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.FileSystem;
 
 public class FfmpegTrickplayGenerator : ITrickplayGenerator
 {
@@ -20,37 +19,29 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
     private readonly string _cacheDirectory;
     private readonly ReelConfig _config;
     private readonly IMediaStore _mediaStore;
+    private readonly MediaPathResolver _pathResolver;
     private readonly ILogger<FfmpegTrickplayGenerator> _logger;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
     public FfmpegTrickplayGenerator(
         ReelConfig config,
         IMediaStore mediaStore,
+        MediaPathResolver pathResolver,
         ILogger<FfmpegTrickplayGenerator> logger
     )
     {
         _config = config;
         _mediaStore = mediaStore;
+        _pathResolver = pathResolver;
         _logger = logger;
         _cacheDirectory = Path.Combine(config.MediaRoot, ".reel", "trickplay");
     }
 
     public async Task<TrickplayMetadata?> GetOrGenerateAsync(string relativePath, CancellationToken ct)
     {
-        var fullPath = Path.GetFullPath(Path.Combine(_config.NormalisedMediaRoot, relativePath));
-
-        if (!fullPath.StartsWith(_config.NormalisedMediaRoot, StringComparison.Ordinal))
+        var fullPath = _pathResolver.ResolvePlayableFile(relativePath);
+        if (fullPath is null)
             return null;
-
-        // Check DB cache first
-        var cached = await _mediaStore.GetTrickplayAsync(relativePath, ct);
-        if (cached is not null)
-        {
-            // Verify at least the first sprite file still exists
-            var firstSprite = GetSpriteFilePath(cached.SpritePath, 0);
-            if (File.Exists(firstSprite))
-                return cached;
-        }
 
         Directory.CreateDirectory(_cacheDirectory);
 
@@ -58,51 +49,42 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
         await fileLock.WaitAsync(ct);
         try
         {
-            // Double-check after acquiring lock
-            cached = await _mediaStore.GetTrickplayAsync(relativePath, ct);
-            if (cached is not null)
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                var firstSprite = GetSpriteFilePath(cached.SpritePath, 0);
-                if (File.Exists(firstSprite))
+                var fingerprint = SourceFingerprint.Read(fullPath);
+                var spriteKey = ComputeCacheKey(relativePath, fingerprint);
+                var cached = await _mediaStore.GetTrickplayAsync(relativePath, ct);
+                if (cached is not null && cached.SpritePath == spriteKey && AllSpritesExist(cached))
                     return cached;
-            }
 
-            var duration = await GetDuration(fullPath, ct);
-            if (duration is null or <= 0)
-            {
-                _logger.LogWarning("Could not determine duration for {Path}", relativePath);
-                return null;
-            }
-
-            var totalThumbs = (int)Math.Ceiling(duration.Value / IntervalSeconds);
-            if (totalThumbs <= 0)
-                return null;
-
-            var sheetCount = (int)Math.Ceiling((double)totalThumbs / MaxThumbsPerSheet);
-            var spriteKey = ComputeCacheKey(relativePath);
-
-            for (var sheet = 0; sheet < sheetCount; sheet++)
-            {
-                var thumbsOnSheet = Math.Min(MaxThumbsPerSheet, totalThumbs - sheet * MaxThumbsPerSheet);
-                var rowsOnSheet = (int)Math.Ceiling((double)thumbsOnSheet / TileColumns);
-                var spritePath = GetSpriteFilePath(spriteKey, sheet);
-
-                var success = await GenerateSpriteSheet(fullPath, spritePath, sheet, rowsOnSheet, ct);
-                if (!success)
+                var duration = await GetDuration(fullPath, ct);
+                if (duration is null or <= 0)
                 {
-                    _logger.LogWarning(
-                        "Failed to generate trickplay sheet {Sheet} for {Path}",
-                        sheet,
-                        relativePath
-                    );
-                    CleanupPartialSprites(spriteKey, sheet);
+                    _logger.LogWarning("Could not determine duration for {Path}", relativePath);
                     return null;
                 }
-            }
+
+                var totalThumbs = CalculateTotalThumbs(duration.Value);
+                if (totalThumbs <= 0)
+                    return null;
+
+                var sheetCount = CalculateSheetCount(totalThumbs);
+                for (var sheet = 0; sheet < sheetCount; sheet++)
+                {
+                    var rowsOnSheet = CalculateRowsOnSheet(totalThumbs, sheet);
+                    var spritePath = GetSpriteFilePath(spriteKey, sheet);
+
+                    var success = await GenerateSpriteSheet(fullPath, spritePath, sheet, rowsOnSheet, ct);
+                    if (!success)
+                    {
+                        CleanupSprites(spriteKey, sheetCount);
+                        return null;
+                    }
+                }
 
             // Use full grid rows for metadata — the last sheet may have fewer but the
             // client uses total_thumbs to know when to stop
-            var metadata = new TrickplayMetadata(
+                var metadata = new TrickplayMetadata(
                 IntervalMs: IntervalSeconds * 1000,
                 Columns: TileColumns,
                 Rows: TileRows,
@@ -113,27 +95,40 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
             );
 
             // Read actual thumb height from the first sprite
-            metadata = metadata with { ThumbHeight = GetThumbHeight(spriteKey, totalThumbs) };
+                metadata = metadata with { ThumbHeight = GetThumbHeight(spriteKey, totalThumbs) };
 
-            await _mediaStore.SaveTrickplayAsync(relativePath, metadata, ct);
+                if (SourceFingerprint.Read(fullPath) != fingerprint)
+                {
+                    CleanupSprites(spriteKey, sheetCount);
+                    continue;
+                }
 
-            return metadata;
+                await _mediaStore.SaveTrickplayAsync(relativePath, metadata, ct);
+                return metadata;
+            }
+
+            return null;
         }
         finally
         {
             fileLock.Release();
-            _locks.TryRemove(relativePath, out _);
         }
     }
 
     private string GetSpriteFilePath(string spriteKey, int sheetIndex) =>
         Path.Combine(_cacheDirectory, $"{spriteKey}_{sheetIndex}.jpg");
 
-    internal static string ComputeCacheKey(string relativePath)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(relativePath));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
+    internal static string ComputeCacheKey(string relativePath, string fullPath) =>
+        ComputeCacheKey(relativePath, SourceFingerprint.Read(fullPath));
+
+    internal static string ComputeCacheKey(string relativePath, long size, DateTime lastWriteTimeUtc) =>
+        ComputeCacheKey(relativePath, new SourceFingerprint(size, lastWriteTimeUtc));
+
+    internal static string ComputeCacheKey(string relativePath) =>
+        ComputeCacheKey(relativePath, new SourceFingerprint(0, DateTime.MinValue));
+
+    private static string ComputeCacheKey(string relativePath, SourceFingerprint fingerprint) =>
+        fingerprint.ComputeKey(relativePath);
 
     internal static int CalculateTotalThumbs(double durationSeconds) =>
         (int)Math.Ceiling(durationSeconds / IntervalSeconds);
@@ -151,7 +146,7 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
     {
         try
         {
-            using var process = Process.Start(
+            var result = await ProcessRunner.RunAsync(
                 new ProcessStartInfo
                 {
                     FileName = "ffprobe",
@@ -161,31 +156,26 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
                     RedirectStandardError = false,
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                }
+                }, ct
             );
 
-            if (process is null)
+            if (result.ExitCode != 0)
             {
-                _logger.LogWarning("Failed to start ffprobe process");
-                return null;
-            }
-
-            var output = await process.StandardOutput.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-
-            if (process.ExitCode != 0)
-            {
-                _logger.LogWarning("ffprobe exited with code {ExitCode}", process.ExitCode);
+                _logger.LogWarning("ffprobe exited with code {ExitCode}", result.ExitCode);
                 return null;
             }
 
             if (
-                double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration)
+                double.TryParse(result.StandardOutputText.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var duration)
                 && duration > 0
             )
                 return duration;
 
             return null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -214,7 +204,7 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
                 ? $"-t {durationArg} -i \"{fullPath}\" -vf \"fps=1/{IntervalSeconds},scale={ThumbWidth}:-1,tile={TileColumns}x{rowsOnSheet}\" -frames:v 1 -y \"{outputPath}\""
                 : $"-ss {startArg} -t {durationArg} -i \"{fullPath}\" -vf \"fps=1/{IntervalSeconds},scale={ThumbWidth}:-1,tile={TileColumns}x{rowsOnSheet}\" -frames:v 1 -y \"{outputPath}\"";
 
-            using var process = Process.Start(
+            var result = await ProcessRunner.RunAsync(
                 new ProcessStartInfo
                 {
                     FileName = "ffmpeg",
@@ -223,21 +213,12 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,
-                }
+                }, ct
             );
 
-            if (process is null)
+            if (result.ExitCode != 0)
             {
-                _logger.LogWarning("Failed to start ffmpeg process");
-                return false;
-            }
-
-            var stderr = await process.StandardError.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-
-            if (process.ExitCode != 0)
-            {
-                _logger.LogWarning("ffmpeg trickplay exited with code {ExitCode}: {Error}", process.ExitCode, stderr);
+                _logger.LogWarning("ffmpeg trickplay exited with code {ExitCode}: {Error}", result.ExitCode, result.StandardError);
 
                 if (File.Exists(outputPath))
                     File.Delete(outputPath);
@@ -246,6 +227,12 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
             }
 
             return File.Exists(outputPath);
+        }
+        catch (OperationCanceledException)
+        {
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+            throw;
         }
         catch (Exception ex)
         {
@@ -328,9 +315,15 @@ public class FfmpegTrickplayGenerator : ITrickplayGenerator
         }
     }
 
-    private void CleanupPartialSprites(string spriteKey, int failedSheetIndex)
+    private bool AllSpritesExist(TrickplayMetadata metadata)
     {
-        for (var i = 0; i < failedSheetIndex; i++)
+        var sheetCount = CalculateSheetCount(metadata.TotalThumbs);
+        return Enumerable.Range(0, sheetCount).All(sheet => File.Exists(GetSpriteFilePath(metadata.SpritePath, sheet)));
+    }
+
+    private void CleanupSprites(string spriteKey, int sheetCount)
+    {
+        for (var i = 0; i < sheetCount; i++)
         {
             var path = GetSpriteFilePath(spriteKey, i);
             if (File.Exists(path))

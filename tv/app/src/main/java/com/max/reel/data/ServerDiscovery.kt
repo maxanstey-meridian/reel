@@ -4,9 +4,8 @@ import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 private const val TAG = "ServerDiscovery"
 
@@ -16,16 +15,27 @@ data class DiscoveredServer(
     val secretKey: String,
 )
 
-class ServerDiscovery {
+interface ServerDiscoverer {
+    val servers: Flow<DiscoveredServer>
 
-    private val _server = MutableStateFlow<DiscoveredServer?>(null)
-    val server: StateFlow<DiscoveredServer?> = _server.asStateFlow()
+    fun start(context: Context)
+    fun stop()
+}
+
+class ServerDiscovery : ServerDiscoverer {
+
+    private val _servers = MutableSharedFlow<DiscoveredServer>(extraBufferCapacity = 8)
+    override val servers: Flow<DiscoveredServer> = _servers
 
     private var nsdManager: NsdManager? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
+    private var generation = 0
 
-    fun start(context: Context) {
+    override fun start(context: Context) {
+        if (discoveryListener != null) return
+
         Log.i(TAG, "Starting discovery...")
+        val activeGeneration = ++generation
         val manager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
         nsdManager = manager
 
@@ -51,6 +61,7 @@ class ServerDiscovery {
                     }
 
                     override fun onServiceResolved(resolved: NsdServiceInfo) {
+                        if (activeGeneration != generation) return
                         val host = resolved.host?.hostAddress ?: return
                         val port = resolved.port
                         Log.i(TAG, "Resolved: $host:$port attrs=${resolved.attributes.keys}")
@@ -59,7 +70,7 @@ class ServerDiscovery {
                             ?: return
 
                         Log.i(TAG, "Server discovered: $host:$port")
-                        _server.value = DiscoveredServer(host, port, key)
+                        _servers.tryEmit(DiscoveredServer(host, port, key))
                     }
                 })
             }
@@ -72,7 +83,8 @@ class ServerDiscovery {
         manager.discoverServices("_reel._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
     }
 
-    fun stop() {
+    override fun stop() {
+        generation++
         discoveryListener?.let { listener ->
             try {
                 nsdManager?.stopServiceDiscovery(listener)

@@ -8,9 +8,10 @@
 
   <ItemGroup>
     <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.7" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
     <PackageReference Include="MimeTypesMap" Version="1.0.9" />
-    <PackageReference Include="Rivet.Attributes" Version="0.32.0" />
+    <PackageReference Include="Rivet.Attributes" Version="0.41.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
   </ItemGroup>
 
   <ItemGroup>

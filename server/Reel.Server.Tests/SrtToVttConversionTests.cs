@@ -17,7 +17,11 @@ public sealed class SrtToVttConversionTests
             SecretKey = "test",
             Port = 8080,
         };
-        _extractor = new FfmpegSubtitleExtractor(config, NullLogger<FfmpegSubtitleExtractor>.Instance);
+        _extractor = new FfmpegSubtitleExtractor(
+            config,
+            new Infrastructure.FileSystem.MediaPathResolver(config),
+            NullLogger<FfmpegSubtitleExtractor>.Instance
+        );
     }
 
     [Fact]

@@ -29,7 +29,12 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
 
         var db = new DatabaseService(_config, NullLogger<DatabaseService>.Instance);
         _mediaStore = new SqliteMediaStore(db);
-        _generator = new FfmpegTrickplayGenerator(_config, _mediaStore, NullLogger<FfmpegTrickplayGenerator>.Instance);
+        _generator = new FfmpegTrickplayGenerator(
+            _config,
+            _mediaStore,
+            new Infrastructure.FileSystem.MediaPathResolver(_config),
+            NullLogger<FfmpegTrickplayGenerator>.Instance
+        );
     }
 
     public void Dispose()
@@ -61,7 +66,12 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
     {
         // Pre-seed metadata in DB
         const string relativePath = "Films/cached.mp4";
-        var spriteKey = FfmpegTrickplayGenerator.ComputeCacheKey(relativePath);
+        Directory.CreateDirectory(Path.Combine(_mediaRoot, "Films"));
+        var mediaPath = Path.Combine(_mediaRoot, relativePath);
+        await File.WriteAllBytesAsync(mediaPath, new byte[10]);
+        await _mediaStore.ReconcileAsync([new MediaRecord(relativePath, null, null)], CancellationToken.None);
+        var source = new FileInfo(mediaPath);
+        var spriteKey = FfmpegTrickplayGenerator.ComputeCacheKey(relativePath, source.Length, source.LastWriteTimeUtc);
         var metadata = new TrickplayMetadata(10000, 10, 10, 320, 180, 6, spriteKey);
         await _mediaStore.SaveTrickplayAsync(relativePath, metadata, CancellationToken.None);
 
@@ -71,9 +81,6 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         await File.WriteAllBytesAsync(Path.Combine(cacheDir, $"{spriteKey}_0.jpg"), new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 });
 
         // Create the media file so path traversal guard passes
-        Directory.CreateDirectory(Path.Combine(_mediaRoot, "Films"));
-        await File.WriteAllBytesAsync(Path.Combine(_mediaRoot, relativePath), new byte[10]);
-
         // Use a fake that would throw if generation were attempted
         var fake = new FakeTrickplayGenerator(_config, _mediaStore, shouldThrowOnGenerate: true);
 
@@ -90,6 +97,7 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         const string relativePath = "Films/generate.mp4";
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "Films"));
         await File.WriteAllBytesAsync(Path.Combine(_mediaRoot, relativePath), new byte[10]);
+        await _mediaStore.ReconcileAsync([new MediaRecord(relativePath, null, null)], CancellationToken.None);
 
         var fake = new FakeTrickplayGenerator(_config, _mediaStore, fakeDuration: 60.0);
 
@@ -114,6 +122,7 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         const string relativePath = "Films/long-movie.mp4";
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "Films"));
         await File.WriteAllBytesAsync(Path.Combine(_mediaRoot, relativePath), new byte[10]);
+        await _mediaStore.ReconcileAsync([new MediaRecord(relativePath, null, null)], CancellationToken.None);
 
         // 1200s = 120 thumbs = 2 sheets
         var fake = new FakeTrickplayGenerator(_config, _mediaStore, fakeDuration: 1200.0);
@@ -131,6 +140,7 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         const string relativePath = "Films/concurrent.mp4";
         Directory.CreateDirectory(Path.Combine(_mediaRoot, "Films"));
         await File.WriteAllBytesAsync(Path.Combine(_mediaRoot, relativePath), new byte[10]);
+        await _mediaStore.ReconcileAsync([new MediaRecord(relativePath, null, null)], CancellationToken.None);
 
         // Use a slow fake that delays generation to expose concurrency
         var fake = new FakeTrickplayGenerator(_config, _mediaStore, fakeDuration: 30.0, generateDelay: TimeSpan.FromMilliseconds(200));
@@ -276,7 +286,12 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
             bool shouldThrowOnGenerate = false,
             TimeSpan generateDelay = default
         )
-            : base(config, mediaStore, NullLogger<FfmpegTrickplayGenerator>.Instance)
+            : base(
+                config,
+                mediaStore,
+                new Infrastructure.FileSystem.MediaPathResolver(config),
+                NullLogger<FfmpegTrickplayGenerator>.Instance
+            )
         {
             _fakeDuration = fakeDuration;
             _shouldThrowOnGenerate = shouldThrowOnGenerate;

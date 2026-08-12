@@ -1,6 +1,5 @@
 import { ref } from "vue";
-import { favouritesAll, favouritesAdd, favouritesRemove } from "~~/generated/rivet/client/reel";
-import type { Favourite } from "~~/generated/rivet/types/domain";
+import { api, type Favourite } from "~~/app/lib/api";
 
 export type { Favourite };
 
@@ -18,7 +17,7 @@ export const useFavourites = () => {
     error.value = null;
 
     try {
-      favourites.value = await favouritesAll();
+      favourites.value = await api.favouritesAll();
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Failed to fetch favourites";
     } finally {
@@ -39,11 +38,11 @@ export const useFavourites = () => {
 
     try {
       if (wasFavourited) {
-        await favouritesRemove(relativePath);
+        await api.favouritesRemove(relativePath);
         const toast = useToast();
         toast.add({ title: "Removed from favourites", icon: "i-lucide-heart-off", color: "neutral" });
       } else {
-        await favouritesAdd({ relativePath });
+        await api.favouritesAdd({ relativePath });
         const toast = useToast();
         toast.add({ title: "Added to favourites", icon: "i-lucide-heart", color: "success" });
       }

@@ -1,10 +1,4 @@
-export default defineNuxtPlugin(async () => {
+export default defineNuxtPlugin(() => {
   const { restore } = useConnection();
   restore();
-
-  const { isConnected } = useConnection();
-  if (isConnected.value) {
-    const { fetchUsers } = useUser();
-    await fetchUsers().catch(() => {});
-  }
 });

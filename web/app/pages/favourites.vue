@@ -1,22 +1,16 @@
 <script setup lang="ts">
-import type { FileNode } from "~~/generated/rivet/types/domain";
-import { useConnection } from "../composables/useConnection";
+import type { FileNode } from "~~/app/lib/api";
 import { useFavourites } from "../composables/useFavourites";
 import { useLibrary } from "../composables/useLibrary";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { findNodeByPath } from "../utils/findNodeByPath";
 
-const { isConnected } = useConnection();
 const { favourites, loading, error, fetch: fetchFavourites } = useFavourites();
 
 const { refreshing, pullOffset } = usePullToRefresh(() => fetchFavourites());
 const { tree } = useLibrary();
 
 onMounted(() => {
-  if (!isConnected.value) {
-    navigateTo("/connect", { replace: true });
-    return;
-  }
   fetchFavourites();
 });
 

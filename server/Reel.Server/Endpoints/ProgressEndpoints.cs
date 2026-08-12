@@ -3,7 +3,9 @@ namespace Reel.Server.Endpoints;
 using Microsoft.AspNetCore.Mvc;
 using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
-using Reel.Server.Extensions;
+using Reel.Server.Domain.Exceptions;
+using Reel.Server.Infrastructure.FileSystem;
+using Rivet;
 
 public static class ProgressEndpoints
 {
@@ -12,40 +14,37 @@ public static class ProgressEndpoints
         app.MapPost(
             ReelContract.ProgressUpdate.Route,
             async (
-                HttpContext context,
                 [FromBody] ProgressRequest request,
                 IProgressStore store,
+                IMediaStore mediaStore,
+                MediaPathResolver pathResolver,
                 CancellationToken ct
             ) =>
-                (
-                    await ReelContract.ProgressUpdate.Invoke(
-                        request,
-                        async req =>
-                        {
-                            var userId = context.GetUserId();
-                            await store.UpdateAsync(
-                                userId,
-                                req.RelativePath,
-                                req.PositionSeconds,
-                                req.DurationSeconds,
-                                ct
-                            );
-                        }
-                    )
-                ).ToResult()
+            {
+                var endpoint = ReelContract.ProgressUpdate.Bind(request);
+                if (!double.IsFinite(request.PositionSeconds) || request.PositionSeconds < 0
+                    || !double.IsFinite(request.DurationSeconds) || request.DurationSeconds <= 0)
+                    throw new BadRequestException("Position must be finite and non-negative, and duration must be finite and positive.");
+                if (pathResolver.ResolvePlayableFile(request.RelativePath) is null
+                    || await mediaStore.GetAsync(request.RelativePath, ct) is null)
+                    throw new NotFoundException("Indexed playable media was not found.");
+                await store.UpdateAsync(
+                    request.RelativePath,
+                    Math.Min(request.PositionSeconds, request.DurationSeconds),
+                    request.DurationSeconds,
+                    ct
+                );
+                return endpoint.Success().ToResult();
+            }
         );
 
         app.MapGet(
             ReelContract.ProgressAll.Route,
-            async (HttpContext context, IProgressStore store, CancellationToken ct) =>
-                (
-                    await ReelContract.ProgressAll.Invoke(async () =>
-                    {
-                        var userId = context.GetUserId();
-                        var progress = await store.GetAllAsync(userId, ct);
-                        return progress.ToArray();
-                    })
-                ).ToResult()
+            async (IProgressStore store, CancellationToken ct) =>
+            {
+                var progress = await store.GetAllAsync(ct);
+                return ReelContract.ProgressAll.Success(progress.ToArray()).ToResult();
+            }
         );
 
         return app;

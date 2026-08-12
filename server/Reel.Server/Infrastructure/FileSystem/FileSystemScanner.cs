@@ -6,137 +6,28 @@ using Reel.Server.Infrastructure.Configuration;
 
 public sealed class FileSystemScanner : ILibraryScanner
 {
-    private static readonly HashSet<string> _playableExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".mp4",
-        ".mkv",
-        ".avi",
-        ".mov",
-        ".wmv",
-        ".flv",
-        ".webm",
-        ".m4v",
-        ".ts",
-        ".mp3",
-        ".flac",
-        ".aac",
-        ".m4a",
-        ".ogg",
-        ".wav",
-    };
-
     private readonly string _mediaRoot;
-    private readonly IMediaStore _mediaStore;
+    private readonly MediaPathResolver _pathResolver;
     private readonly ILogger<FileSystemScanner> _logger;
 
-    public FileSystemScanner(ReelConfig config, IMediaStore mediaStore, ILogger<FileSystemScanner> logger)
+    public FileSystemScanner(ReelConfig config, MediaPathResolver pathResolver, ILogger<FileSystemScanner> logger)
     {
         _mediaRoot = config.NormalisedMediaRoot;
-        _mediaStore = mediaStore;
+        _pathResolver = pathResolver;
         _logger = logger;
     }
 
-    public async Task<FileNode> BuildTreeAsync(CancellationToken ct)
-    {
-        var root = BuildNode(_mediaRoot, string.Empty);
+    public async Task<FileNode> BuildTreeAsync(CancellationToken ct) => (await ScanAsync(ct)).Root;
 
-        return await UpsertAndEnrichAsync(root, ct);
+    public Task<LibraryScanResult> ScanAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var isComplete = true;
+        var root = BuildNode(_mediaRoot, string.Empty, ct, ref isComplete);
+        return Task.FromResult(new LibraryScanResult(root, isComplete));
     }
 
-    public async Task<FileNode?> GetNextFileAsync(string relativePath, CancellationToken ct)
-    {
-        var fullPath = Path.GetFullPath(Path.Combine(_mediaRoot, relativePath));
-        if (!fullPath.StartsWith(_mediaRoot, StringComparison.Ordinal))
-            return null;
-
-        if (!File.Exists(fullPath))
-            return null;
-
-        var directory = Path.GetDirectoryName(fullPath)!;
-        var playableFiles = new List<string>();
-
-        foreach (var entry in Directory.EnumerateFiles(directory))
-        {
-            var name = Path.GetFileName(entry);
-            if (name.StartsWith('.'))
-                continue;
-
-            var ext = Path.GetExtension(name);
-            if (!_playableExtensions.Contains(ext))
-                continue;
-
-            var fileInfo = new FileInfo(entry);
-            if (fileInfo.LinkTarget is not null)
-                continue;
-
-            playableFiles.Add(entry);
-        }
-
-        playableFiles.Sort(new NaturalSortComparer());
-
-        var currentIndex = playableFiles.FindIndex(f =>
-            string.Equals(f, fullPath, StringComparison.Ordinal));
-
-        if (currentIndex < 0 || currentIndex >= playableFiles.Count - 1)
-            return null;
-
-        var nextPath = playableFiles[currentIndex + 1];
-        var nextName = Path.GetFileName(nextPath);
-        var nextFileInfo = new FileInfo(nextPath);
-        var directoryRelative = Path.GetRelativePath(_mediaRoot, directory);
-        var nextRelative = directoryRelative == "."
-            ? nextName
-            : $"{directoryRelative}/{nextName}";
-        var nextExtension = Path.GetExtension(nextName).ToLowerInvariant();
-        var parsed = Application.FilenameParser.Parse(nextName);
-        var thumbnailUrl = $"/api/files/thumbnail?path={Uri.EscapeDataString(nextRelative)}";
-
-        var node = new FileNode(
-            nextName,
-            FileNodeType.File,
-            nextRelative,
-            string.IsNullOrEmpty(nextExtension) ? null : nextExtension,
-            nextFileInfo.Length,
-            null,
-            parsed.Title,
-            parsed.Year,
-            thumbnailUrl,
-            Watched: null,
-            DisplayTitle: null
-        );
-
-        await _mediaStore.UpsertFromScanAsync(node.RelativePath, node.ParsedTitle, node.Year, ct);
-        var dbDisplayTitle = await _mediaStore.GetDisplayTitleAsync(node.RelativePath, ct);
-        var displayTitle = dbDisplayTitle ?? node.ParsedTitle ?? node.Name;
-
-        return node with { DisplayTitle = displayTitle };
-    }
-
-    private async Task<FileNode> UpsertAndEnrichAsync(FileNode node, CancellationToken ct)
-    {
-        if (node.Type == FileNodeType.File)
-        {
-            await _mediaStore.UpsertFromScanAsync(node.RelativePath, node.ParsedTitle, node.Year, ct);
-
-            var dbDisplayTitle = await _mediaStore.GetDisplayTitleAsync(node.RelativePath, ct);
-            var displayTitle = dbDisplayTitle ?? node.ParsedTitle ?? node.Name;
-
-            return node with { DisplayTitle = displayTitle };
-        }
-
-        if (node.Children is not { Count: > 0 })
-            return node;
-
-        var enrichedChildren = new List<FileNode>(node.Children.Count);
-        foreach (var child in node.Children)
-        {
-            enrichedChildren.Add(await UpsertAndEnrichAsync(child, ct));
-        }
-
-        return node with { Children = enrichedChildren };
-    }
-
-    private FileNode BuildNode(string absolutePath, string relativePath)
+    private FileNode BuildNode(string absolutePath, string relativePath, CancellationToken ct, ref bool isComplete)
     {
         var dirInfo = new DirectoryInfo(absolutePath);
         var children = new List<FileNode>();
@@ -147,6 +38,7 @@ public sealed class FileSystemScanner : ILibraryScanner
 
             foreach (var entryPath in entries)
             {
+                ct.ThrowIfCancellationRequested();
                 var name = Path.GetFileName(entryPath);
                 if (name.StartsWith('.'))
                     continue;
@@ -163,7 +55,7 @@ public sealed class FileSystemScanner : ILibraryScanner
                         if (childDirInfo.LinkTarget is not null)
                             continue;
 
-                        var childNode = BuildNode(entryPath, childRelative);
+                        var childNode = BuildNode(entryPath, childRelative, ct, ref isComplete);
                         if (childNode.Children is { Count: > 0 } || childNode.Type == FileNodeType.File)
                             children.Add(childNode);
                     }
@@ -174,11 +66,10 @@ public sealed class FileSystemScanner : ILibraryScanner
                             continue;
 
                         var extension = Path.GetExtension(name).ToLowerInvariant();
-                        if (!_playableExtensions.Contains(extension))
+                        if (!_pathResolver.IsPlayable(entryPath))
                             continue;
 
                         var parsed = Application.FilenameParser.Parse(name);
-                        var thumbnailUrl = $"/api/files/thumbnail?path={Uri.EscapeDataString(childRelative)}";
                         children.Add(
                             new FileNode(
                                 name,
@@ -189,29 +80,31 @@ public sealed class FileSystemScanner : ILibraryScanner
                                 null,
                                 parsed.Title,
                                 parsed.Year,
-                                thumbnailUrl,
-                                Watched: null,
-                                DisplayTitle: null
+                                Watched: null
                             )
                         );
                     }
                 }
                 catch (UnauthorizedAccessException ex)
                 {
+                    isComplete = false;
                     _logger.LogWarning(ex, "Permission denied accessing {Path}", entryPath);
                 }
                 catch (IOException ex)
                 {
+                    isComplete = false;
                     _logger.LogWarning(ex, "I/O error accessing {Path}", entryPath);
                 }
             }
         }
         catch (UnauthorizedAccessException ex)
         {
+            isComplete = false;
             _logger.LogWarning(ex, "Permission denied enumerating {Path}", absolutePath);
         }
         catch (IOException ex)
         {
+            isComplete = false;
             _logger.LogWarning(ex, "I/O error enumerating {Path}", absolutePath);
         }
 
@@ -223,10 +116,8 @@ public sealed class FileSystemScanner : ILibraryScanner
             null,
             children,
             null,
-            null,
-            null,
             Watched: null,
-            DisplayTitle: null
+            Year: null
         );
     }
 }

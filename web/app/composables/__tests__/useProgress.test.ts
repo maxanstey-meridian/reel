@@ -10,8 +10,8 @@ vi.stubGlobal("computed", computed);
 // Mock Rivet client
 const mockProgressAll = vi.fn();
 
-vi.mock("~~/generated/rivet/client/reel", () => ({
-  progressAll: (...args: unknown[]) => mockProgressAll(...args),
+vi.mock("~~/app/lib/api", () => ({
+  api: { progressAll: (...args: unknown[]) => mockProgressAll(...args) },
 }));
 
 // Import after mocks

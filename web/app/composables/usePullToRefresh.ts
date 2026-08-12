@@ -16,7 +16,9 @@ export const usePullToRefresh = (onRefresh: () => Promise<void>) => {
       return;
     }
     const touch = e.touches[0];
-    if (!touch) return;
+    if (!touch) {
+      return;
+    }
     startY = touch.clientY;
     pulling = true;
   };
@@ -33,7 +35,9 @@ export const usePullToRefresh = (onRefresh: () => Promise<void>) => {
     }
 
     const touch = e.touches[0];
-    if (!touch) return;
+    if (!touch) {
+      return;
+    }
     const deltaY = touch.clientY - startY;
 
     if (deltaY > 0) {

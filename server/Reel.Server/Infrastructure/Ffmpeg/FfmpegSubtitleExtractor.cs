@@ -2,22 +2,26 @@ namespace Reel.Server.Infrastructure.Ffmpeg;
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Reel.Server.Application.Ports;
 using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.FileSystem;
 
 public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
 {
-    private readonly ReelConfig _config;
+    private readonly MediaPathResolver _pathResolver;
     private readonly ILogger<FfmpegSubtitleExtractor> _logger;
     private readonly string _cacheDirectory;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
-    public FfmpegSubtitleExtractor(ReelConfig config, ILogger<FfmpegSubtitleExtractor> logger)
+    public FfmpegSubtitleExtractor(
+        ReelConfig config,
+        MediaPathResolver pathResolver,
+        ILogger<FfmpegSubtitleExtractor> logger
+    )
     {
-        _config = config;
+        _pathResolver = pathResolver;
         _logger = logger;
         _cacheDirectory = Path.Combine(config.MediaRoot, ".reel", "subtitles");
     }
@@ -29,18 +33,9 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
         CancellationToken ct
     )
     {
-        var fullPath = Path.GetFullPath(Path.Combine(_config.NormalisedMediaRoot, relativePath));
-        if (!fullPath.StartsWith(_config.NormalisedMediaRoot, StringComparison.Ordinal))
+        var fullPath = _pathResolver.ResolvePlayableFile(relativePath);
+        if (fullPath is null)
             return null;
-
-        if (!File.Exists(fullPath))
-            return null;
-
-        var cacheKey = ComputeCacheKey(relativePath, trackIndex, outputFormat);
-        var cachedPath = Path.Combine(_cacheDirectory, $"{cacheKey}.{outputFormat}");
-
-        if (File.Exists(cachedPath))
-            return cachedPath;
 
         Directory.CreateDirectory(_cacheDirectory);
 
@@ -49,12 +44,29 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
         await fileLock.WaitAsync(ct);
         try
         {
-            // Double-check after acquiring lock
-            if (File.Exists(cachedPath))
-                return cachedPath;
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var fingerprint = SourceFingerprint.Read(fullPath);
+                var cacheKey = fingerprint.ComputeKey(relativePath, trackIndex, outputFormat);
+                var cachedPath = Path.Combine(_cacheDirectory, $"{cacheKey}.{outputFormat}");
+                if (File.Exists(cachedPath))
+                    return cachedPath;
 
-            var success = await ExtractTrack(fullPath, trackIndex, outputFormat, cachedPath, ct);
-            return success ? cachedPath : null;
+                var temporaryPath = $"{cachedPath}.{Guid.NewGuid():N}.tmp";
+                var success = await ExtractTrack(fullPath, trackIndex, outputFormat, temporaryPath, ct);
+                if (!success)
+                    return null;
+                if (SourceFingerprint.Read(fullPath) != fingerprint)
+                {
+                    File.Delete(temporaryPath);
+                    continue;
+                }
+
+                File.Move(temporaryPath, cachedPath, overwrite: true);
+                return cachedPath;
+            }
+
+            return null;
         }
         finally
         {
@@ -116,13 +128,6 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
         return sb.ToString();
     }
 
-    private static string ComputeCacheKey(string relativePath, int trackIndex, string outputFormat)
-    {
-        var input = $"{relativePath}:{trackIndex}:{outputFormat}";
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
     private async Task<bool> ExtractTrack(
         string fullPath,
         int trackIndex,
@@ -133,7 +138,7 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
+            var result = await ProcessRunner.RunAsync(new ProcessStartInfo
             {
                 FileName = "ffmpeg",
                 Arguments = $"-i \"{fullPath}\" -map 0:s:{trackIndex} -f {outputFormat} -",
@@ -141,35 +146,26 @@ public sealed partial class FfmpegSubtitleExtractor : ISubtitleExtractor
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-            });
+            }, ct);
 
-            if (process is null)
-            {
-                _logger.LogWarning("Failed to start ffmpeg process");
-                return false;
-            }
-
-            // Drain stdout and stderr concurrently to avoid deadlock
-            // when stderr exceeds the OS pipe buffer
-            var stderrTask = process.StandardError.ReadToEndAsync(ct);
-            using var ms = new MemoryStream();
-            await process.StandardOutput.BaseStream.CopyToAsync(ms, ct);
-            var stderr = await stderrTask;
-            var outputBytes = ms.ToArray();
-            await process.WaitForExitAsync(ct);
-
-            if (process.ExitCode != 0)
+            if (result.ExitCode != 0)
             {
                 _logger.LogWarning(
                     "ffmpeg subtitle extraction exited with code {ExitCode}: {Error}",
-                    process.ExitCode,
-                    stderr
+                    result.ExitCode,
+                    result.StandardError
                 );
                 return false;
             }
 
-            await File.WriteAllBytesAsync(outputPath, outputBytes, ct);
+            await File.WriteAllBytesAsync(outputPath, result.StandardOutput, ct);
             return true;
+        }
+        catch (OperationCanceledException)
+        {
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+            throw;
         }
         catch (Exception ex)
         {

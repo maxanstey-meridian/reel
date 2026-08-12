@@ -12,7 +12,6 @@ ktor                   = "2.3.12"
 kotlinx-serialization  = "1.6.3"
 lifecycle              = "2.8.7"
 coroutines             = "1.9.0"
-coil                   = "2.7.0"
 
 [libraries]
 # AndroidX core
@@ -34,6 +33,7 @@ androidx-tv-material        = { module = "androidx.tv:tv-material",             
 media3-exoplayer            = { module = "androidx.media3:media3-exoplayer",          version.ref = "media3" }
 media3-ui                   = { module = "androidx.media3:media3-ui",                 version.ref = "media3" }
 media3-ui-compose           = { module = "androidx.media3:media3-ui-compose",         version.ref = "media3" }
+media3-session              = { module = "androidx.media3:media3-session",            version.ref = "media3" }
 
 # Ktor HTTP client
 ktor-client-android         = { module = "io.ktor:ktor-client-android",              version.ref = "ktor" }
@@ -49,9 +49,6 @@ kotlinx-coroutines-android  = { module = "org.jetbrains.kotlinx:kotlinx-coroutin
 # Lifecycle
 lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 lifecycle-runtime-compose   = { module = "androidx.lifecycle:lifecycle-runtime-compose",   version.ref = "lifecycle" }
-
-# Coil (image loading)
-coil-compose                = { module = "io.coil-kt:coil-compose",                          version.ref = "coil" }
 
 # Testing
 junit                       = { module = "junit:junit",                                       version = "4.13.2" }

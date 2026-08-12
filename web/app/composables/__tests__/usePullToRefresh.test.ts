@@ -34,7 +34,7 @@ const getHandler = (event: string): EventHandler => {
 };
 
 const makeTouchEvent = (clientY: number): Partial<TouchEvent> => ({
-  touches: [{ clientY } as Touch],
+  touches: [{ clientY } as Touch] as unknown as TouchList,
   preventDefault: vi.fn(),
 });
 

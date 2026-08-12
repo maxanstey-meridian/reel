@@ -15,7 +15,9 @@ public sealed class FavouritesEndpointTests : IClassFixture<WebApplicationFactor
     public FavouritesEndpointTests(WebApplicationFactory<Program> factory)
     {
         _tempMediaRoot = Path.Combine(Path.GetTempPath(), $"reel-favourites-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempMediaRoot);
+        Directory.CreateDirectory(Path.Combine(_tempMediaRoot, "Films"));
+        foreach (var name in new[] { "x.mp4", "fav.mp4", "dup.mp4", "del.mp4", "older.mp4", "newer.mp4" })
+            File.WriteAllBytes(Path.Combine(_tempMediaRoot, "Films", name), [1]);
 
         _factory = factory.WithWebHostBuilder(builder =>
         {

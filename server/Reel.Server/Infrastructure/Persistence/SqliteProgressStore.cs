@@ -13,7 +13,6 @@ public sealed class SqliteProgressStore : IProgressStore
     }
 
     public async Task UpdateAsync(
-        int userId,
         string relativePath,
         double positionSeconds,
         double durationSeconds,
@@ -22,17 +21,11 @@ public sealed class SqliteProgressStore : IProgressStore
     {
         using var conn = _db.GetConnection();
 
-        using var mediaCmd = conn.CreateCommand();
-        mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
-        mediaCmd.Parameters.AddWithValue("@path", relativePath);
-        await mediaCmd.ExecuteNonQueryAsync(ct);
-
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            INSERT OR REPLACE INTO progress (user_id, relative_path, position_seconds, duration_seconds, last_watched)
-            VALUES (@userId, @path, @pos, @dur, @lastWatched);
+            INSERT OR REPLACE INTO progress (relative_path, position_seconds, duration_seconds, last_watched)
+            VALUES (@path, @pos, @dur, @lastWatched);
             """;
-        cmd.Parameters.AddWithValue("@userId", userId);
         cmd.Parameters.AddWithValue("@path", relativePath);
         cmd.Parameters.AddWithValue("@pos", positionSeconds);
         cmd.Parameters.AddWithValue("@dur", durationSeconds);
@@ -40,7 +33,7 @@ public sealed class SqliteProgressStore : IProgressStore
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task<WatchProgress?> GetAsync(int userId, string relativePath, CancellationToken ct)
+    public async Task<WatchProgress?> GetAsync(string relativePath, CancellationToken ct)
     {
         using var conn = _db.GetConnection();
 
@@ -48,9 +41,8 @@ public sealed class SqliteProgressStore : IProgressStore
         cmd.CommandText = """
             SELECT relative_path, position_seconds, duration_seconds, last_watched
             FROM progress
-            WHERE user_id = @userId AND relative_path = @path;
+            WHERE relative_path = @path;
             """;
-        cmd.Parameters.AddWithValue("@userId", userId);
         cmd.Parameters.AddWithValue("@path", relativePath);
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -60,7 +52,7 @@ public sealed class SqliteProgressStore : IProgressStore
         return ReadProgress(reader);
     }
 
-    public async Task<IReadOnlyList<WatchProgress>> GetAllAsync(int userId, CancellationToken ct)
+    public async Task<IReadOnlyList<WatchProgress>> GetAllAsync(CancellationToken ct)
     {
         using var conn = _db.GetConnection();
 
@@ -68,10 +60,8 @@ public sealed class SqliteProgressStore : IProgressStore
         cmd.CommandText = """
             SELECT relative_path, position_seconds, duration_seconds, last_watched
             FROM progress
-            WHERE user_id = @userId
             ORDER BY last_watched DESC;
             """;
-        cmd.Parameters.AddWithValue("@userId", userId);
 
         using var reader = await cmd.ExecuteReaderAsync(ct);
         var results = new List<WatchProgress>();

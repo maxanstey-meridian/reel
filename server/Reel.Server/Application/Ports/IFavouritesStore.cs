@@ -4,8 +4,8 @@ using Reel.Server.Domain;
 
 public interface IFavouritesStore
 {
-    Task AddAsync(int userId, string relativePath, CancellationToken ct);
-    Task RemoveAsync(int userId, string relativePath, CancellationToken ct);
-    Task<IReadOnlyList<Favourite>> GetAllAsync(int userId, CancellationToken ct);
-    Task<bool> IsFavouriteAsync(int userId, string relativePath, CancellationToken ct);
+    Task AddAsync(string relativePath, CancellationToken ct);
+    Task RemoveAsync(string relativePath, CancellationToken ct);
+    Task<IReadOnlyList<Favourite>> GetAllAsync(CancellationToken ct);
+    Task<bool> IsFavouriteAsync(string relativePath, CancellationToken ct);
 }

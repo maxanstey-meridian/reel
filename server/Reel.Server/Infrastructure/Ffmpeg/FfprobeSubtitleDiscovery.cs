@@ -5,6 +5,7 @@ using System.Text.Json;
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.FileSystem;
 
 public sealed class FfprobeSubtitleDiscovery : ISubtitleDiscovery
 {
@@ -15,22 +16,19 @@ public sealed class FfprobeSubtitleDiscovery : ISubtitleDiscovery
         ".vtt",
     };
 
-    private readonly ReelConfig _config;
+    private readonly MediaPathResolver _pathResolver;
     private readonly ILogger<FfprobeSubtitleDiscovery> _logger;
 
-    public FfprobeSubtitleDiscovery(ReelConfig config, ILogger<FfprobeSubtitleDiscovery> logger)
+    public FfprobeSubtitleDiscovery(MediaPathResolver pathResolver, ILogger<FfprobeSubtitleDiscovery> logger)
     {
-        _config = config;
+        _pathResolver = pathResolver;
         _logger = logger;
     }
 
     public async Task<IReadOnlyList<SubtitleTrack>> DiscoverAsync(string relativePath, CancellationToken ct)
     {
-        var fullPath = Path.GetFullPath(Path.Combine(_config.NormalisedMediaRoot, relativePath));
-        if (!fullPath.StartsWith(_config.NormalisedMediaRoot, StringComparison.Ordinal))
-            return [];
-
-        if (!File.Exists(fullPath))
+        var fullPath = _pathResolver.ResolvePlayableFile(relativePath);
+        if (fullPath is null)
             return [];
 
         var tracks = new List<SubtitleTrack>();
@@ -56,7 +54,7 @@ public sealed class FfprobeSubtitleDiscovery : ISubtitleDiscovery
 
         try
         {
-            using var process = Process.Start(new ProcessStartInfo
+            var result = await ProcessRunner.RunAsync(new ProcessStartInfo
             {
                 FileName = "ffprobe",
                 Arguments = $"-v quiet -print_format json -show_streams -select_streams s \"{fullPath}\"",
@@ -64,24 +62,19 @@ public sealed class FfprobeSubtitleDiscovery : ISubtitleDiscovery
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-            });
+            }, ct);
 
-            if (process is null)
+            if (result.ExitCode != 0)
             {
-                _logger.LogWarning("Failed to start ffprobe process");
+                _logger.LogWarning("ffprobe exited with code {ExitCode}: {Error}", result.ExitCode, result.StandardError);
                 return tracks;
             }
 
-            var output = await process.StandardOutput.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-
-            if (process.ExitCode != 0)
-            {
-                _logger.LogWarning("ffprobe exited with code {ExitCode}", process.ExitCode);
-                return tracks;
-            }
-
-            tracks.AddRange(ParseFfprobeOutput(output));
+            tracks.AddRange(ParseFfprobeOutput(result.StandardOutputText));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

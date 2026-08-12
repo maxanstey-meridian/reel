@@ -21,7 +21,7 @@ public sealed class FileSystemStreamerTests : IDisposable
             Port = 8080,
         };
 
-        _streamer = new FileSystemStreamer(config);
+        _streamer = new FileSystemStreamer(new MediaPathResolver(config));
     }
 
     public void Dispose()
@@ -85,5 +85,51 @@ public sealed class FileSystemStreamerTests : IDisposable
         {
             File.Delete(outsideFile);
         }
+    }
+
+    [Fact]
+    public void Resolve_NonPlayableFile_ReturnsNull()
+    {
+        File.WriteAllText(Path.Combine(_mediaRoot, "reel.db"), "private");
+
+        var result = _streamer.Resolve("reel.db");
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void Resolve_SymbolicLinkEscape_ReturnsNull()
+    {
+        var target = Path.Combine(Path.GetDirectoryName(_mediaRoot)!, $"outside-{Guid.NewGuid():N}.mp4");
+        File.WriteAllBytes(target, new byte[10]);
+        try
+        {
+            try
+            {
+                File.CreateSymbolicLink(Path.Combine(_mediaRoot, "link.mp4"), target);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return;
+            }
+            catch (PlatformNotSupportedException)
+            {
+                return;
+            }
+
+            _streamer.Resolve("link.mp4").Should().BeNull();
+        }
+        finally
+        {
+            File.Delete(target);
+        }
+    }
+
+    [Theory]
+    [InlineData("/tmp/video.mp4")]
+    [InlineData(".reel/private.mp4")]
+    public void Resolve_ReservedOrAbsolutePath_ReturnsNull(string path)
+    {
+        _streamer.Resolve(path).Should().BeNull();
     }
 }

@@ -1,5 +1,4 @@
-import { library as fetchLibrary } from "~~/generated/rivet/client/reel";
-import type { FileNode } from "~~/generated/rivet/types/domain";
+import { api, type FileNode } from "~~/app/lib/api";
 
 export const useLibrary = () => {
   const tree = ref<FileNode | null>(null);
@@ -46,7 +45,7 @@ export const useLibrary = () => {
     loading.value = true;
     error.value = null;
     try {
-      tree.value = await fetchLibrary();
+      tree.value = await api.library();
     } catch (e) {
       error.value = e instanceof Error ? e.message : "Failed to load library";
     } finally {

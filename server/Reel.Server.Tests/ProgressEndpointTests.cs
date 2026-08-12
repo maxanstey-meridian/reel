@@ -15,7 +15,9 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     public ProgressEndpointTests(WebApplicationFactory<Program> factory)
     {
         _tempMediaRoot = Path.Combine(Path.GetTempPath(), $"reel-progress-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempMediaRoot);
+        Directory.CreateDirectory(Path.Combine(_tempMediaRoot, "Films"));
+        foreach (var name in new[] { "test.mp4", "upsert.mp4", "older.mp4", "newer.mp4" })
+            File.WriteAllBytes(Path.Combine(_tempMediaRoot, "Films", name), [1]);
 
         _factory = factory.WithWebHostBuilder(builder =>
         {

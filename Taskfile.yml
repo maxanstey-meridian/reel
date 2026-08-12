@@ -7,6 +7,18 @@ tasks:
     cmds:
       - dotnet build Reel.Server/Reel.Server.csproj
 
+  server:test:
+    desc: Run server tests
+    dir: server
+    cmds:
+      - dotnet test Reel.slnx
+
+  server:contract:
+    desc: Check server API contract coverage
+    dir: server
+    cmds:
+      - dotnet rivet --project Reel.Server/Reel.Server.csproj --check --quiet
+
   server:run:
     desc: Run server
     dir: server
@@ -18,6 +30,12 @@ tasks:
     dir: tv
     cmds:
       - ./gradlew :app:assembleDebug
+
+  tv:test:
+    desc: Run TV unit tests
+    dir: tv
+    cmds:
+      - ./gradlew :app:testDebugUnitTest
 
   tv:install:
     desc: Sideload debug APK to connected Fire TV via ADB
@@ -36,6 +54,14 @@ tasks:
     dir: web
     cmds:
       - pnpm rivet
+      - pnpm rivet:types
+
+  web:rivet:verify:
+    desc: Verify generated API files are current
+    dir: web
+    cmds:
+      - pnpm rivet --verify
+      - pnpm exec openapi-typescript generated/rivet/openapi.json -o generated/rivet/schema.d.ts --check
 
   web:dev:
     desc: Start web UI dev server
@@ -47,6 +73,15 @@ tasks:
     desc: Build web UI for production
     dir: web
     cmds:
+      - pnpm build
+
+  web:check:
+    desc: Typecheck, lint, test, and build the web app
+    dir: web
+    cmds:
+      - pnpm check
+      - pnpm lint
+      - pnpm test
       - pnpm build
 
   web:test:
@@ -72,3 +107,18 @@ tasks:
     dir: web
     cmds:
       - pnpm fmt
+
+  check:
+    desc: Run all application checks
+    cmds:
+      - task: server:test
+      - task: server:contract
+      - task: web:check
+      - task: tv:test
+
+  ci:
+    desc: Verify generated contracts and all application behavior
+    cmds:
+      - task: web:rivet:verify
+      - task: check
+      - task: web:e2e

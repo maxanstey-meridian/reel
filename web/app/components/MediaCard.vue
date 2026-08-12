@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useConnection } from "~~/app/composables/useConnection";
+import { computed } from "vue";
 import { useFavourites } from "~~/app/composables/useFavourites";
-import { countDirectFiles, findFirstFile } from "~~/app/utils/directoryHelpers";
-import { thumbnailUrl } from "~~/generated/rivet/client/reel";
-import type { FileNode } from "~~/generated/rivet/types/domain";
+import { countDirectFiles } from "~~/app/utils/directoryHelpers";
+import type { FileNode } from "~~/app/lib/api";
 
 const props = defineProps<{
   node: FileNode;
@@ -12,32 +10,16 @@ const props = defineProps<{
 }>();
 defineEmits<{ select: [node: FileNode] }>();
 
-const { secretKey } = useConnection();
 const { isFavourite, toggle } = useFavourites();
 
 const showHeart = computed(() => props.node.type === "file");
 const favourited = computed(() => isFavourite(props.node.relativePath));
 
-const displayName = computed(() => props.node.displayTitle ?? props.node.parsedTitle ?? props.node.name);
-
-const isWatched = computed(() => props.node.watched === true);
+const displayName = computed(() => props.node.parsedTitle ?? props.node.name);
 
 const isDirectory = computed(() => props.node.type === "directory");
 
-const folderFirstFile = computed(() => (isDirectory.value ? findFirstFile(props.node) : null));
-
 const fileCount = computed(() => (isDirectory.value ? countDirectFiles(props.node) : null));
-
-const thumbnailSrc = computed(() => {
-  const file = isDirectory.value ? folderFirstFile.value : props.node;
-  if (!file?.relativePath || !secretKey.value) {
-    return null;
-  }
-  return thumbnailUrl(file.relativePath, secretKey.value);
-});
-
-const imgFailed = ref(false);
-const showImage = computed(() => thumbnailSrc.value && !imgFailed.value);
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]);
 
@@ -71,20 +53,12 @@ const formatSize = (bytes: number | null): string => {
 <template>
   <button
     class="w-[140px] shrink-0 flex flex-col rounded bg-neutral-900 overflow-hidden text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
-    :class="{ 'opacity-60': isWatched }"
     @click="$emit('select', node)"
   >
     <div
       class="relative h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500 overflow-hidden"
     >
-      <img
-        v-if="showImage"
-        :src="thumbnailSrc ?? ''"
-        loading="lazy"
-        class="w-full h-full object-cover"
-        @error="imgFailed = true"
-      />
-      <UIcon v-else :name="iconFor(node)" class="size-10" />
+      <UIcon :name="iconFor(node)" class="size-10" />
 
       <!-- Progress bar -->
       <div
@@ -92,14 +66,6 @@ const formatSize = (bytes: number | null): string => {
         class="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700"
       >
         <div class="h-full bg-green-500" :style="{ width: `${Math.min(progress * 100, 100)}%` }" />
-      </div>
-
-      <!-- Watched indicator -->
-      <div
-        v-if="isWatched"
-        class="absolute bottom-2 left-1 p-1 rounded-full bg-black/50 text-green-500"
-      >
-        <UIcon name="i-lucide-circle-check" class="size-4" />
       </div>
 
       <!-- Favourite heart -->
@@ -112,22 +78,6 @@ const formatSize = (bytes: number | null): string => {
         <UIcon name="i-lucide-heart" class="size-4" :class="favourited ? 'fill-current' : ''" />
       </button>
 
-      <!-- Add to collection -->
-      <AddToCollectionPopover
-        v-if="showHeart"
-        :relative-path="node.relativePath"
-        :content="{ side: 'left', align: 'start' }"
-      >
-        <template #default="{ openPopover }">
-          <button
-            class="absolute top-8 right-1 p-1 rounded-full bg-black/50 text-neutral-400 hover:text-green-400 transition-colors"
-            data-testid="add-to-collection-btn"
-            @click.stop="openPopover"
-          >
-            <UIcon name="i-lucide-list-plus" class="size-4" />
-          </button>
-        </template>
-      </AddToCollectionPopover>
     </div>
 
     <div class="p-2 flex flex-col gap-1 min-h-[72px]">

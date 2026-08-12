@@ -3,149 +3,94 @@ package com.max.reel
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
-import coil.Coil
-import coil.ImageLoader
-import com.max.reel.data.ApiClient
-import com.max.reel.data.PreferencesManager
 import com.max.reel.data.ServerDiscovery
-import com.max.reel.ui.cast.WaitingForCastScreen
+import com.max.reel.playback.AppDestination
+import com.max.reel.playback.PlaybackConnection
+import com.max.reel.playback.PlaybackViewModel
+import com.max.reel.playback.appDestination
 import com.max.reel.ui.pairing.PairingScreen
 import com.max.reel.ui.player.PlayerScreen
-import okhttp3.OkHttpClient
-
-sealed interface Screen {
-    data object Pairing : Screen
-    data object WaitingForCast : Screen
-    data class Player(val relativePath: String, val positionSeconds: Double? = null, val subtitleIndex: Int? = null, val isQueuePlayback: Boolean = false) : Screen
-}
+import com.max.reel.ui.ready.ReadyScreen
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var apiClient: ApiClient
+    private val playbackViewModel: PlaybackViewModel by viewModels()
 
     @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val prefs = PreferencesManager(applicationContext)
         val discovery = ServerDiscovery()
-        apiClient = ApiClient(prefs)
-
-        Coil.setImageLoader(
-            ImageLoader.Builder(this)
-                .okHttpClient {
-                    OkHttpClient.Builder()
-                        .addInterceptor { chain ->
-                            chain.proceed(
-                                chain.request().newBuilder()
-                                    .header("X-Secret-Key", prefs.secretKey)
-                                    .build()
-                            )
-                        }
-                        .build()
-                }
-                .crossfade(true)
-                .build()
-        )
 
         setContent {
             ReelApp(
-                startPaired = prefs.isPaired,
-                prefs = prefs,
-                apiClient = apiClient,
+                viewModel = playbackViewModel,
                 discovery = discovery,
             )
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        apiClient.close()
     }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun ReelApp(
-    startPaired: Boolean,
-    prefs: PreferencesManager,
-    apiClient: ApiClient,
+    viewModel: PlaybackViewModel,
     discovery: ServerDiscovery,
 ) {
-    var screen: Screen by remember {
-        mutableStateOf(
-            if (startPaired) Screen.WaitingForCast else Screen.Pairing
-        )
+    val playbackState by viewModel.state.collectAsStateWithLifecycle()
+    val paired = remember { mutableStateOf(viewModel.preferences.isPaired) }
+
+    LaunchedEffect(playbackState.pairingInvalid) {
+        if (playbackState.pairingInvalid) paired.value = false
     }
 
-    val castPoller: CastPoller = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return CastPoller(apiClient) as T
-            }
-        }
-    )
-
-    // Start polling once paired, keep polling across all screens
-    LaunchedEffect(screen) {
-        if (screen is Screen.Pairing) {
-            castPoller.stopPolling()
-        } else {
-            castPoller.startPolling()
-        }
+    DisposableEffect(paired.value) {
+        viewModel.setPollingEnabled(paired.value)
+        onDispose { viewModel.setPollingEnabled(false) }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        viewModel.resumeAfterBackground(paired.value)
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        viewModel.pauseForBackground()
     }
 
-    // React to play commands from any screen
-    LaunchedEffect(Unit) {
-        castPoller.playCommand.collect { command ->
-            screen = Screen.Player(command.relativePath, command.positionSeconds, command.subtitleIndex)
-        }
-    }
-
-    val connectionOk by castPoller.connectionOk.collectAsStateWithLifecycle()
-
-    when (val current = screen) {
-        is Screen.Pairing -> Surface {
+    when (appDestination(paired.value, playbackState.relativePath)) {
+        AppDestination.Pairing -> Surface {
             PairingScreen(
-                apiClient = apiClient,
-                prefs = prefs,
+                apiClient = viewModel.apiClient,
+                prefs = viewModel.preferences,
                 discovery = discovery,
-                onPaired = { screen = Screen.WaitingForCast },
+                onPaired = {
+                    paired.value = true
+                    viewModel.onPaired()
+                },
             )
         }
 
-        is Screen.WaitingForCast -> Surface {
-            WaitingForCastScreen(
-                connectionOk = connectionOk,
-                prefs = prefs,
-                apiClient = apiClient,
+        AppDestination.Ready -> Surface {
+            ReadyScreen(
+                prefs = viewModel.preferences,
+                connected = playbackState.connection is PlaybackConnection.Connected,
+                onForgetPairing = {
+                    viewModel.forgetPairing()
+                    paired.value = false
+                },
             )
         }
 
-        is Screen.Player -> PlayerScreen(
-            prefs = prefs,
-            apiClient = apiClient,
-            relativePath = current.relativePath,
-            positionSeconds = current.positionSeconds,
-            subtitleIndex = current.subtitleIndex,
-            isQueuePlayback = current.isQueuePlayback,
-            onBack = { screen = Screen.WaitingForCast },
-            onFileEnded = { nextPath ->
-                screen = if (nextPath != null) Screen.Player(nextPath) else Screen.WaitingForCast
-            },
-        )
+        AppDestination.Player -> PlayerScreen(viewModel)
     }
 }

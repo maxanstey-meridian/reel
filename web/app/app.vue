@@ -1,6 +1,6 @@
 <template>
   <UApp>
-    <div class="safe-inset">
+    <div class="safe-inset flex min-h-dvh flex-col">
       <NuxtLayout>
         <NuxtPage />
       </NuxtLayout>
@@ -10,8 +10,7 @@
 
 <style>
 .safe-inset {
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
+   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   min-height: 100dvh;
 }
 </style>

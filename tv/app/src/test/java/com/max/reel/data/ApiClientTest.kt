@@ -10,9 +10,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,307 +23,70 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ApiClientTest {
-
+    private val json = Json { ignoreUnknownKeys = true }
     private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
 
-    private fun createPrefs(): PreferencesManager {
-        val prefs = PreferencesManager(RuntimeEnvironment.getApplication())
-        prefs.savePairing("localhost", "8080", "test-key")
-        return prefs
+    private fun prefs() = PreferencesManager(RuntimeEnvironment.getApplication()).also {
+        it.savePairing("localhost", "8080", "test-key", "Test server")
     }
 
-    private fun createApiClient(
-        handler: suspend io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.http.Url) -> io.ktor.client.request.HttpResponseData,
-    ): ApiClient {
-        val mockEngine = MockEngine { request ->
-            handler(request.url)
+    @Test
+    fun `playback session decodes exact camelCase wire contract and ignores additions`() = runTest {
+        val engine = MockEngine {
+            respond(
+                """{"session":{"sessionId":"session-1","revision":7,"createdAtUtc":"2026-08-11T10:00:00Z","updatedAtUtc":"2026-08-11T10:00:01Z","intent":{"relativePath":"Films/movie.mp4","desiredState":"playing","subtitleIndex":2,"pendingSeek":{"seekId":4,"positionSeconds":12.5,"introducedRevision":7}},"observation":null,"tvConnected":false,"futureField":true}}""",
+                HttpStatusCode.OK,
+                jsonHeaders,
+            )
         }
-        val mockClient = HttpClient(mockEngine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
-            }
+        val client = HttpClient(engine) {
+            install(ContentNegotiation) { json(json) }
             expectSuccess = false
         }
-        return ApiClient(createPrefs(), mockClient)
+
+        val result = ApiClient(prefs(), client).getPlaybackSession() as ApiResult.Success
+
+        assertEquals(PlaybackDesiredState.Playing, result.value.session?.intent?.desiredState)
+        assertEquals(4L, result.value.session?.intent?.pendingSeek?.seekId)
+        assertEquals(7L, result.value.session?.intent?.pendingSeek?.introducedRevision)
     }
 
-    private fun createApiClientWithEngine(engine: MockEngine): ApiClient {
-        val mockClient = HttpClient(engine) {
-            install(ContentNegotiation) {
-                json(Json { ignoreUnknownKeys = true })
-            }
+    @Test
+    fun `observation encodes camelCase enum values`() {
+        val encoded = json.encodeToString(
+            ReportPlaybackObservationRequest(
+                sessionId = "session-1",
+                observationSequence = 1,
+                appliedRevision = 3,
+                state = PlaybackObservationState.Buffering,
+                relativePath = "Films/movie.mp4",
+                positionSeconds = 5.0,
+                durationSeconds = 60.0,
+            ),
+        )
+
+        assertTrue(encoded.contains("\"appliedRevision\":3"))
+        assertTrue(encoded.contains("\"state\":\"buffering\""))
+        assertTrue(encoded.contains("\"relativePath\":\"Films/movie.mp4\""))
+    }
+
+    @Test
+    fun `non-success playback response retains status and server message`() = runTest {
+        val engine = MockEngine {
+            respond(
+                """{"error":"Session is stale"}""",
+                HttpStatusCode.Conflict,
+                jsonHeaders,
+            )
+        }
+        val client = HttpClient(engine) {
+            install(ContentNegotiation) { json(json) }
             expectSuccess = false
         }
-        return ApiClient(createPrefs(), mockClient)
-    }
 
-    // --- fetchPosters ---
+        val result = ApiClient(prefs(), client).getPlaybackSession() as ApiResult.Failure
 
-    @Test
-    fun `fetchPosters deserializes string array on 200`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/library/posters") {
-                respond("""["Films/a.mp4","Films/b.mp4","Films/c.mp4"]""", HttpStatusCode.OK, jsonHeaders)
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchPosters(3)
-        assertEquals(listOf("Films/a.mp4", "Films/b.mp4", "Films/c.mp4"), result)
-    }
-
-    @Test
-    fun `fetchPosters returns empty list on non-200`() = runTest {
-        val apiClient = createApiClient {
-            respond("", HttpStatusCode.InternalServerError)
-        }
-
-        val result = apiClient.fetchPosters(5)
-        assertEquals(emptyList<String>(), result)
-    }
-
-    @Test
-    fun `fetchPosters returns empty list on network error`() = runTest {
-        val apiClient = createApiClientWithEngine(
-            MockEngine { throw java.io.IOException("Connection refused") },
-        )
-
-        val result = apiClient.fetchPosters(5)
-        assertEquals(emptyList<String>(), result)
-    }
-
-    // --- fetchStats ---
-
-    @Test
-    fun `fetchStats deserializes LibraryStats on 200`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/library/stats") {
-                respond("""{"totalFiles":42,"totalBytes":123456789}""", HttpStatusCode.OK, jsonHeaders)
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchStats()
-        assertEquals(LibraryStats(totalFiles = 42, totalBytes = 123456789), result)
-    }
-
-    @Test
-    fun `fetchStats returns null on non-200`() = runTest {
-        val apiClient = createApiClient {
-            respond("", HttpStatusCode.Unauthorized)
-        }
-
-        val result = apiClient.fetchStats()
-        assertNull(result)
-    }
-
-    @Test
-    fun `fetchStats returns null on network error`() = runTest {
-        val apiClient = createApiClientWithEngine(
-            MockEngine { throw java.io.IOException("Timeout") },
-        )
-
-        val result = apiClient.fetchStats()
-        assertNull(result)
-    }
-
-    // --- fetchUsers ---
-
-    @Test
-    fun `fetchUsers deserializes user list on 200`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/users") {
-                respond(
-                    """[{"id":1,"name":"Max","icon":null},{"id":2,"name":"Guest"}]""",
-                    HttpStatusCode.OK,
-                    jsonHeaders,
-                )
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchUsers()
-        assertEquals(2, result.size)
-        assertEquals("Max", result[0].name)
-        assertEquals(1, result[0].id)
-        assertNull(result[0].icon)
-        assertEquals("Guest", result[1].name)
-    }
-
-    @Test
-    fun `fetchUsers returns empty list on non-200`() = runTest {
-        val apiClient = createApiClient {
-            respond("", HttpStatusCode.Forbidden)
-        }
-
-        val result = apiClient.fetchUsers()
-        assertEquals(emptyList<UserInfo>(), result)
-    }
-
-    @Test
-    fun `fetchUsers handles unknown fields gracefully`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/users") {
-                respond(
-                    """[{"id":1,"name":"Max","icon":null,"extraField":"ignored"}]""",
-                    HttpStatusCode.OK,
-                    jsonHeaders,
-                )
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchUsers()
-        assertEquals(1, result.size)
-        assertEquals("Max", result[0].name)
-    }
-
-    @Test
-    fun `fetchPosters sends auth header`() = runTest {
-        var capturedAuthHeader: String? = null
-        val apiClient = createApiClientWithEngine(
-            MockEngine { request ->
-                capturedAuthHeader = request.headers["X-Secret-Key"]
-                respond("""[]""", HttpStatusCode.OK, jsonHeaders)
-            },
-        )
-
-        apiClient.fetchPosters(1)
-        assertEquals("test-key", capturedAuthHeader)
-    }
-
-    // --- fetchTrickplayMetadata ---
-
-    @Test
-    fun `fetchTrickplayMetadata returns metadata on 200`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/files/trickplay") {
-                respond(
-                    """{"intervalMs":5000,"columns":5,"rows":5,"thumbWidth":160,"thumbHeight":90,"totalThumbs":120,"spritePath":"cache/test"}""",
-                    HttpStatusCode.OK,
-                    jsonHeaders,
-                )
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchTrickplayMetadata("Films/movie.mp4")
-        assertEquals(5000, result?.intervalMs)
-        assertEquals(5, result?.columns)
-        assertEquals(5, result?.rows)
-        assertEquals(160, result?.thumbWidth)
-        assertEquals(90, result?.thumbHeight)
-        assertEquals(120, result?.totalThumbs)
-    }
-
-    @Test
-    fun `fetchTrickplayMetadata returns null on non-200`() = runTest {
-        val apiClient = createApiClient {
-            respond("", HttpStatusCode.NotFound)
-        }
-
-        val result = apiClient.fetchTrickplayMetadata("Films/no-trickplay.mp4")
-        assertNull(result)
-    }
-
-    @Test
-    fun `fetchTrickplayMetadata returns null on network error`() = runTest {
-        val apiClient = createApiClientWithEngine(
-            MockEngine { throw java.io.IOException("Timeout") },
-        )
-
-        val result = apiClient.fetchTrickplayMetadata("Films/movie.mp4")
-        assertNull(result)
-    }
-
-    @Test
-    fun `trickplaySpriteUrl constructs URL with query auth`() {
-        val prefs = createPrefs()
-        val apiClient = ApiClient(prefs)
-        val url = apiClient.trickplaySpriteUrl("Films/movie.mp4", 2)
-        assertTrue(url.contains("/api/files/trickplay/sprite"))
-        assertTrue(url.contains("sheet=2"))
-        assertTrue(url.contains("key="))
-    }
-
-    // --- fetchNextFile ---
-
-    @Test
-    fun `fetchNextFile returns FileNode on 200`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/files/next") {
-                respond(
-                    """{"relativePath":"Films/b.mp4","name":"b.mp4","type":"file"}""",
-                    HttpStatusCode.OK,
-                    jsonHeaders,
-                )
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchNextFile("Films/a.mp4")
-        assertEquals("Films/b.mp4", result?.relativePath)
-    }
-
-    @Test
-    fun `fetchNextFile returns null on 204`() = runTest {
-        val apiClient = createApiClient {
-            respond("", HttpStatusCode.NoContent)
-        }
-
-        val result = apiClient.fetchNextFile("Films/last.mp4")
-        assertNull(result)
-    }
-
-    @Test
-    fun `fetchNextFile returns null on network error`() = runTest {
-        val apiClient = createApiClientWithEngine(
-            MockEngine { throw java.io.IOException("Timeout") },
-        )
-
-        val result = apiClient.fetchNextFile("Films/a.mp4")
-        assertNull(result)
-    }
-
-    // --- fetchCastQueue ---
-
-    @Test
-    fun `fetchCastQueue returns paths on 200`() = runTest {
-        val apiClient = createApiClient { url ->
-            if (url.encodedPath == "/api/cast/queue") {
-                respond("""["Films/b.mp4","Films/c.mp4"]""", HttpStatusCode.OK, jsonHeaders)
-            } else {
-                respond("", HttpStatusCode.NotFound)
-            }
-        }
-
-        val result = apiClient.fetchCastQueue()
-        assertEquals(listOf("Films/b.mp4", "Films/c.mp4"), result)
-    }
-
-    @Test
-    fun `fetchCastQueue returns empty list on non-200`() = runTest {
-        val apiClient = createApiClient {
-            respond("", HttpStatusCode.InternalServerError)
-        }
-
-        val result = apiClient.fetchCastQueue()
-        assertEquals(emptyList<String>(), result)
-    }
-
-    @Test
-    fun `fetchCastQueue returns empty list on network error`() = runTest {
-        val apiClient = createApiClientWithEngine(
-            MockEngine { throw java.io.IOException("Timeout") },
-        )
-
-        val result = apiClient.fetchCastQueue()
-        assertEquals(emptyList<String>(), result)
+        assertEquals(409, result.statusCode)
+        assertEquals("Session is stale", result.message)
     }
 }

@@ -7,8 +7,7 @@ definePageMeta({
       return navigateTo("/connect", { replace: true });
     }
 
-    const { hasValidCachedUser } = useUser();
-    return navigateTo(hasValidCachedUser.value ? "/library" : "/select-user", { replace: true });
+    return navigateTo("/library", { replace: true });
   },
 });
 </script>

@@ -54,7 +54,9 @@ export const parseFilename = (filename: string): { title: string; year: number |
   const parenMatches = [...working.matchAll(YEAR_PAREN_RE)];
   for (const m of parenMatches) {
     const captured = m[1];
-    if (captured === undefined || m.index === undefined) continue;
+    if (captured === undefined || m.index === undefined) {
+      continue;
+    }
     const y = parseInt(captured, 10);
     if (y >= 1920 && y <= 2099 && m.index > yearIndex) {
       year = y;
@@ -76,7 +78,9 @@ export const parseFilename = (filename: string): { title: string; year: number |
 
     for (const m of bareMatches) {
       const captured = m[1];
-      if (captured === undefined || m.index === undefined) continue;
+      if (captured === undefined || m.index === undefined) {
+        continue;
+      }
       const y = parseInt(captured, 10);
       if (y >= 1920 && y <= 2099) {
         const after = working

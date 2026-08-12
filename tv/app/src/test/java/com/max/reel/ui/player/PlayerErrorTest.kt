@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
+import com.max.reel.playback.PlaybackError as PlayerError
+import com.max.reel.playback.classifyError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,11 +92,4 @@ class PlayerErrorTest {
         assertEquals("Playback error", (result as PlayerError.Unknown).message)
     }
 
-    @Test
-    fun `playerErrorMessage returns correct strings for all error types`() {
-        assertEquals("Can't reach server", playerErrorMessage(PlayerError.CannotReachServer))
-        assertEquals("Invalid key", playerErrorMessage(PlayerError.Unauthorized))
-        assertEquals("File not found", playerErrorMessage(PlayerError.FileNotFound))
-        assertEquals("Custom error", playerErrorMessage(PlayerError.Unknown("Custom error")))
-    }
 }

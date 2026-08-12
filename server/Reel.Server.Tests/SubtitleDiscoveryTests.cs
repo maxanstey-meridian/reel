@@ -22,7 +22,10 @@ public sealed class SubtitleDiscoveryExternalTests : IDisposable
             Port = 8080,
         };
 
-        _discovery = new FfprobeSubtitleDiscovery(config, NullLogger<FfprobeSubtitleDiscovery>.Instance);
+        _discovery = new FfprobeSubtitleDiscovery(
+            new Infrastructure.FileSystem.MediaPathResolver(config),
+            NullLogger<FfprobeSubtitleDiscovery>.Instance
+        );
     }
 
     public void Dispose()

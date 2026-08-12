@@ -18,19 +18,17 @@ class PreferencesManager(context: Context) {
     val secretKey: String
         get() = prefs.getString("reel_secret_key", "") ?: ""
 
-    var autoAdvance: Boolean
-        get() = prefs.getBoolean("reel_auto_advance", true)
-        set(value) {
-            prefs.edit().putBoolean("reel_auto_advance", value).apply()
-        }
+    val serverName: String
+        get() = prefs.getString("reel_server_name", "") ?: ""
 
-    fun savePairing(ip: String, port: String, secretKey: String) {
+    fun savePairing(ip: String, port: String, secretKey: String, serverName: String) {
         prefs.edit()
             .putString("reel_server_ip", ip)
             .putString("reel_server_port", port)
             .putString("reel_secret_key", secretKey)
+            .putString("reel_server_name", serverName)
             .putString("reel_paired", "true")
-            .apply()
+            .commit()
     }
 
     fun clearPairing() {
@@ -38,7 +36,8 @@ class PreferencesManager(context: Context) {
             .remove("reel_server_ip")
             .remove("reel_server_port")
             .remove("reel_secret_key")
+            .remove("reel_server_name")
             .putString("reel_paired", "false")
-            .apply()
+            .commit()
     }
 }

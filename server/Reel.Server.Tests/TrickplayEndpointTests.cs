@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
 using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.Ffmpeg;
 using Reel.Server.Infrastructure.Persistence;
 
 namespace Reel.Server.Tests;
@@ -119,8 +120,12 @@ public sealed class TrickplayEndpointTests : IClassFixture<WebApplicationFactory
         var config = new ReelConfig { MediaRoot = _mediaRoot, SecretKey = SecretKey, Port = 8080 };
         var db = new DatabaseService(config, NullLogger<DatabaseService>.Instance);
         var store = new SqliteMediaStore(db);
+        await store.ReconcileAsync([new MediaRecord("Films/movie.mp4", null, null)], CancellationToken.None);
 
-        var spriteKey = "testspritekey";
+        var spriteKey = FfmpegTrickplayGenerator.ComputeCacheKey(
+            "Films/movie.mp4",
+            Path.Combine(_mediaRoot, "Films", "movie.mp4")
+        );
         var metadata = new TrickplayMetadata(10000, 10, 10, 320, 180, 6, spriteKey);
         await store.SaveTrickplayAsync("Films/movie.mp4", metadata, CancellationToken.None);
 
@@ -145,6 +150,7 @@ public sealed class TrickplayEndpointTests : IClassFixture<WebApplicationFactory
         var config = new ReelConfig { MediaRoot = _mediaRoot, SecretKey = SecretKey, Port = 8080 };
         var db = new DatabaseService(config, NullLogger<DatabaseService>.Instance);
         var store = new SqliteMediaStore(db);
+        await store.ReconcileAsync([new MediaRecord("Films/movie.mp4", null, null)], CancellationToken.None);
 
         var metadata = new TrickplayMetadata(10000, 10, 10, 320, 180, 6, "testkey");
         await store.SaveTrickplayAsync("Films/movie.mp4", metadata, CancellationToken.None);
@@ -163,6 +169,7 @@ public sealed class TrickplayEndpointTests : IClassFixture<WebApplicationFactory
         var config = new ReelConfig { MediaRoot = _mediaRoot, SecretKey = SecretKey, Port = 8080 };
         var db = new DatabaseService(config, NullLogger<DatabaseService>.Instance);
         var store = new SqliteMediaStore(db);
+        await store.ReconcileAsync([new MediaRecord("Films/movie.mp4", null, null)], CancellationToken.None);
 
         var metadata = new TrickplayMetadata(10000, 10, 10, 320, 180, 6, "testkey2");
         await store.SaveTrickplayAsync("Films/movie.mp4", metadata, CancellationToken.None);

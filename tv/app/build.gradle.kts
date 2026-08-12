@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
     implementation(libs.media3.ui.compose)
+    implementation(libs.media3.session)
 
     // Ktor HTTP client
     implementation(libs.ktor.client.android)
@@ -76,9 +77,6 @@ dependencies {
     // Lifecycle (ViewModel + collectAsStateWithLifecycle)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
-
-    // Coil (image loading)
-    implementation(libs.coil.compose)
 
     // QR code generation
     implementation("com.google.zxing:core:3.5.3")

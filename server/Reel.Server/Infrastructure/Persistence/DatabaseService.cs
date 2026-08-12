@@ -1,31 +1,18 @@
 namespace Reel.Server.Infrastructure.Persistence;
 
-using System.Text.Json;
 using Microsoft.Data.Sqlite;
-using Reel.Server.Domain;
 using Reel.Server.Infrastructure.Configuration;
 
 public sealed class DatabaseService
 {
     private readonly string _connectionString;
-    private readonly string _reelDirectory;
-    private readonly ILogger<DatabaseService> _logger;
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    public DatabaseService(ReelConfig config, ILogger<DatabaseService>? logger = null)
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-    };
+        var reelDirectory = Path.Combine(config.NormalisedMediaRoot, ".reel");
+        Directory.CreateDirectory(reelDirectory);
 
-    public DatabaseService(ReelConfig config, ILogger<DatabaseService> logger)
-    {
-        _logger = logger;
-
-        _reelDirectory = Path.Combine(config.NormalisedMediaRoot, ".reel");
-        Directory.CreateDirectory(_reelDirectory);
-
-        var dbPath = Path.Combine(_reelDirectory, "reel.db");
-        _connectionString = $"Data Source={dbPath}";
-
+        _connectionString = $"Data Source={Path.Combine(reelDirectory, "reel-v2.db")}";
         Initialise();
     }
 
@@ -34,9 +21,9 @@ public sealed class DatabaseService
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
-        using var fkCmd = connection.CreateCommand();
-        fkCmd.CommandText = "PRAGMA foreign_keys = ON;";
-        fkCmd.ExecuteNonQuery();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA foreign_keys = ON;";
+        command.ExecuteNonQuery();
 
         return connection;
     }
@@ -46,242 +33,34 @@ public sealed class DatabaseService
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
-        using var walCmd = connection.CreateCommand();
-        walCmd.CommandText = "PRAGMA journal_mode = WAL;";
-        walCmd.ExecuteNonQuery();
-
-        using var fkCmd = connection.CreateCommand();
-        fkCmd.CommandText = "PRAGMA foreign_keys = ON;";
-        fkCmd.ExecuteNonQuery();
-
-        var currentVersion = GetUserVersion(connection);
-
-        if (currentVersion < 1)
-        {
-            RunMigrationV1(connection);
-            MigrateJsonData(connection);
-            _logger.LogInformation("Database migrated to version 1");
-        }
-
-        if (currentVersion < 2)
-        {
-            RunMigrationV2(connection);
-            _logger.LogInformation("Database migrated to version 2");
-        }
+        using var command = connection.CreateCommand();
+        command.CommandText = SchemaSql;
+        command.ExecuteNonQuery();
     }
 
-    private static int GetUserVersion(SqliteConnection connection)
-    {
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = "PRAGMA user_version;";
-        return Convert.ToInt32(cmd.ExecuteScalar());
-    }
+    private const string SchemaSql = """
+        PRAGMA journal_mode = WAL;
+        PRAGMA foreign_keys = ON;
 
-    private static void RunMigrationV1(SqliteConnection connection)
-    {
-        using var transaction = connection.BeginTransaction();
-
-        using var cmd = connection.CreateCommand();
-        cmd.Transaction = transaction;
-        cmd.CommandText = MigrationV1Sql;
-        cmd.ExecuteNonQuery();
-
-        using var versionCmd = connection.CreateCommand();
-        versionCmd.Transaction = transaction;
-        versionCmd.CommandText = "PRAGMA user_version = 1;";
-        versionCmd.ExecuteNonQuery();
-
-        transaction.Commit();
-    }
-
-    private void MigrateJsonData(SqliteConnection connection)
-    {
-        MigrateProgressJson(connection);
-        MigrateFavouritesJson(connection);
-    }
-
-    private void MigrateProgressJson(SqliteConnection connection)
-    {
-        var filePath = Path.Combine(_reelDirectory, "progress.json");
-        if (!File.Exists(filePath))
-            return;
-
-        var json = File.ReadAllText(filePath);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            File.Delete(filePath);
-            return;
-        }
-
-        var entries = JsonSerializer.Deserialize<List<WatchProgress>>(json, JsonOptions) ?? [];
-
-        using var transaction = connection.BeginTransaction();
-
-        foreach (var entry in entries)
-        {
-            using var mediaCmd = connection.CreateCommand();
-            mediaCmd.Transaction = transaction;
-            mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
-            mediaCmd.Parameters.AddWithValue("@path", entry.RelativePath);
-            mediaCmd.ExecuteNonQuery();
-
-            using var progressCmd = connection.CreateCommand();
-            progressCmd.Transaction = transaction;
-            progressCmd.CommandText = """
-                INSERT OR IGNORE INTO progress (user_id, relative_path, position_seconds, duration_seconds, last_watched)
-                VALUES (1, @path, @pos, @dur, @lastWatched);
-                """;
-            progressCmd.Parameters.AddWithValue("@path", entry.RelativePath);
-            progressCmd.Parameters.AddWithValue("@pos", entry.PositionSeconds);
-            progressCmd.Parameters.AddWithValue("@dur", entry.DurationSeconds);
-            progressCmd.Parameters.AddWithValue("@lastWatched", entry.LastWatched.ToString("o"));
-            progressCmd.ExecuteNonQuery();
-        }
-
-        transaction.Commit();
-        File.Delete(filePath);
-
-        _logger.LogInformation("Migrated {Count} progress entries from JSON to SQLite", entries.Count);
-    }
-
-    private void MigrateFavouritesJson(SqliteConnection connection)
-    {
-        var filePath = Path.Combine(_reelDirectory, "favourites.json");
-        if (!File.Exists(filePath))
-            return;
-
-        var json = File.ReadAllText(filePath);
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            File.Delete(filePath);
-            return;
-        }
-
-        var entries = JsonSerializer.Deserialize<List<Favourite>>(json, JsonOptions) ?? [];
-
-        using var transaction = connection.BeginTransaction();
-
-        foreach (var entry in entries)
-        {
-            using var mediaCmd = connection.CreateCommand();
-            mediaCmd.Transaction = transaction;
-            mediaCmd.CommandText = "INSERT OR IGNORE INTO media (relative_path) VALUES (@path);";
-            mediaCmd.Parameters.AddWithValue("@path", entry.RelativePath);
-            mediaCmd.ExecuteNonQuery();
-
-            using var favCmd = connection.CreateCommand();
-            favCmd.Transaction = transaction;
-            favCmd.CommandText = """
-                INSERT OR IGNORE INTO favourites (user_id, relative_path, added_at)
-                VALUES (1, @path, @addedAt);
-                """;
-            favCmd.Parameters.AddWithValue("@path", entry.RelativePath);
-            favCmd.Parameters.AddWithValue("@addedAt", entry.AddedAt.ToString("o"));
-            favCmd.ExecuteNonQuery();
-        }
-
-        transaction.Commit();
-        File.Delete(filePath);
-
-        _logger.LogInformation("Migrated {Count} favourites entries from JSON to SQLite", entries.Count);
-    }
-
-    private static void RunMigrationV2(SqliteConnection connection)
-    {
-        using var transaction = connection.BeginTransaction();
-
-        using var cmd = connection.CreateCommand();
-        cmd.Transaction = transaction;
-        cmd.CommandText = MigrationV2Sql;
-        cmd.ExecuteNonQuery();
-
-        using var versionCmd = connection.CreateCommand();
-        versionCmd.Transaction = transaction;
-        versionCmd.CommandText = "PRAGMA user_version = 2;";
-        versionCmd.ExecuteNonQuery();
-
-        transaction.Commit();
-    }
-
-    private const string MigrationV2Sql = """
-        CREATE TABLE IF NOT EXISTS collections (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            name       TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_collections_user ON collections(user_id);
-
-        CREATE TABLE IF NOT EXISTS collection_items (
-            collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
-            relative_path TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
-            position      INTEGER NOT NULL,
-            added_at      TEXT NOT NULL DEFAULT (datetime('now')),
-            PRIMARY KEY (collection_id, relative_path)
-        );
-        CREATE INDEX IF NOT EXISTS idx_collection_items_collection ON collection_items(collection_id);
-        """;
-
-    private const string MigrationV1Sql = """
-        CREATE TABLE users (
-            id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            icon TEXT
-        );
-
-        INSERT INTO users (name) VALUES ('Default');
-
-        CREATE TABLE media (
+        CREATE TABLE IF NOT EXISTS media (
             relative_path TEXT PRIMARY KEY,
             parsed_title  TEXT,
-            year          INTEGER,
-            genre         TEXT,
-            rating        TEXT,
-            language      TEXT,
-            notes         TEXT,
-            display_title TEXT,
-            tmdb_id       INTEGER,
-            poster_url    TEXT,
-            backdrop_url  TEXT,
-            overview      TEXT,
-            release_date  TEXT,
-            added_at      TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            year          INTEGER
         );
 
-        CREATE TABLE tags (
-            user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            relative_path TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
-            tag           TEXT NOT NULL,
-            PRIMARY KEY (user_id, relative_path, tag)
-        );
-        CREATE INDEX idx_tags_tag ON tags(tag);
-        CREATE INDEX idx_tags_user_path ON tags(user_id, relative_path);
-
-        CREATE TABLE progress (
-            user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            relative_path    TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
+        CREATE TABLE IF NOT EXISTS progress (
+            relative_path    TEXT PRIMARY KEY REFERENCES media(relative_path) ON DELETE CASCADE,
             position_seconds REAL NOT NULL,
             duration_seconds REAL NOT NULL,
-            last_watched     TEXT NOT NULL,
-            PRIMARY KEY (user_id, relative_path)
+            last_watched     TEXT NOT NULL
         );
 
-        CREATE TABLE watch_state (
-            user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            relative_path TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
-            state         TEXT NOT NULL CHECK (state IN ('watched', 'unwatched')),
-            PRIMARY KEY (user_id, relative_path)
+        CREATE TABLE IF NOT EXISTS favourites (
+            relative_path TEXT PRIMARY KEY REFERENCES media(relative_path) ON DELETE CASCADE,
+            added_at      TEXT NOT NULL
         );
 
-        CREATE TABLE favourites (
-            user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            relative_path TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
-            added_at      TEXT NOT NULL,
-            PRIMARY KEY (user_id, relative_path)
-        );
-
-        CREATE TABLE subtitles (
+        CREATE TABLE IF NOT EXISTS subtitles (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             relative_path TEXT NOT NULL REFERENCES media(relative_path) ON DELETE CASCADE,
             track_index   INTEGER,
@@ -291,9 +70,9 @@ public sealed class DatabaseService
             source        TEXT NOT NULL,
             external_path TEXT
         );
-        CREATE INDEX idx_subtitles_path ON subtitles(relative_path);
+        CREATE INDEX IF NOT EXISTS idx_subtitles_path ON subtitles(relative_path);
 
-        CREATE TABLE trickplay (
+        CREATE TABLE IF NOT EXISTS trickplay (
             relative_path TEXT PRIMARY KEY REFERENCES media(relative_path) ON DELETE CASCADE,
             interval_ms   INTEGER NOT NULL,
             columns       INTEGER NOT NULL,
@@ -303,5 +82,7 @@ public sealed class DatabaseService
             total_thumbs  INTEGER NOT NULL,
             sprite_path   TEXT NOT NULL
         );
+
+        PRAGMA user_version = 1;
         """;
 }

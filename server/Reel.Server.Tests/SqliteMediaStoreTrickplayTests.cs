@@ -36,6 +36,7 @@ public sealed class SqliteMediaStoreTrickplayTests : IDisposable
     [Fact]
     public async Task SaveAndGetTrickplay_Roundtrip()
     {
+        await IndexAsync("Films/movie.mp4");
         var metadata = new TrickplayMetadata(
             IntervalMs: 10000,
             Columns: 10,
@@ -71,6 +72,7 @@ public sealed class SqliteMediaStoreTrickplayTests : IDisposable
     [Fact]
     public async Task SaveTrickplay_ReplacesExisting()
     {
+        await IndexAsync("Films/movie.mp4");
         var initial = new TrickplayMetadata(10000, 10, 10, 320, 180, 72, "abc123");
         await _store.SaveTrickplayAsync("Films/movie.mp4", initial, CancellationToken.None);
 
@@ -86,19 +88,21 @@ public sealed class SqliteMediaStoreTrickplayTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveTrickplay_CreatesMediaRow()
+    public async Task SaveTrickplay_RequiresIndexedMedia()
     {
         var metadata = new TrickplayMetadata(10000, 10, 10, 320, 180, 72, "abc123");
 
-        await _store.SaveTrickplayAsync("Films/new-movie.mp4", metadata, CancellationToken.None);
-
-        var media = await _store.GetAsync("Films/new-movie.mp4", CancellationToken.None);
-        media.Should().NotBeNull();
+        var action = () => _store.SaveTrickplayAsync("Films/new-movie.mp4", metadata, CancellationToken.None);
+        await action.Should().ThrowAsync<Microsoft.Data.Sqlite.SqliteException>();
     }
 
     [Fact]
     public async Task DifferentMedia_IsolatedTrickplay()
     {
+        await _store.ReconcileAsync(
+            [new MediaRecord("Films/movie1.mp4", null, null), new MediaRecord("Films/movie2.mp4", null, null)],
+            CancellationToken.None
+        );
         await _store.SaveTrickplayAsync(
             "Films/movie1.mp4",
             new TrickplayMetadata(10000, 10, 10, 320, 180, 72, "key1"),
@@ -120,4 +124,7 @@ public sealed class SqliteMediaStoreTrickplayTests : IDisposable
         result2!.TotalThumbs.Should().Be(42);
         result2.SpritePath.Should().Be("key2");
     }
+
+    private Task IndexAsync(string path) =>
+        _store.ReconcileAsync([new MediaRecord(path, null, null)], CancellationToken.None);
 }

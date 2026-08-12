@@ -7,20 +7,21 @@ import { ref, computed } from "vue";
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
 vi.stubGlobal("computed", computed);
 
-// Mock useUser auto-import
-const mockCurrentUserId = ref(1);
-vi.stubGlobal("useUser", () => ({ currentUserId: mockCurrentUserId }));
+const storage = new Map<string, string>();
+vi.stubGlobal("localStorage", {
+  clear: () => storage.clear(),
+  getItem: (key: string) => storage.get(key) ?? null,
+  removeItem: (key: string) => storage.delete(key),
+  setItem: (key: string, value: string) => storage.set(key, value),
+});
 
 // Mock Rivet modules
-const mockConfigureRivet = vi.fn();
+const mockConfigureApi = vi.fn();
 const mockRivetConnect = vi.fn();
 
-vi.mock("~~/generated/rivet/rivet", () => ({
-  configureRivet: (...args: unknown[]) => mockConfigureRivet(...args),
-}));
-
-vi.mock("~~/generated/rivet/client/reel", () => ({
-  connect: (...args: unknown[]) => mockRivetConnect(...args),
+vi.mock("~~/app/lib/api", () => ({
+  configureApi: (...args: unknown[]) => mockConfigureApi(...args),
+  validateApiConnection: (...args: unknown[]) => mockRivetConnect(...args),
 }));
 
 // Import after mocks are set up
@@ -30,7 +31,6 @@ describe("useConnection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    mockCurrentUserId.value = 1;
   });
 
   it("isConnected is true only when both serverUrl and secretKey are set", () => {
@@ -55,20 +55,14 @@ describe("useConnection", () => {
 
     await connect("http://10.0.0.1:8080", "secret123");
 
-    expect(mockConfigureRivet).toHaveBeenCalledWith({
-      baseUrl: "http://10.0.0.1:8080",
-      headers: expect.any(Function),
-    });
-    expect(mockRivetConnect).toHaveBeenCalledWith({ key: "secret123" });
+    expect(mockConfigureApi).toHaveBeenCalledWith("http://10.0.0.1:8080", "secret123");
+    expect(mockRivetConnect).toHaveBeenCalledWith("http://10.0.0.1:8080", "secret123");
     expect(localStorage.getItem("reel:serverUrl")).toBe("http://10.0.0.1:8080");
     expect(localStorage.getItem("reel:secretKey")).toBe("secret123");
     expect(serverUrl.value).toBe("http://10.0.0.1:8080");
     expect(secretKey.value).toBe("secret123");
     expect(isConnected.value).toBe(true);
 
-    // Verify headers function returns correct header
-    const headersArg = mockConfigureRivet.mock.calls[0]![0];
-    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123", "X-User-Id": "1" });
   });
 
   it("connect() throws and does not persist when Rivet connect fails", async () => {
@@ -84,6 +78,21 @@ describe("useConnection", () => {
     expect(secretKey.value).toBe("");
   });
 
+  it("failed reconnect preserves the working client and persisted connection", async () => {
+    mockRivetConnect.mockResolvedValueOnce({ status: "connected", serverName: null });
+    const { connect, serverUrl, secretKey } = useConnection();
+    await connect("http://working:8080", "working-key");
+    vi.clearAllMocks();
+    mockRivetConnect.mockRejectedValueOnce(new Error("Unauthorized"));
+
+    await expect(connect("http://bad:8080", "bad-key")).rejects.toThrow("Unauthorized");
+
+    expect(mockConfigureApi).not.toHaveBeenCalled();
+    expect(serverUrl.value).toBe("http://working:8080");
+    expect(secretKey.value).toBe("working-key");
+    expect(localStorage.getItem("reel:serverUrl")).toBe("http://working:8080");
+  });
+
   it("restore() reads from localStorage and configures Rivet when values exist", () => {
     localStorage.setItem("reel:serverUrl", "http://saved:8080");
     localStorage.setItem("reel:secretKey", "saved-key");
@@ -91,40 +100,20 @@ describe("useConnection", () => {
     const { restore, serverUrl, secretKey, isConnected } = useConnection();
     restore();
 
-    expect(mockConfigureRivet).toHaveBeenCalledWith({
-      baseUrl: "http://saved:8080",
-      headers: expect.any(Function),
-    });
+    expect(mockConfigureApi).toHaveBeenCalledWith("http://saved:8080", "saved-key");
     expect(serverUrl.value).toBe("http://saved:8080");
     expect(secretKey.value).toBe("saved-key");
     expect(isConnected.value).toBe(true);
 
-    // Verify headers function returns correct header
-    const headersArg = mockConfigureRivet.mock.calls[0]![0];
-    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "saved-key", "X-User-Id": "1" });
   });
 
   it("restore() does nothing when localStorage is empty", () => {
     const { restore, serverUrl, secretKey } = useConnection();
     restore();
 
-    expect(mockConfigureRivet).not.toHaveBeenCalled();
+    expect(mockConfigureApi).not.toHaveBeenCalled();
     expect(serverUrl.value).toBe("");
     expect(secretKey.value).toBe("");
-  });
-
-  it("headers function reflects current userId reactively", async () => {
-    mockRivetConnect.mockResolvedValue({ status: "connected", serverName: null });
-
-    const { connect } = useConnection();
-    await connect("http://10.0.0.1:8080", "secret123");
-
-    const headersArg = mockConfigureRivet.mock.calls[0]![0];
-    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123", "X-User-Id": "1" });
-
-    // Change user id — headers function should reflect the new value
-    mockCurrentUserId.value = 42;
-    expect(headersArg.headers()).toEqual({ "X-Secret-Key": "secret123", "X-User-Id": "42" });
   });
 
   it("disconnect() clears localStorage and resets state", async () => {
@@ -142,6 +131,6 @@ describe("useConnection", () => {
     expect(serverUrl.value).toBe("");
     expect(secretKey.value).toBe("");
     expect(isConnected.value).toBe(false);
-    expect(mockConfigureRivet).toHaveBeenCalledWith({ baseUrl: "" });
+    expect(mockConfigureApi).toHaveBeenCalledWith("");
   });
 });

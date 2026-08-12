@@ -2,7 +2,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ref, computed } from "vue";
-import type { FileNode } from "~~/generated/rivet/types/domain";
+import type { FileNode } from "~~/app/lib/api";
 
 // Mock Nuxt auto-imports
 vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
@@ -12,8 +12,8 @@ vi.stubGlobal("computed", computed);
 // Mock Rivet library function
 const mockLibrary = vi.fn();
 
-vi.mock("~~/generated/rivet/client/reel", () => ({
-  library: (...args: unknown[]) => mockLibrary(...args),
+vi.mock("~~/app/lib/api", () => ({
+  api: { library: (...args: unknown[]) => mockLibrary(...args) },
 }));
 
 // Import after mocks
@@ -42,9 +42,6 @@ const fixtureTree: FileNode = {
           children: null,
           parsedTitle: "movie",
           year: null,
-          thumbnailUrl: "/api/files/thumbnail?path=Films%2Fmovie.mp4",
-          watched: null,
-          displayTitle: "movie",
         },
         {
           name: "Sci-Fi",
@@ -62,23 +59,14 @@ const fixtureTree: FileNode = {
               children: null,
               parsedTitle: "blade runner",
               year: null,
-              thumbnailUrl: "/api/files/thumbnail?path=Films%2FSci-Fi%2Fblade-runner.mkv",
-              watched: null,
-              displayTitle: "blade runner",
             },
           ],
           parsedTitle: null,
           year: null,
-          thumbnailUrl: null,
-          watched: null,
-          displayTitle: null,
         },
       ],
       parsedTitle: null,
       year: null,
-      thumbnailUrl: null,
-      watched: null,
-      displayTitle: null,
     },
     {
       name: "readme.txt",
@@ -89,16 +77,10 @@ const fixtureTree: FileNode = {
       children: null,
       parsedTitle: "readme",
       year: null,
-      thumbnailUrl: "/api/files/thumbnail?path=readme.txt",
-      watched: null,
-      displayTitle: "readme",
     },
   ],
   parsedTitle: null,
   year: null,
-  thumbnailUrl: null,
-  watched: null,
-  displayTitle: null,
 };
 
 describe("useLibrary", () => {

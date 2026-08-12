@@ -26,12 +26,11 @@ public sealed class PrivateNetworkMiddleware
 
     private static bool IsAllowed(IPAddress address)
     {
-        if (IPAddress.IsLoopback(address))
-            return true;
-
-        // IPv6 mapped IPv4 — unwrap and check the inner address
         if (address.IsIPv4MappedToIPv6)
             address = address.MapToIPv4();
+
+        if (IPAddress.IsLoopback(address))
+            return true;
 
         var bytes = address.GetAddressBytes();
 

@@ -1,9 +1,11 @@
 namespace Reel.Server.Tests;
 
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 
 public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
@@ -125,5 +127,48 @@ public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<P
         var root = doc.RootElement;
         root.GetProperty("extension").ValueKind.Should().Be(JsonValueKind.Null);
         root.GetProperty("sizeBytes").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Rescan_DeletesMissingMediaAndDependentRows()
+    {
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+        await client.GetAsync("/api/search");
+
+        const string path = "test.mp4";
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new { path, positionSeconds = 10, durationSeconds = 100 }
+        );
+        File.Delete(Path.Combine(_mediaRoot, path));
+
+        var response = await client.PostAsync("/api/library/rescan", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        await using var connection = new SqliteConnection(
+            $"Data Source={Path.Combine(_mediaRoot, ".reel", "reel-v2.db")}"
+        );
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT
+                (SELECT COUNT(*) FROM media WHERE relative_path = 'test.mp4'),
+                (SELECT COUNT(*) FROM progress WHERE relative_path = 'test.mp4');
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        reader.GetInt32(0).Should().Be(0);
+        reader.GetInt32(1).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Rescan_WithoutKeyReturns401()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.PostAsync("/api/library/rescan", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 }

@@ -15,8 +15,6 @@ const handleConnect = async () => {
 
   try {
     await connect(url.value, key.value);
-    const { fetchUsers } = useUser();
-    await fetchUsers();
     await navigateTo("/", { replace: true });
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Connection failed";
@@ -34,7 +32,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-dvh flex items-center justify-center px-4">
+  <div class="flex min-h-0 flex-1 items-center justify-center px-4">
     <div class="w-full max-w-sm space-y-6">
       <div class="text-center">
         <h1 class="text-3xl font-bold tracking-tight">Reel</h1>

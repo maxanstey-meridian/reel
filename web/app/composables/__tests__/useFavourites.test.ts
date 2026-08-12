@@ -15,10 +15,12 @@ const mockFavouritesAll = vi.fn();
 const mockFavouritesAdd = vi.fn();
 const mockFavouritesRemove = vi.fn();
 
-vi.mock("~~/generated/rivet/client/reel", () => ({
-  favouritesAll: (...args: unknown[]) => mockFavouritesAll(...args),
-  favouritesAdd: (...args: unknown[]) => mockFavouritesAdd(...args),
-  favouritesRemove: (...args: unknown[]) => mockFavouritesRemove(...args),
+vi.mock("~~/app/lib/api", () => ({
+  api: {
+    favouritesAll: (...args: unknown[]) => mockFavouritesAll(...args),
+    favouritesAdd: (...args: unknown[]) => mockFavouritesAdd(...args),
+    favouritesRemove: (...args: unknown[]) => mockFavouritesRemove(...args),
+  },
 }));
 
 // Import after mocks

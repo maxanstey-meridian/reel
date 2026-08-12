@@ -36,6 +36,7 @@ public sealed class SqliteMediaStoreSubtitleTests : IDisposable
     [Fact]
     public async Task SaveAndGetSubtitles_Roundtrip()
     {
+        await IndexAsync("Films/movie.mp4");
         var tracks = new List<SubtitleTrack>
         {
             new(0, "English", "eng", "subrip", "embedded", null),
@@ -63,6 +64,7 @@ public sealed class SqliteMediaStoreSubtitleTests : IDisposable
     [Fact]
     public async Task SaveSubtitles_ReplacesExisting()
     {
+        await IndexAsync("Films/movie.mp4");
         var initial = new List<SubtitleTrack>
         {
             new(0, "English", "eng", "subrip", "embedded", null),
@@ -93,23 +95,21 @@ public sealed class SqliteMediaStoreSubtitleTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveSubtitles_CreatesMediaRow()
+    public async Task SaveSubtitles_RequiresIndexedMedia()
     {
         var tracks = new List<SubtitleTrack>
         {
             new(0, "English", "eng", "subrip", "embedded", null),
         };
 
-        await _store.SaveSubtitlesAsync("Films/new-movie.mp4", tracks, CancellationToken.None);
-
-        // Media row should exist now
-        var media = await _store.GetAsync("Films/new-movie.mp4", CancellationToken.None);
-        media.Should().NotBeNull();
+        var action = () => _store.SaveSubtitlesAsync("Films/new-movie.mp4", tracks, CancellationToken.None);
+        await action.Should().ThrowAsync<Microsoft.Data.Sqlite.SqliteException>();
     }
 
     [Fact]
     public async Task SaveSubtitles_EmptyList_ClearsExisting()
     {
+        await IndexAsync("Films/movie.mp4");
         var tracks = new List<SubtitleTrack>
         {
             new(0, "English", "eng", "subrip", "embedded", null),
@@ -125,6 +125,10 @@ public sealed class SqliteMediaStoreSubtitleTests : IDisposable
     [Fact]
     public async Task DifferentMedia_IsolatedSubtitles()
     {
+        await _store.ReconcileAsync(
+            [new MediaRecord("Films/movie1.mp4", null, null), new MediaRecord("Films/movie2.mp4", null, null)],
+            CancellationToken.None
+        );
         await _store.SaveSubtitlesAsync(
             "Films/movie1.mp4",
             [new SubtitleTrack(0, "English", "eng", "subrip", "embedded", null)],
@@ -146,4 +150,7 @@ public sealed class SqliteMediaStoreSubtitleTests : IDisposable
         result2.Should().HaveCount(1);
         result2[0].Language.Should().Be("fre");
     }
+
+    private Task IndexAsync(string path) =>
+        _store.ReconcileAsync([new MediaRecord(path, null, null)], CancellationToken.None);
 }

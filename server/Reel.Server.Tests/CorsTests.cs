@@ -23,7 +23,7 @@ public sealed class CorsTests : IClassFixture<WebApplicationFactory<Program>>
     {
         var client = _factory.CreateClient();
 
-        var request = new HttpRequestMessage(HttpMethod.Options, "/api/cast");
+        var request = new HttpRequestMessage(HttpMethod.Options, "/api/progress");
         request.Headers.Add("Origin", "http://localhost:3000");
         request.Headers.Add("Access-Control-Request-Method", "POST");
         request.Headers.Add("Access-Control-Request-Headers", "Content-Type, X-Secret-Key");
@@ -45,7 +45,7 @@ public sealed class CorsTests : IClassFixture<WebApplicationFactory<Program>>
         client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
         client.DefaultRequestHeaders.Add("Origin", "http://localhost:3000");
 
-        var response = await client.PostAsync("/api/cast/ack", null);
+        var response = await client.GetAsync("/api/health");
 
         response.Headers.GetValues("Access-Control-Allow-Origin").Should().Contain("*");
     }

@@ -1,20 +1,15 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ref, computed } from "vue";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ref } from "vue";
 
-// Mock Nuxt auto-imports
-vi.stubGlobal("useState", <T>(_key: string, init: () => T) => ref(init()));
-vi.stubGlobal("computed", computed);
+vi.stubGlobal("ref", ref);
 
-// Mock Rivet client
 const mockSearch = vi.fn();
-
-vi.mock("~~/generated/rivet/client/reel", () => ({
-  search: (...args: unknown[]) => mockSearch(...args),
+vi.mock("~~/app/lib/api", () => ({
+  api: { search: (...args: unknown[]) => mockSearch(...args) },
 }));
 
-// Import after mocks
 const { useSearch } = await import("../useSearch");
 
 describe("useSearch", () => {
@@ -24,154 +19,63 @@ describe("useSearch", () => {
     mockSearch.mockResolvedValue([]);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+  afterEach(() => vi.useRealTimers());
 
-  const fileNode = {
-    name: "Movie.mkv",
-    type: "file" as const,
-    relativePath: "Films/Movie.mkv",
-    extension: ".mkv",
-    sizeBytes: 1000,
-    children: null,
-    parsedTitle: "Movie",
-    year: 2024,
-    thumbnailUrl: null,
-    watched: null,
-    displayTitle: "Movie",
-  };
-
-  it("search calls Rivet search with correct params", async () => {
-    mockSearch.mockResolvedValue([fileNode]);
-
+  it("searches by text without filters", async () => {
     const { search } = useSearch();
-    await search("test query", "action", "thriller", true);
-
-    expect(mockSearch).toHaveBeenCalledWith("test query", "action", "thriller", true);
+    await search("movie");
+    expect(mockSearch).toHaveBeenCalledWith("movie", expect.any(AbortSignal));
   });
 
-  it("search populates results with API response", async () => {
-    mockSearch.mockResolvedValue([fileNode]);
-
-    const { results, search } = useSearch();
-    await search("test");
-
-    expect(results.value).toEqual([fileNode]);
+  it("debounces text searches", async () => {
+    const { debouncedSearch } = useSearch();
+    debouncedSearch("first");
+    debouncedSearch("second");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(mockSearch).toHaveBeenCalledOnce();
+    expect(mockSearch).toHaveBeenCalledWith("second", expect.any(AbortSignal));
   });
 
-  it("search passes null for empty query string", async () => {
-    const { search } = useSearch();
-    await search("");
-
-    expect(mockSearch).toHaveBeenCalledWith(null, null, null, null);
+  it("clears results for an empty query", () => {
+    const { results, debouncedSearch } = useSearch();
+    results.value = [{ name: "Movie", type: "file", relativePath: "Movie.mkv" }];
+    debouncedSearch("");
+    expect(results.value).toEqual([]);
   });
 
-  it("loading is true during API call and false after", async () => {
-    let resolveApi: (value: unknown[]) => void;
-    mockSearch.mockReturnValue(
-      new Promise<unknown[]>((resolve) => {
-        resolveApi = resolve;
-      }),
-    );
+  it("ignores stale responses and keeps loading for the current request", async () => {
+    let resolveFirst!: (value: unknown[]) => void;
+    let resolveSecond!: (value: unknown[]) => void;
+    mockSearch
+      .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveSecond = resolve)));
+    const { results, loading, completedQuery, search } = useSearch();
 
-    const { loading, search } = useSearch();
-
-    expect(loading.value).toBe(false);
-
-    const promise = search("test");
-
+    const first = search("first");
+    const second = search("second");
+    resolveFirst([{ name: "Old", type: "file", relativePath: "old.mkv" }]);
+    await first;
+    expect(results.value).toEqual([]);
     expect(loading.value).toBe(true);
 
-    resolveApi!([]);
-    await promise;
-
+    resolveSecond([{ name: "New", type: "file", relativePath: "new.mkv" }]);
+    await second;
+    expect(results.value[0]?.name).toBe("New");
+    expect(completedQuery.value).toBe("second");
     expect(loading.value).toBe(false);
   });
 
-  it("error is set on API failure and loading resets", async () => {
-    mockSearch.mockRejectedValue(new Error("Network error"));
+  it("ignores a stale request error", async () => {
+    let rejectFirst!: (reason: Error) => void;
+    mockSearch
+      .mockReturnValueOnce(new Promise((_resolve, reject) => (rejectFirst = reject)))
+      .mockResolvedValueOnce([]);
+    const { error, search } = useSearch();
 
-    const { loading, error, search } = useSearch();
-    await search("test");
-
-    expect(error.value).toBe("Network error");
-    expect(loading.value).toBe(false);
-  });
-
-  it("debouncedSearch only triggers one API call within 300ms", async () => {
-    mockSearch.mockResolvedValue([]);
-
-    const { debouncedSearch } = useSearch();
-
-    debouncedSearch("first");
-    debouncedSearch("second");
-    debouncedSearch("third");
-
-    expect(mockSearch).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(300);
-
-    expect(mockSearch).toHaveBeenCalledTimes(1);
-    expect(mockSearch).toHaveBeenCalledWith("third", null, null, null);
-  });
-
-  it("debouncedSearch clears results immediately for empty query", () => {
-    const { results, debouncedSearch } = useSearch();
-    results.value = [fileNode];
-
-    debouncedSearch("");
-
-    expect(results.value).toEqual([]);
-    expect(mockSearch).not.toHaveBeenCalled();
-  });
-
-  it("debouncedSearch cancels previous pending call", async () => {
-    mockSearch.mockResolvedValue([]);
-
-    const { debouncedSearch } = useSearch();
-
-    debouncedSearch("first");
-    await vi.advanceTimersByTimeAsync(200);
-
-    debouncedSearch("second");
-    await vi.advanceTimersByTimeAsync(300);
-
-    expect(mockSearch).toHaveBeenCalledTimes(1);
-    expect(mockSearch).toHaveBeenCalledWith("second", null, null, null);
-  });
-
-  it("debouncedSearch with tag filter and empty query does not short-circuit", async () => {
-    mockSearch.mockResolvedValue([]);
-
-    const { debouncedSearch } = useSearch();
-
-    debouncedSearch("", "action", null, null);
-    await vi.advanceTimersByTimeAsync(300);
-
-    expect(mockSearch).toHaveBeenCalledTimes(1);
-    expect(mockSearch).toHaveBeenCalledWith(null, "action", null, null);
-  });
-
-  it("debouncedSearch with watched filter and empty query does not short-circuit", async () => {
-    mockSearch.mockResolvedValue([]);
-
-    const { debouncedSearch } = useSearch();
-
-    debouncedSearch("", null, null, false);
-    await vi.advanceTimersByTimeAsync(300);
-
-    expect(mockSearch).toHaveBeenCalledTimes(1);
-    expect(mockSearch).toHaveBeenCalledWith(null, null, null, false);
-  });
-
-  it("debouncedSearch with no query and no filters still short-circuits", () => {
-    const { results, debouncedSearch } = useSearch();
-    results.value = [fileNode];
-
-    debouncedSearch("", null, null, null);
-
-    expect(results.value).toEqual([]);
-    expect(mockSearch).not.toHaveBeenCalled();
+    const first = search("first");
+    await search("second");
+    rejectFirst(new Error("stale failure"));
+    await first;
+    expect(error.value).toBeNull();
   });
 });

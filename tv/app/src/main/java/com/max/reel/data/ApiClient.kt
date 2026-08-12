@@ -9,6 +9,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLParameter
@@ -45,7 +46,7 @@ class ApiClient(
         }
         expectSuccess = false
     },
-) {
+) : ReelApi {
 
     private val baseUrl: String
         get() = "http://${prefs.serverIp}:${prefs.serverPort}"
@@ -70,164 +71,96 @@ class ApiClient(
         }
     }
 
-    suspend fun fetchCastCurrent(): CastPollResult {
-        return try {
-            val response = client.get("$baseUrl/api/cast/current") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            when (response.status.value) {
-                200 -> {
-                    val status = response.body<CastStatus>()
-                    CastPollResult.Success(status)
-                }
-                204 -> CastPollResult.Success(null)
-                401 -> CastPollResult.Unauthorized
-                else -> CastPollResult.NetworkError("Unexpected status: ${response.status.value}")
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            CastPollResult.NetworkError(e.message ?: "Unknown error")
+    override suspend fun getPlaybackSession(): ApiResult<PlaybackSessionEnvelope> = request {
+        client.get("$baseUrl/api/playback/session") { authenticate() }
+    }
+
+    override suspend fun updatePlaybackIntent(
+        request: UpdatePlaybackIntentRequest,
+    ): ApiResult<PlaybackSessionResponse> = request {
+        client.put("$baseUrl/api/playback/session/intent") {
+            authenticate()
+            contentType(ContentType.Application.Json)
+            setBody(request)
         }
     }
 
-    suspend fun acknowledgeCast(): Boolean {
-        return try {
-            val response = client.post("$baseUrl/api/cast/ack") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            response.status.value == 200
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            false
+    override suspend fun reportObservation(
+        request: ReportPlaybackObservationRequest,
+    ): ApiResult<PlaybackSessionResponse> = request {
+        client.put("$baseUrl/api/playback/session/observation") {
+            authenticate()
+            contentType(ContentType.Application.Json)
+            setBody(request)
         }
     }
 
-    suspend fun fetchPosters(count: Int = 20): List<String> {
-        return try {
-            val response = client.get("$baseUrl/api/library/posters?count=$count") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            if (response.status.value == 200) response.body<List<String>>() else emptyList()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            emptyList()
-        }
-    }
-
-    suspend fun fetchStats(): LibraryStats? {
-        return try {
-            val response = client.get("$baseUrl/api/library/stats") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            if (response.status.value == 200) response.body<LibraryStats>() else null
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            null
-        }
-    }
-
-    suspend fun fetchUsers(): List<UserInfo> {
-        return try {
-            val response = client.get("$baseUrl/api/users") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            if (response.status.value == 200) response.body<List<UserInfo>>() else emptyList()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            emptyList()
-        }
-    }
-
-    suspend fun updateProgress(
+    override suspend fun updateProgress(
         path: String,
         positionSeconds: Double,
         durationSeconds: Double,
-    ): Boolean {
+    ): ApiResult<Unit> {
         return try {
             val response = client.post("$baseUrl/api/progress") {
-                header("X-Secret-Key", prefs.secretKey)
+                authenticate()
                 contentType(ContentType.Application.Json)
                 setBody(ProgressRequestBody(path, positionSeconds, durationSeconds))
             }
-            response.status.value == 200
+            if (response.status.value in 200..299) ApiResult.Success(Unit)
+            else ApiResult.Failure("Unexpected status: ${response.status.value}", response.status.value)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            false
+            ApiResult.Failure(e.message ?: "Network error")
         }
     }
 
-    suspend fun fetchSubtitles(path: String): List<SubtitleTrack> {
+    override suspend fun fetchSubtitles(path: String): ApiResult<List<SubtitleTrack>> {
         return try {
             val response = client.get("$baseUrl/api/files/subtitles?path=${path.encodeURLParameter()}") {
-                header("X-Secret-Key", prefs.secretKey)
+                authenticate()
             }
-            if (response.status.value == 200) response.body<List<SubtitleTrack>>() else emptyList()
+            if (response.status.value == 200) ApiResult.Success(response.body())
+            else ApiResult.Failure("Unexpected status: ${response.status.value}", response.status.value)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            emptyList()
+            ApiResult.Failure(e.message ?: "Network error")
         }
     }
 
-    fun subtitleContentUrl(path: String, index: Int, format: String = "webvtt"): String {
+    override fun streamUrl(path: String): String =
+        "$baseUrl/api/files/stream?path=${path.encodeURLParameter()}"
+
+    override fun subtitleContentUrl(path: String, index: Int, format: String): String {
         return "$baseUrl/api/files/subtitles/content?path=${path.encodeURLParameter()}&index=$index&format=$format"
-    }
-
-    suspend fun fetchTrickplayMetadata(path: String): TrickplayMetadata? {
-        return try {
-            val response = client.get("$baseUrl/api/files/trickplay?path=${path.encodeURLParameter()}") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            if (response.status.value == 200) response.body<TrickplayMetadata>() else null
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            null
-        }
-    }
-
-    fun trickplaySpriteUrl(path: String, sheet: Int): String {
-        return "$baseUrl/api/files/trickplay/sprite?path=${path.encodeURLParameter()}&sheet=$sheet&key=${prefs.secretKey.encodeURLParameter()}"
-    }
-
-    suspend fun fetchNextFile(path: String): FileNode? {
-        return try {
-            val response = client.get("$baseUrl/api/files/next?path=${path.encodeURLParameter()}") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            if (response.status.value == 200) response.body<FileNode>() else null
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            null
-        }
-    }
-
-    suspend fun fetchCastQueue(): List<String> {
-        return try {
-            val response = client.get("$baseUrl/api/cast/queue") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            if (response.status.value == 200) response.body<List<String>>() else emptyList()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            emptyList()
-        }
-    }
-
-    suspend fun setWatched(path: String): Boolean {
-        return try {
-            val response = client.put("$baseUrl/api/media/watched?path=${path.encodeURLParameter()}") {
-                header("X-Secret-Key", prefs.secretKey)
-            }
-            response.status.value == 204
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            false
-        }
     }
 
     fun close() {
         client.close()
     }
+
+    private fun io.ktor.client.request.HttpRequestBuilder.authenticate() {
+        header("X-Secret-Key", prefs.secretKey)
+    }
+
+    private suspend inline fun <reified T> request(
+        crossinline block: suspend () -> HttpResponse,
+    ): ApiResult<T> = try {
+        val response = block()
+        if (response.status.value !in 200..299) {
+            val message = runCatching { response.body<PlaybackErrorResponse>().error }
+                .getOrElse { "Unexpected status: ${response.status.value}" }
+            ApiResult.Failure(message, response.status.value)
+        } else {
+            ApiResult.Success(response.body())
+        }
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        ApiResult.Failure(e.message ?: "Network error")
+    }
 }
+
+@Serializable
+private data class PlaybackErrorResponse(val error: String)
 
 @Serializable
 private data class ProgressRequestBody(

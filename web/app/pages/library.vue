@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import type { FileNode } from "~~/generated/rivet/types/domain";
-import { useConnection } from "../composables/useConnection";
+import type { FileNode } from "~~/app/lib/api";
 import { useLibrary } from "../composables/useLibrary";
 import { useProgress } from "../composables/useProgress";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useScrollPreservation } from "../composables/useScrollPreservation";
 import type { WatchProgress } from "../composables/useProgress";
-import { getNameInitial, scrollToNameInitial } from "../utils/alphabetScroller";
 import { findNodeByPath } from "../utils/findNodeByPath";
 
-const { isConnected } = useConnection();
 const {
   tree,
   currentChildren,
@@ -24,6 +21,10 @@ const {
 
 const { entries: progressEntries, fetch: fetchProgress } = useProgress();
 
+const CONTINUE_WATCHING_LIMIT = 12;
+const CONTINUE_WATCHING_MIN_RATIO = 0.05;
+const CONTINUE_WATCHING_MAX_RATIO = 0.95;
+
 useScrollPreservation(loading, currentPath);
 
 const { refreshing, pullOffset } = usePullToRefresh(() => refresh());
@@ -35,18 +36,24 @@ const continueWatchingItems = computed(() => {
   return progressEntries.value
     .map((entry: WatchProgress) => {
       const node = findNodeByPath(tree.value, entry.relativePath);
-      const progress =
+      const ratio =
         entry.durationSeconds > 0 ? entry.positionSeconds / entry.durationSeconds : 0;
-      return node ? { node, progress } : null;
+      return node ? { node, progress: ratio } : null;
     })
-    .filter((item): item is { node: FileNode; progress: number } => item !== null);
+    .filter((item): item is { node: FileNode; progress: number } => item !== null)
+    .filter(
+      (item) =>
+        item.progress > CONTINUE_WATCHING_MIN_RATIO &&
+        item.progress < CONTINUE_WATCHING_MAX_RATIO,
+    )
+    .slice(0, CONTINUE_WATCHING_LIMIT);
 });
 
+const handleContinueWatching = (node: FileNode) => {
+  navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`);
+};
+
 onMounted(() => {
-  if (!isConnected.value) {
-    navigateTo("/connect", { replace: true });
-    return;
-  }
   fetchProgress();
 });
 
@@ -62,6 +69,15 @@ const isNavigationLevel = computed(() => directories.value.length > 0 && files.v
 
 const handleSelect = (node: FileNode) => {
   if (node.type === "directory") {
+    // Pass-through: a folder containing exactly one playable file (and no
+    // sub-folders) jumps straight to the file's detail page. Common shape
+    // for movies that live in their own "MovieName (Year)/MovieName.mkv".
+    const directFiles = (node.children ?? []).filter((c) => c.type === "file");
+    const directDirs = (node.children ?? []).filter((c) => c.type === "directory");
+    if (directFiles.length === 1 && directDirs.length === 0) {
+      navigateTo(`/detail/${encodeURIComponent(directFiles[0]!.relativePath)}`);
+      return;
+    }
     enterDirectory(node.name);
   } else {
     navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`);
@@ -69,18 +85,9 @@ const handleSelect = (node: FileNode) => {
 };
 
 const handleRowSelect = (_parentDir: FileNode, node: FileNode) => {
-  if (node.type === "file") {
-    navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`);
-  } else if (node.type === "directory") {
-    enterDirectory(node.name);
-  }
+  handleSelect(node);
 };
 
-const childNames = computed(() => currentChildren.value.map((n: FileNode) => n.name));
-
-const handleScrollToLetter = (letter: string) => {
-  scrollToNameInitial(letter);
-};
 </script>
 
 <template>
@@ -158,7 +165,7 @@ const handleScrollToLetter = (letter: string) => {
             :key="item.node.relativePath"
             :node="item.node"
             :progress="item.progress"
-            @select="handleSelect(item.node)"
+            @select="handleContinueWatching(item.node)"
           />
         </div>
       </div>
@@ -169,8 +176,7 @@ const handleScrollToLetter = (letter: string) => {
           v-for="dir in directories"
           :key="dir.relativePath"
           :node="dir"
-          :data-name-initial="getNameInitial(dir.name)"
-          @select="enterDirectory(dir.name)"
+          @select="handleSelect(dir)"
         />
       </div>
 
@@ -191,7 +197,6 @@ const handleScrollToLetter = (letter: string) => {
             v-for="file in files"
             :key="file.relativePath"
             :node="file"
-            :data-name-initial="getNameInitial(file.name)"
             @select="handleSelect(file)"
           />
         </div>
@@ -206,8 +211,6 @@ const handleScrollToLetter = (letter: string) => {
         <p class="text-sm">This folder is empty</p>
       </div>
 
-      <!-- Alphabet scroller -->
-      <AlphabetScroller :names="childNames" @scroll-to="handleScrollToLetter" />
     </div>
 
   </div>

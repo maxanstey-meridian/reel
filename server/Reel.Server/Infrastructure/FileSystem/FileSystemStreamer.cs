@@ -2,25 +2,20 @@ namespace Reel.Server.Infrastructure.FileSystem;
 
 using HeyRed.Mime;
 using Reel.Server.Application.Ports;
-using Reel.Server.Infrastructure.Configuration;
 
 public sealed class FileSystemStreamer : IFileStreamer
 {
-    private readonly ReelConfig _config;
+    private readonly MediaPathResolver _pathResolver;
 
-    public FileSystemStreamer(ReelConfig config)
+    public FileSystemStreamer(MediaPathResolver pathResolver)
     {
-        _config = config;
+        _pathResolver = pathResolver;
     }
 
     public (string fullPath, string contentType)? Resolve(string relativePath)
     {
-        var fullPath = Path.GetFullPath(Path.Combine(_config.NormalisedMediaRoot, relativePath));
-
-        if (!fullPath.StartsWith(_config.NormalisedMediaRoot, StringComparison.Ordinal))
-            return null;
-
-        if (!File.Exists(fullPath))
+        var fullPath = _pathResolver.ResolvePlayableFile(relativePath);
+        if (fullPath is null)
             return null;
 
         var contentType = MimeTypesMap.GetMimeType(Path.GetExtension(fullPath));

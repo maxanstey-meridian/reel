@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FileNode } from "~~/generated/rivet/types/domain";
+import type { FileNode } from "~~/app/lib/api";
 
 defineProps<{ title: string; items: FileNode[] }>();
 defineEmits<{ select: [node: FileNode] }>();

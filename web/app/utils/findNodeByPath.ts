@@ -1,4 +1,4 @@
-import type { FileNode } from "~~/generated/rivet/types/domain";
+import type { FileNode } from "~~/app/lib/api";
 
 export const findNodeByPath = (root: FileNode | null, relativePath: string): FileNode | null => {
   if (!root) {

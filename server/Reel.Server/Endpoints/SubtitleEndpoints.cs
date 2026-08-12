@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 using Reel.Server.Application.Models;
 using Reel.Server.Application.Ports;
 using Reel.Server.Domain.Exceptions;
-using Reel.Server.Infrastructure.Configuration;
+using Reel.Server.Infrastructure.FileSystem;
+using Rivet;
 
 public static class SubtitleEndpoints
 {
@@ -23,27 +24,24 @@ public static class SubtitleEndpoints
                 [FromQuery] string? path,
                 ISubtitleDiscovery discovery,
                 IMediaStore mediaStore,
-                ReelConfig config,
+                MediaPathResolver pathResolver,
                 CancellationToken ct
             ) =>
-                (
-                    await ReelContract.SubtitlesList.Invoke(
-                        new FileRequest(path ?? ""),
-                        async req =>
-                        {
-                            if (string.IsNullOrWhiteSpace(req.Path))
-                                throw new BadRequestException("Missing required query parameter: path");
+            {
+                var request = new FileRequest(path ?? "");
+                var endpoint = ReelContract.SubtitlesList.Bind(request);
+                if (string.IsNullOrWhiteSpace(request.Path))
+                    throw new BadRequestException("Missing required query parameter: path");
 
-                            var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, req.Path));
-                            if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
-                                throw new ForbiddenException("Access denied.");
+                if (pathResolver.ResolvePlayableFile(request.Path) is null)
+                    throw new ForbiddenException("Access denied.");
+                if (await mediaStore.GetAsync(request.Path, ct) is null)
+                    throw new NotFoundException("Indexed media not found.");
 
-                            var tracks = await discovery.DiscoverAsync(req.Path, ct);
-                            await mediaStore.SaveSubtitlesAsync(req.Path, tracks, ct);
-                            return tracks.ToArray();
-                        }
-                    )
-                ).ToResult()
+                var tracks = await discovery.DiscoverAsync(request.Path, ct);
+                await mediaStore.SaveSubtitlesAsync(request.Path, tracks, ct);
+                return endpoint.Success(tracks.ToArray()).ToResult();
+            }
         );
 
         app.MapGet(
@@ -54,40 +52,39 @@ public static class SubtitleEndpoints
                 [FromQuery] string? format,
                 IMediaStore mediaStore,
                 ISubtitleExtractor extractor,
-                ReelConfig config,
+                MediaPathResolver pathResolver,
                 CancellationToken ct
             ) =>
             {
+                var endpoint = ReelContract.SubtitlesContent.Bind(
+                    new SubtitleContentRequest(path ?? "", index ?? 0, format)
+                );
                 if (string.IsNullOrWhiteSpace(path))
-                    return Results.BadRequest(new { error = "Missing required query parameter: path" });
+                    return endpoint.Error(400, new ErrorResponse("Missing required query parameter: path")).ToResult();
 
                 if (index is null)
-                    return Results.BadRequest(new { error = "Missing required query parameter: index" });
+                    return endpoint.Error(400, new ErrorResponse("Missing required query parameter: index")).ToResult();
 
                 if (format is not null && !AllowedFormats.Contains(format))
-                    return Results.BadRequest(new { error = "Unsupported subtitle format" });
+                    return endpoint.Error(400, new ErrorResponse("Unsupported subtitle format")).ToResult();
 
-                var fullPath = Path.GetFullPath(Path.Combine(config.NormalisedMediaRoot, path));
-                if (!fullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal))
-                    return Results.StatusCode(403);
+                if (pathResolver.ResolvePlayableFile(path) is null)
+                    return endpoint.Error(403).ToResult();
+                if (await mediaStore.GetAsync(path, ct) is null)
+                    return endpoint.Error(404, new ErrorResponse("Indexed media not found.")).ToResult();
 
                 // Look up the track from persisted data
                 var tracks = await mediaStore.GetSubtitlesAsync(path, ct);
                 var track = tracks.FirstOrDefault(t => t.Index == index.Value);
 
                 if (track is null)
-                    return Results.NotFound(new { error = "Subtitle track not found" });
+                    return endpoint.Error(404, new ErrorResponse("Subtitle track not found")).ToResult();
 
                 if (track.Source == "external" && track.ExternalPath is not null)
                 {
-                    var externalFullPath = Path.GetFullPath(
-                        Path.Combine(config.NormalisedMediaRoot, track.ExternalPath)
-                    );
-                    if (
-                        !externalFullPath.StartsWith(config.NormalisedMediaRoot, StringComparison.Ordinal)
-                        || !File.Exists(externalFullPath)
-                    )
-                        return Results.NotFound(new { error = "Subtitle file not found" });
+                    var externalFullPath = pathResolver.ResolveExistingFile(track.ExternalPath);
+                    if (externalFullPath is null)
+                        return endpoint.Error(404, new ErrorResponse("Subtitle file not found")).ToResult();
 
                     var content = await File.ReadAllTextAsync(externalFullPath, ct);
 
@@ -111,12 +108,12 @@ public static class SubtitleEndpoints
                 // Embedded track — extract via ffmpeg
                 var outputFormat = format ?? "webvtt";
                 if (!AllowedFormats.Contains(outputFormat))
-                    return Results.BadRequest(new { error = "Unsupported subtitle format" });
+                    return endpoint.Error(400, new ErrorResponse("Unsupported subtitle format")).ToResult();
 
                 var cachedPath = await extractor.ExtractAsync(path, track.Index, outputFormat, ct);
 
                 if (cachedPath is null)
-                    return Results.StatusCode(500);
+                    return endpoint.Error(500).ToResult();
 
                 var extractedContent = await File.ReadAllTextAsync(cachedPath, ct);
                 var mime = outputFormat.Equals("webvtt", StringComparison.OrdinalIgnoreCase)

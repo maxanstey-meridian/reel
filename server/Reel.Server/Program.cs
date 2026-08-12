@@ -10,7 +10,6 @@ using Reel.Server.Infrastructure.Configuration;
 using Reel.Server.Infrastructure.Ffmpeg;
 using Reel.Server.Infrastructure.FileSystem;
 using Reel.Server.Infrastructure.Persistence;
-using Reel.Server.Infrastructure.Tmdb;
 using Makaretu.Dns;
 using Reel.Server.Middleware;
 
@@ -29,20 +28,18 @@ if (reelConfig.Port <= 0)
 
 builder.Services.AddSingleton(reelConfig);
 builder.Services.AddSingleton<DatabaseService>();
+builder.Services.AddSingleton<MediaPathResolver>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<PlaybackSessionService>();
 builder.Services.AddSingleton<ILibraryScanner, FileSystemScanner>();
-builder.Services.AddSingleton<CastService>();
-builder.Services.AddSingleton<IThumbnailGenerator, FfmpegThumbnailGenerator>();
+builder.Services.AddSingleton<LibraryIndexReconciler>();
 builder.Services.AddSingleton<IProgressStore, SqliteProgressStore>();
 builder.Services.AddSingleton<IFavouritesStore, SqliteFavouritesStore>();
-builder.Services.AddSingleton<ICollectionStore, SqliteCollectionStore>();
 builder.Services.AddSingleton<IMediaStore, SqliteMediaStore>();
 builder.Services.AddSingleton<IFileStreamer, FileSystemStreamer>();
-builder.Services.AddSingleton<IUserStore, SqliteUserStore>();
 builder.Services.AddSingleton<ISubtitleDiscovery, FfprobeSubtitleDiscovery>();
 builder.Services.AddSingleton<ISubtitleExtractor, FfmpegSubtitleExtractor>();
 builder.Services.AddSingleton<ITrickplayGenerator, FfmpegTrickplayGenerator>();
-builder.Services.AddHttpClient();
-builder.Services.AddSingleton<IMetadataLookup, TmdbMetadataLookup>();
 builder.Services.AddCors();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -65,24 +62,20 @@ if (app.Environment.IsDevelopment())
 app.UseExceptionHandler();
 app.UseMiddleware<PrivateNetworkMiddleware>();
 app.UseMiddleware<SecretKeyMiddleware>();
-app.UseMiddleware<UserMiddleware>();
 
 app.MapHealthEndpoints();
 app.MapConnectEndpoints();
 app.MapPairEndpoints();
 app.MapLibraryEndpoints();
 app.MapStreamEndpoints();
-app.MapCastEndpoints();
-app.MapThumbnailEndpoints();
-app.MapMetadataEndpoints();
 app.MapProgressEndpoints();
 app.MapFavouritesEndpoints();
-app.MapCollectionEndpoints();
-app.MapUserEndpoints();
-app.MapMediaEndpoints();
 app.MapSearchEndpoints();
 app.MapSubtitleEndpoints();
 app.MapTrickplayEndpoints();
+app.MapPlaybackSessionEndpoints();
+
+await app.Services.GetRequiredService<LibraryIndexReconciler>().ReconcileAsync(CancellationToken.None);
 
 app.Urls.Clear();
 app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");

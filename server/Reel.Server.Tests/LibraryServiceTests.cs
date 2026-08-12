@@ -24,7 +24,7 @@ public sealed class LibraryServiceTests : IDisposable
             Port = 8080,
         };
 
-        _scanner = new FileSystemScanner(config, new NullMediaStore(), NullLogger<FileSystemScanner>.Instance);
+        _scanner = new FileSystemScanner(config, new MediaPathResolver(config), NullLogger<FileSystemScanner>.Instance);
     }
 
     public void Dispose()
@@ -203,57 +203,19 @@ public sealed class LibraryServiceTests : IDisposable
 
     private sealed class NullMediaStore : IMediaStore
     {
-        public Task UpsertFromScanAsync(string relativePath, string? parsedTitle, int? year, CancellationToken ct) =>
+        public Task ReconcileAsync(IReadOnlyCollection<MediaRecord> media, CancellationToken ct) =>
             Task.CompletedTask;
 
         public Task<MediaRecord?> GetAsync(string relativePath, CancellationToken ct) =>
             Task.FromResult<MediaRecord?>(null);
 
-        public Task SetWatchStateAsync(int userId, string relativePath, WatchState? state, CancellationToken ct) =>
-            Task.CompletedTask;
-
-        public Task<bool?> IsWatchedAsync(int userId, string relativePath, CancellationToken ct) =>
+        public Task<bool?> IsWatchedAsync(string relativePath, CancellationToken ct) =>
             Task.FromResult<bool?>(null);
 
-        public Task UpdateMetaAsync(
-            string relativePath,
-            Application.Models.MediaUpdateRequest update,
-            CancellationToken ct
-        ) => Task.CompletedTask;
-
-        public Task UpdateTmdbCacheAsync(
-            string relativePath,
-            int tmdbId,
-            string? posterUrl,
-            string? backdropUrl,
-            string? overview,
-            string? releaseDate,
-            CancellationToken ct
-        ) => Task.CompletedTask;
-
-        public Task SetTagsAsync(int userId, string relativePath, IReadOnlyList<string> tags, CancellationToken ct) =>
-            Task.CompletedTask;
-
-        public Task AddTagAsync(int userId, string relativePath, string tag, CancellationToken ct) =>
-            Task.CompletedTask;
-
-        public Task RemoveTagAsync(int userId, string relativePath, string tag, CancellationToken ct) =>
-            Task.CompletedTask;
-
-        public Task<IReadOnlyList<string>> GetTagsAsync(int userId, string relativePath, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<string>>([]);
-
-        public Task<IReadOnlyList<TagCount>> GetAllTagsAsync(int userId, CancellationToken ct) =>
-            Task.FromResult<IReadOnlyList<TagCount>>([]);
-
         public Task<IReadOnlyList<FileNode>> SearchAsync(
-            int userId,
             Application.Models.SearchQuery query,
             CancellationToken ct
         ) => Task.FromResult<IReadOnlyList<FileNode>>([]);
-
-        public Task<string?> GetDisplayTitleAsync(string relativePath, CancellationToken ct) =>
-            Task.FromResult<string?>(null);
 
         public Task SaveSubtitlesAsync(
             string relativePath,

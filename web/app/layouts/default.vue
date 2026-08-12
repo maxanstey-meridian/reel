@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import MiniPlayer from "~~/app/features/playback/components/MiniPlayer.vue";
+import { providePlayback } from "~~/app/features/playback/playback-context";
+import { usePlaybackSession } from "~~/app/features/playback/usePlaybackSession";
 import { navItems } from "~~/app/utils/navItems";
 
 const route = useRoute();
+const router = useRouter();
+const { isConnected } = useConnection();
+if (!isConnected.value) {
+  await navigateTo("/connect", { replace: true });
+}
+const playback = isConnected.value ? providePlayback(usePlaybackSession()) : null;
+const session = computed(() => playback?.session.value ?? null);
+const pending = computed(() => playback?.pending.value ?? false);
 
 const isActive = (path: string) => route.path.startsWith(path);
 </script>
 
 <template>
-  <div class="h-dvh flex flex-col bg-neutral-950 text-white">
+  <div v-if="playback" class="flex min-h-0 flex-1 flex-col bg-neutral-950 text-white">
     <header class="shrink-0">
       <div class="mx-auto w-full max-w-md flex justify-end px-4 pt-3">
         <NuxtLink
@@ -15,6 +26,7 @@ const isActive = (path: string) => route.path.startsWith(path);
           class="transition-colors"
           :class="route.path === '/settings' ? 'text-white' : 'text-neutral-500 hover:text-white'"
           data-testid="settings-link"
+          aria-label="Settings"
         >
           <UIcon name="i-lucide-settings" class="size-5" />
         </NuxtLink>
@@ -26,6 +38,13 @@ const isActive = (path: string) => route.path.startsWith(path);
         <slot />
       </div>
     </main>
+
+    <MiniPlayer
+      v-if="session"
+      :session="session"
+      :pending="pending"
+      @open="router.push('/now-playing')"
+    />
 
     <nav
       class="shrink-0 border-t border-neutral-800 flex pb-[env(safe-area-inset-bottom)]"
