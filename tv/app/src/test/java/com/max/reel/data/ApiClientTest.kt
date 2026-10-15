@@ -3,6 +3,7 @@ package com.max.reel.data
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
@@ -196,7 +197,7 @@ class ApiClientTest {
     }
 
     @Test
-    fun `an undecodable success is an unexpected response, not a lost server`() = runTest {
+    fun `an undecodable success is an unexpected response that keeps its status`() = runTest {
         val malformed = client { respondJson("<html>Not Reel</html>") }
         val wrongType =
             client {
@@ -209,5 +210,41 @@ class ApiClientTest {
             assertEquals(200, result.statusCode)
             assertEquals("Unexpected response from the server", result.message)
         }
+    }
+
+    @Test
+    fun `a server error without a Reel message reads as plain copy, not a status code`() = runTest {
+        val api = client { respond("Bad gateway", HttpStatusCode.BadGateway) }
+
+        val result = api.getPlaybackSession() as ApiResult.Failure
+
+        assertEquals(502, result.statusCode)
+        assertEquals("The Reel server isn't responding properly", result.message)
+    }
+
+    @Test
+    fun `stream info with an unknown duration decodes it as null`() = runTest {
+        val api = client { respondJson("""{"durationSeconds":null,"transcodeHeight":720}""") }
+
+        val info = (api.streamInfo("Films/movie.mp4") as ApiResult.Success).value
+
+        assertNull(info.durationSeconds)
+        assertEquals(720, info.transcodeHeight)
+    }
+
+    @Test
+    fun `stream info, which probes the file on the server, may take longer than other requests`() = runTest {
+        val timeouts = mutableMapOf<String, Long?>()
+        val api =
+            client { request ->
+                timeouts[request.url.encodedPath] = request.getCapabilityOrNull(HttpTimeout)?.requestTimeoutMillis
+                respondJson("{}")
+            }
+
+        api.streamInfo("Films/movie.mp4")
+        api.getPlaybackSession()
+
+        assertEquals(30_000L, timeouts["/api/files/stream/info"])
+        assertEquals(5_000L, timeouts["/api/playback/session"])
     }
 }

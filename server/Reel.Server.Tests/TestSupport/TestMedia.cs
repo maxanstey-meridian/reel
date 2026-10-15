@@ -48,6 +48,15 @@ internal static class TestMedia
             $"1\n00:00:00,500 --> 00:00:01,500\n{subtitleText}\n"
         );
 
+    /// <summary>
+    /// A named pipe nobody writes to: ffmpeg blocks opening it, so only a timeout ends the run.
+    /// </summary>
+    public static void CreateStalledSource(string path)
+    {
+        File.Delete(path);
+        Cli.Wrap("mkfifo").WithArguments([path]).ExecuteAsync().GetAwaiter().GetResult();
+    }
+
     private static void Ffmpeg(string[] arguments, string input = "") =>
         Cli.Wrap("ffmpeg")
             .WithArguments(["-v", "error", "-y", .. arguments])

@@ -190,5 +190,9 @@ public sealed class StreamEndpointTests : IDisposable
         {
             info.DurationSeconds.Should().BeApproximately(3, 0.5);
         }
+        else
+        {
+            info.DurationSeconds.Should().BeNull();
+        }
     }
 }

@@ -27,7 +27,6 @@ internal static class ReelTestHost
         {
             builder.UseSetting("Reel:MediaRoot", mediaRoot);
             builder.UseSetting("Reel:SecretKey", secretKey);
-            builder.UseSetting("Reel:Port", "8080");
             builder.UseSetting("Reel:WebUrl", "http://127.0.0.1:3000");
             builder.ConfigureTestServices(services =>
             {

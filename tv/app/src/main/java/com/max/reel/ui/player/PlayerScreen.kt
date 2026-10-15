@@ -64,8 +64,8 @@ fun PlayerScreen(viewModel: PlaybackViewModel) {
 
     // A short pause stays awake so the Fire TV screensaver doesn't cover the video; a long one
     // lets the screen sleep until playback resumes.
-    val awake by produceState(false, state.actualState) {
-        value = state.actualState in listOf(Playing, Paused, Loading, Buffering)
+    val awake by produceState(state.actualState in AWAKE_STATES, state.actualState) {
+        value = state.actualState in AWAKE_STATES
         if (state.actualState == Paused) {
             delay(PAUSED_AWAKE_MS)
             value = false
@@ -264,3 +264,4 @@ internal fun formatTimestamp(milliseconds: Long): String {
 }
 
 private const val PAUSED_AWAKE_MS = 20 * 60 * 1_000L
+private val AWAKE_STATES = setOf(Playing, Paused, Loading, Buffering)

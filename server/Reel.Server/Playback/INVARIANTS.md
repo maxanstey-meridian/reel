@@ -5,7 +5,7 @@
 **Rule:** Each observation's sequence number is higher than the last one stored (an exact retry of the last one is accepted once, unchanged), and its applied revision is never lower than the stored one nor higher than the session's.
 **Why:** Reports cross each other on the network; an older report must never overwrite what the TV last said.
 **Owner:** `PlaybackSessionService.ReportObservation`
-**Proof:** `Observation_RejectsReorderedSequenceAtEqualRevision`, `Observation_RejectsAppliedRevisionRegressionWithoutChangingStoredObservation`, `Observation_ExactSequenceRetryIsIdempotentWithoutRefreshingFreshness`
+**Proof:** `Observation_RejectsReorderedSequenceAtEqualRevision`, `Observation_RejectsAppliedRevisionRegressionWithoutChangingStoredObservation`, `Observation_RejectsAppliedRevisionAheadOfCurrentSession`, `Observation_ExactSequenceRetryIsIdempotentWithoutRefreshingFreshness`
 
 ## PLAY-SEEK-001 A seek stays pending until the TV acknowledges its id
 
@@ -19,5 +19,5 @@
 **Rule:** Once stopped or ended, a session expires 30 seconds after its last intent change or change of observed state; the TV's routine once-a-second reports don't extend it.
 **Why:** Otherwise a stopped title stays on the phone for as long as the TV is on.
 **Accepts:** The TV's "Play next" prompt clears when the session expires.
-**Owner:** `PlaybackSessionService.ExpireIfNeeded`
-**Proof:** `StoppedSession_ExpiresThirtySecondsAfterTheTvStopsEvenWhileItKeepsReporting`
+**Owner:** `PlaybackSessionService.ExpireIfNeeded`, from the `ChangedAtUtc` that `UpdateIntent` and `ReportObservation` keep
+**Proof:** `StoppedSession_ExpiresThirtySecondsAfterTheTvStopsEvenWhileItKeepsReporting`, `EndedSession_ExpiresThirtySecondsAfterTheTvReportsTheEnd`

@@ -28,7 +28,7 @@ const clearSearch = () => {
       ref="searchInput"
       v-model="query"
       icon="i-lucide-search"
-      placeholder="Search titles, folders or #tags..."
+      placeholder="Search by title, folder or #tag…"
       size="lg"
       autofocus
     >

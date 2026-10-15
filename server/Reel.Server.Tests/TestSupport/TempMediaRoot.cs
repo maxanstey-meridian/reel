@@ -16,14 +16,7 @@ internal sealed class TempMediaRoot : IDisposable
 
     public MediaPathResolver Paths =>
         new(
-            Options.Create(
-                new ReelOptions
-                {
-                    MediaRoot = Root,
-                    SecretKey = ReelTestHost.SecretKey,
-                    Port = 8080,
-                }
-            )
+            Options.Create(new ReelOptions { MediaRoot = Root, SecretKey = ReelTestHost.SecretKey })
         );
 
     /// <summary>The media root's database, migrated to the latest schema.</summary>

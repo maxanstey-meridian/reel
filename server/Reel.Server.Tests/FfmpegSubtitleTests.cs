@@ -58,12 +58,9 @@ public sealed class FfmpegSubtitleTests : IDisposable
             NullLogger<FfmpegSubtitleExtractor>.Instance
         );
         var cacheDirectory = _media.Paths.AppDataPath("subtitles");
-        using var request = new CancellationTokenSource();
-
-        var abandoned = extractor.ExtractAsync(_fullPath, 0, request.Token);
-        // Joins the run the abandoned caller started, so a cancelled run would fail it.
+        // The requester has given up before the run can finish; the run it starts must not stop.
+        var abandoned = extractor.ExtractAsync(_fullPath, 0, new CancellationToken(canceled: true));
         var patient = extractor.ExtractAsync(_fullPath, 0, CancellationToken.None);
-        await request.CancelAsync();
 
         await abandoned.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
         (await patient).Should().NotBeNull();
@@ -88,7 +85,10 @@ public sealed class FfmpegSubtitleTests : IDisposable
             NullLogger<FfmpegSubtitleExtractor>.Instance
         );
 
-        var extraction = extractor.ExtractAsync(_fullPath, 0, CancellationToken.None);
+        var stalled = _media.Write("Films/stalled.mkv");
+        TestMedia.CreateStalledSource(stalled);
+
+        var extraction = extractor.ExtractAsync(stalled, 0, CancellationToken.None);
         time.Advance(TimeSpan.FromMinutes(11));
 
         (await extraction).Should().BeNull();

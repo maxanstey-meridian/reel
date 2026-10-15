@@ -80,9 +80,11 @@ class PlaybackViewModel(
     // The session whose load already failed once on the network, so the next failure plays without info.
     private var unreachableLoadSessionId: String? = null
 
-    // Skips not yet answered, and where they lead, so repeated presses add up.
-    private var skipsInFlight = 0
-    private var skipDestinationSeconds = 0.0
+    // One skip request is sent at a time, since a transcoded seek restarts the stream; presses
+    // meanwhile only move the target, which follows as a single request.
+    private var skipJob: Job? = null
+    private var skipTargetSeconds = 0.0
+    private var unsentSkipSeconds: Double? = null
 
     private var lastReportedState = Idle
     private var observationSequence = 0L
@@ -140,20 +142,25 @@ class PlaybackViewModel(
         }
     }
 
-    // Skips queue behind each other on the command mutex; any other pending control drops them.
+    // Presses add up while a skip is in flight; any other pending control drops them.
     fun skip(seconds: Double) {
-        if (_state.value.controlPending && skipsInFlight == 0) return
-        val from = if (skipsInFlight > 0) skipDestinationSeconds else stream.positionSeconds
-        val target = skipTarget(from, seconds, stream.durationSeconds)
-        skipDestinationSeconds = target
-        skipsInFlight++
-        val desired =
-            if (player.playWhenReady) PlaybackDesiredState.Playing else PlaybackDesiredState.Paused
-        viewModelScope.launch {
-            try {
-                submitLocalIntent(desired, seekPositionSeconds = target)
-            } finally {
-                skipsInFlight--
+        val sending = skipJob?.isActive == true
+        if (_state.value.controlPending && !sending) return
+        val from = if (sending) skipTargetSeconds else stream.positionSeconds
+        skipTargetSeconds = skipTarget(from, seconds, stream.durationSeconds)
+        unsentSkipSeconds = skipTargetSeconds
+        if (!sending) skipJob = viewModelScope.launch { sendSkips() }
+    }
+
+    // Stopping or backgrounding clears the unsent target; each request keeps the session's
+    // play/pause intent as it is when sent.
+    private suspend fun sendSkips() {
+        while (true) {
+            commandMutex.withLock {
+                val target = unsentSkipSeconds ?: return
+                unsentSkipSeconds = null
+                val session = activeSession ?: return
+                sendLocalIntent(session, session.intent.desiredState, seekPositionSeconds = target)
             }
         }
     }
@@ -178,6 +185,7 @@ class PlaybackViewModel(
 
     fun pauseForBackground() {
         backgrounded = true
+        unsentSkipSeconds = null
         loadJob?.cancel()
         player.pause()
         reportProgress()
@@ -202,6 +210,8 @@ class PlaybackViewModel(
                 }
             val failure = result as? ApiResult.Failure
             failures = if (failure == null) 0 else failures + 1
+            // After an outage a load gets its retry again rather than playing without info at once.
+            if (failure != null) unreachableLoadSessionId = null
             // A success that can't be decoded is something else answering on the old address.
             val lost = failure != null && (failure.statusCode == null || failure.statusCode in 200..299)
             unreachable = if (lost) unreachable + 1 else 0
@@ -297,6 +307,7 @@ class PlaybackViewModel(
 
     // Clearing applied.relativePath makes any newer revision of this session reload the media.
     private fun stopLocally() {
+        unsentSkipSeconds = null
         loadJob?.cancel()
         reportProgress()
         player.stop()
@@ -321,14 +332,20 @@ class PlaybackViewModel(
         stopLocally()
     }
 
-    // Key presses send expectedRevision so they cannot silently revert a newer phone change;
-    // authoritative intents (Back, backgrounding) must win regardless.
-    private suspend fun submitLocalIntent(
+    private suspend fun submitLocalIntent(desiredState: PlaybackDesiredState, authoritative: Boolean = false): Boolean =
+        commandMutex.withLock {
+            val session = activeSession ?: return@withLock false
+            sendLocalIntent(session, desiredState, authoritative = authoritative)
+        }
+
+    // Callers hold commandMutex. Key presses send expectedRevision so they cannot silently revert a
+    // newer phone change; authoritative intents (Back, backgrounding) must win regardless.
+    private suspend fun sendLocalIntent(
+        session: PlaybackSessionResponse,
         desiredState: PlaybackDesiredState,
         seekPositionSeconds: Double? = null,
         authoritative: Boolean = false,
-    ): Boolean = commandMutex.withLock {
-        val session = activeSession ?: return@withLock false
+    ): Boolean {
         val request =
             localIntentRequest(session, desiredState, seekPositionSeconds)
                 .let { if (authoritative) it.copy(expectedRevision = null) else it }
@@ -348,7 +365,7 @@ class PlaybackViewModel(
                 (result as? ApiResult.Failure)?.takeUnless { conflict }?.let(::controlFailed) ?: it.notice,
             )
         }
-        result is ApiResult.Success
+        return result is ApiResult.Success
     }
 
     // Fetches before touching the player, so a stop or background during the fetch leaves it as it was.
@@ -389,7 +406,12 @@ class PlaybackViewModel(
                 actualState = Loading,
                 error = null,
                 nextEpisode = null,
-                notice = SUBTITLES_UNAVAILABLE.takeIf { intent.subtitleIndex != null && track == null },
+                notice =
+                when {
+                    intent.subtitleIndex == null || track != null -> null
+                    tracksResult is ApiResult.Failure -> SUBTITLES_NOT_LOADED
+                    else -> SUBTITLES_UNAVAILABLE
+                },
             )
         }
         stream.load(server, path, info, tracks, track, startSeconds)
@@ -480,6 +502,7 @@ class PlaybackViewModel(
 }
 
 private const val SUBTITLES_UNAVAILABLE = "Subtitles aren't available for this file"
+private const val SUBTITLES_NOT_LOADED = "Couldn't load subtitles"
 private const val SUBTITLE_NOT_SHOWABLE = "This subtitle track can't be shown"
 
 private fun controlFailed(failure: ApiResult.Failure) = "Control failed: ${failure.message}"

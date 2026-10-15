@@ -311,6 +311,36 @@ class PlaybackViewModelTest {
     }
 
     @Test
+    fun `a load failing after an outage is retried before playing without info`() = runTest(dispatcher) {
+        unreachablePath = "/api/files/stream/info"
+        startPolling()
+        unreachableHost = "127.0.0.1"
+        advanceTimeBy(1_001)
+
+        unreachableHost = null
+        advanceTimeBy(1_001)
+        assertEquals(0, viewModel.player.mediaItemCount)
+
+        unreachablePath = null
+        advanceTimeBy(1_001)
+
+        assertEquals(1, viewModel.player.mediaItemCount)
+        assertEquals(60.0, observations.last().durationSeconds, 0.0)
+    }
+
+    @Test
+    fun `a subtitle list that stays unreachable says subtitles could not be loaded`() = runTest(dispatcher) {
+        session = session(subtitleIndex = 2)
+        unreachablePath = "/api/files/subtitles"
+        startPolling()
+
+        advanceTimeBy(1_001)
+
+        assertEquals("Films/movie.mp4", viewModel.state.value.relativePath)
+        assertEquals("Couldn't load subtitles", viewModel.state.value.notice)
+    }
+
+    @Test
     fun `stream info that stays unreachable plays the file without it`() = runTest(dispatcher) {
         unreachablePath = "/api/files/stream/info"
         startPolling()
@@ -359,7 +389,7 @@ class PlaybackViewModelTest {
     }
 
     @Test
-    fun `skips pressed while one is in flight add up`() = runTest(dispatcher) {
+    fun `skips pressed while one is in flight add up into one follow-up`() = runTest(dispatcher) {
         session = session(desiredState = PlaybackDesiredState.Paused, seekSeconds = 10.0)
         startPolling()
         intentGate = CompletableDeferred()
@@ -371,8 +401,27 @@ class PlaybackViewModelTest {
         intentGate!!.complete(Unit)
         runCurrent()
 
-        assertEquals(listOf(20.0, 30.0, 40.0), intents.map { it.seekPositionSeconds })
+        assertEquals(listOf(20.0, 40.0), intents.map { it.seekPositionSeconds })
         assertEquals(40.0, viewModel.state.value.seekDestinationSeconds)
+    }
+
+    @Test
+    fun `back drops a skip still waiting behind one in flight`() = runTest(dispatcher) {
+        session = session(desiredState = PlaybackDesiredState.Paused, seekSeconds = 10.0)
+        startPolling()
+        intentGate = CompletableDeferred()
+
+        repeat(2) {
+            viewModel.skip(10.0)
+            runCurrent()
+        }
+        viewModel.stopFromTv()
+        intentGate!!.complete(Unit)
+        runCurrent()
+
+        assertEquals(listOf(20.0, null), intents.map { it.seekPositionSeconds })
+        assertEquals(PlaybackDesiredState.Stopped, intents.last().desiredState)
+        assertNull(viewModel.state.value.relativePath)
     }
 
     @Test

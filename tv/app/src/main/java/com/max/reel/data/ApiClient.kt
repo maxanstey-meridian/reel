@@ -8,6 +8,7 @@ import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -84,8 +85,10 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
         parameter("path", path)
     }
 
+    // The server probes the file on every call, which can take far longer than an ordinary request.
     suspend fun streamInfo(path: String): ApiResult<StreamInfo> = paired("api/files/stream/info") {
         parameter("path", path)
+        timeout { requestTimeoutMillis = 30_000 }
     }
 
     fun pairUrl(server: PairedServer): String = url(server, "pair", "key" to server.key)
@@ -166,7 +169,7 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
             val fallback =
                 when (status) {
                     403 -> "The server only accepts devices on its own network"
-                    else -> "Unexpected status: $status"
+                    else -> "The Reel server isn't responding properly"
                 }
             val body = runCatching { response.body<ErrorResponse>() }.getOrNull()
             ApiResult.Failure(body?.message ?: fallback, status)

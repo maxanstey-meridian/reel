@@ -69,7 +69,7 @@ test.describe("Server-backed browser playback contract", () => {
     await expect(page).toHaveURL(/\/library$/);
 
     await page.goto("/search");
-    await page.getByPlaceholder("Search titles, folders or #tags...").fill("Browser E2E Fixture");
+    await page.getByPlaceholder("Search by title, folder or #tag…").fill("Browser E2E Fixture");
     await page.getByText("Browser E2E Fixture", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Browser E2E Fixture" })).toBeVisible();
 

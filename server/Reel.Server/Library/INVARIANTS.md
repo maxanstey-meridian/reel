@@ -25,6 +25,6 @@
 ## LIB-TAGS-001 #media is a removable default for untagged files
 
 **Rule:** A file with no stored tags counts as `#media`; a stored empty set means the user removed it. Folders have no default, and their tags apply to every file inside.
-**Why:** Saving `#media` on a folder would tag every file in it, including files whose own tags were emptied.
-**Owner:** `SqliteMediaStore.SearchAsync` (search) and `useTags.forPath` in the web app (what the editor saves)
+**Why:** Saving `#media` on a folder would tag every file in it, including files whose own tags were emptied. The phone's tag editor (`useTags.forPath`) offers the default only for files to keep it that way.
+**Owner:** `SqliteMediaStore.SearchAsync`
 **Proof:** `DefaultMediaTagIsSearchableButRemovedTagStaysRemoved`; web `useTags` test "gives an untagged folder no tags, so tagging it doesn't tag every file #media"

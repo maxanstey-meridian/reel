@@ -367,6 +367,20 @@ public sealed class PlaybackSessionServiceTests : IDisposable
     }
 
     [Fact]
+    public void EndedSession_ExpiresThirtySecondsAfterTheTvReportsTheEnd()
+    {
+        var session = Observe(Start()).Session();
+        _time.Advance(TimeSpan.FromMinutes(5));
+
+        Observe(session, state: PlaybackObservationStateDto.Ended);
+
+        _time.Advance(TimeSpan.FromSeconds(30));
+        _service.GetCurrent().Should().NotBeNull();
+        _time.Advance(TimeSpan.FromMilliseconds(1));
+        _service.GetCurrent().Should().BeNull();
+    }
+
+    [Fact]
     public void StoppedSession_ExpiresThirtySecondsAfterTheTvStopsEvenWhileItKeepsReporting()
     {
         var session = Observe(Start()).Session();

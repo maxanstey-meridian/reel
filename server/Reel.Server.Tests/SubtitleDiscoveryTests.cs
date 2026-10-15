@@ -62,7 +62,7 @@ public sealed class SubtitleDiscoveryTests : IDisposable
     [Theory]
     [InlineData("Commentary", "eng", "Commentary")]
     [InlineData(null, "eng", "Track 1")]
-    public async Task EmbeddedTrackLabel_IsItsTitleElseItsLanguage(
+    public async Task EmbeddedTrackLabel_IsItsTitleElseItsTrackNumber(
         string? title,
         string language,
         string label

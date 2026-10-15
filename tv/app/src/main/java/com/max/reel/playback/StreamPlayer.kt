@@ -28,13 +28,13 @@ private const val SIDELOADED_SUBTITLE = "reel-subtitle"
 data class StreamTimeline(
     val transcodeHeight: Int? = null,
     val offsetSeconds: Double = 0.0,
-    val durationSeconds: Double = 0.0,
+    val durationSeconds: Double? = null,
 ) {
     val transcoded get() = transcodeHeight != null
 
     fun positionSeconds(playerPositionMs: Long): Double = offsetSeconds + playerPositionMs.coerceAtLeast(0) / 1_000.0
 
-    fun durationSeconds(playerDurationMs: Long): Double = durationSeconds.takeIf { it > 0 }
+    fun durationSeconds(playerDurationMs: Long): Double = durationSeconds?.takeIf { it > 0 }
         ?: playerDurationMs.takeIf { it > 0 && it != C.TIME_UNSET }?.div(1_000.0)
         ?: 0.0
 
@@ -42,7 +42,7 @@ data class StreamTimeline(
         fun of(info: StreamInfo?, startSeconds: Double): StreamTimeline {
             val height = info?.transcodeHeight
             val offset = if (height != null) startSeconds.coerceAtLeast(0.0) else 0.0
-            return StreamTimeline(height, offset, info?.durationSeconds ?: 0.0)
+            return StreamTimeline(height, offset, info?.durationSeconds)
         }
     }
 }

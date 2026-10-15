@@ -15,7 +15,8 @@ const completedPath = computed(() => completed.value?.relativePath);
 const preview = ref<TrickplayFrame | null>(null);
 
 const { tree } = useLibrary();
-const previewable = computed(() => findNodeByPath(tree.value, path.value ?? "")?.kind !== "audio");
+// Only video has frames; a file the library hasn't shown yet waits until it does.
+const previewable = computed(() => findNodeByPath(tree.value, path.value ?? "")?.kind === "video");
 const { nextEpisode, subtitles, subtitlesStatus, trickplay, trickplayError } = useNowPlayingDetails(
   path,
   completedPath,

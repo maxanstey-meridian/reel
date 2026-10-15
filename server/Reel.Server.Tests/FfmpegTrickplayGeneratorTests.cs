@@ -83,12 +83,12 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         var fullPath = _media.Write("Films/abandoned.mp4");
         TestMedia.CreateVideo(fullPath, seconds: 5);
         var metadataPath = _generator.MetadataPath(SourceFingerprint.Key(fullPath));
-        using var request = new CancellationTokenSource();
-
-        var abandoned = _generator.GetOrGenerateAsync(fullPath, request.Token);
-        // Joins the run the abandoned caller started, so a cancelled run would fail it.
+        // The requester has given up before the run can finish; the run it starts must not stop.
+        var abandoned = _generator.GetOrGenerateAsync(
+            fullPath,
+            new CancellationToken(canceled: true)
+        );
         var patient = _generator.GetOrGenerateAsync(fullPath, CancellationToken.None);
-        await request.CancelAsync();
 
         await abandoned.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
         (await patient).Should().NotBeNull();
@@ -100,7 +100,7 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
     public async Task GetOrGenerateAsync_RunningOutOfTime_IsUnavailable()
     {
         var fullPath = _media.Write("Films/slow.mp4");
-        TestMedia.CreateVideo(fullPath, seconds: 5);
+        TestMedia.CreateStalledSource(fullPath);
 
         var generation = _generator.GetOrGenerateAsync(fullPath, CancellationToken.None);
         _time.Advance(TimeSpan.FromMinutes(11));

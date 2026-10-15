@@ -111,7 +111,6 @@ data class StartPlaybackRequest(val relativePath: String)
 data class ProgressRequest(val relativePath: String, val positionSeconds: Double, val durationSeconds: Double)
 
 @Serializable
-// durationSeconds is null when the server can't tell.
 data class StreamInfo(val durationSeconds: Double? = null, val transcodeHeight: Int? = null)
 
 @Serializable
