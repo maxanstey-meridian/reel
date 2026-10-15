@@ -1,42 +1,23 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { useFavourites } from "~~/app/composables/useFavourites";
-import { countDirectFiles } from "~~/app/utils/directoryHelpers";
+import { countFilesRecursive, mediaLink } from "~~/app/features/library/logic/library";
 import type { FileNode } from "~~/app/lib/api";
+import { injectFavourites } from "~~/app/ports/favourites";
+import { injectTags } from "~~/app/ports/tags";
 
 const props = defineProps<{
   node: FileNode;
   progress?: number;
 }>();
-defineEmits<{ select: [node: FileNode] }>();
 
-const { isFavourite, toggle } = useFavourites();
+const { isFavourite, toggle } = injectFavourites();
+const { forPath: tagsForPath } = injectTags();
 
-const showHeart = computed(() => props.node.type === "file");
 const favourited = computed(() => isFavourite(props.node.relativePath));
+const fileCount = computed(() =>
+  props.node.type === "directory" ? countFilesRecursive(props.node) : null,
+);
 
-const displayName = computed(() => props.node.parsedTitle ?? props.node.name);
-
-const isDirectory = computed(() => props.node.type === "directory");
-
-const fileCount = computed(() => (isDirectory.value ? countDirectFiles(props.node) : null));
-
-const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"]);
-
-const iconFor = (node: FileNode) => {
-  if (node.type === "directory") {
-    return "i-lucide-folder";
-  }
-  if (node.extension && VIDEO_EXTENSIONS.has(node.extension.toLowerCase())) {
-    return "i-lucide-film";
-  }
-  return "i-lucide-file";
-};
-
-const formatSize = (bytes: number | null): string => {
-  if (bytes === null) {
-    return "";
-  }
+const formatSize = (bytes: number): string => {
   if (bytes < 1024) {
     return `${bytes} B`;
   }
@@ -51,16 +32,15 @@ const formatSize = (bytes: number | null): string => {
 </script>
 
 <template>
-  <button
-    class="w-[140px] shrink-0 flex flex-col rounded bg-neutral-900 overflow-hidden text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
-    @click="$emit('select', node)"
+  <NuxtLink
+    :to="mediaLink(node)"
+    class="min-w-0 select-none flex flex-col rounded bg-neutral-900 overflow-hidden text-left transition-all hover:ring-1 hover:ring-green-500 focus-visible:ring-1 focus-visible:ring-green-500 outline-none"
   >
     <div
       class="relative h-[120px] flex items-center justify-center bg-neutral-800/50 text-neutral-500 overflow-hidden"
     >
-      <UIcon :name="iconFor(node)" class="size-10" />
+      <MediaThumbnail :node="node" />
 
-      <!-- Progress bar -->
       <div
         v-if="progress != null && progress > 0"
         class="absolute bottom-0 left-0 right-0 h-1 bg-neutral-700"
@@ -68,21 +48,20 @@ const formatSize = (bytes: number | null): string => {
         <div class="h-full bg-green-500" :style="{ width: `${Math.min(progress * 100, 100)}%` }" />
       </div>
 
-      <!-- Favourite heart -->
       <button
-        v-if="showHeart"
-        class="absolute top-1 right-1 p-1 rounded-full bg-black/50 transition-colors"
+        v-if="node.type === 'file'"
+        :aria-label="favourited ? 'Remove from favourites' : 'Add to favourites'"
+        class="absolute top-1 right-1 inline-flex size-9 items-center justify-center rounded-full transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
         :class="favourited ? 'text-red-500' : 'text-neutral-400 hover:text-red-400'"
-        @click.stop="toggle(node.relativePath)"
+        @click.prevent.stop="toggle(node.relativePath)"
       >
-        <UIcon name="i-lucide-heart" class="size-4" :class="favourited ? 'fill-current' : ''" />
+        <UIcon name="i-lucide-heart" class="size-5" :class="favourited ? 'fill-current' : ''" />
       </button>
-
     </div>
 
-    <div class="p-2 flex flex-col gap-1 min-h-[72px]">
+    <div class="p-2 flex flex-1 flex-col gap-1 min-h-[72px]">
       <span class="text-xs font-medium leading-tight line-clamp-2">
-        {{ displayName }}
+        {{ node.parsedTitle ?? node.name }}
       </span>
       <span v-if="node.year" class="text-xs text-neutral-500">
         {{ node.year }}
@@ -91,7 +70,10 @@ const formatSize = (bytes: number | null): string => {
         {{ fileCount }} {{ fileCount === 1 ? "file" : "files" }}
       </span>
 
-      <div class="flex items-center gap-1 mt-auto">
+      <div class="flex flex-wrap gap-1 text-[10px] text-neutral-400">
+        <span v-for="tag in tagsForPath(node.relativePath)" :key="tag">#{{ tag }}</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-1 mt-auto">
         <UBadge
           v-if="node.extension && node.type === 'file'"
           size="xs"
@@ -105,5 +87,5 @@ const formatSize = (bytes: number | null): string => {
         </span>
       </div>
     </div>
-  </button>
+  </NuxtLink>
 </template>

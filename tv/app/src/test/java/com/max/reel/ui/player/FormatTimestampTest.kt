@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FormatTimestampTest {
-
     @Test
     fun `formats seconds only`() {
         assertEquals("0:05", formatTimestamp(5_000))

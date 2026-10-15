@@ -1,0 +1,33 @@
+{
+  "session": {
+    "sessionId": "7d3f7a8e-2b1c-4d5e-9f60-1a2b3c4d5e6f",
+    "revision": 4,
+    "createdAtUtc": "2026-08-11T12:00:00+00:00",
+    "updatedAtUtc": "2026-08-11T12:00:42+00:00",
+    "intent": {
+      "relativePath": "Shows/Series/Series.S01E02.mkv",
+      "title": "Series S01E02",
+      "desiredState": "paused",
+      "subtitleIndex": 1,
+      "pendingSeek": {
+        "seekId": 2,
+        "positionSeconds": 612.5,
+        "introducedRevision": 4
+      }
+    },
+    "observation": {
+      "observationSequence": 9,
+      "appliedRevision": 3,
+      "appliedSeekId": 1,
+      "state": "playing",
+      "relativePath": "Shows/Series/Series.S01E02.mkv",
+      "positionSeconds": 600.25,
+      "durationSeconds": 1440,
+      "subtitleIndex": 1,
+      "errorCode": null,
+      "errorMessage": null,
+      "updatedAtUtc": "2026-08-11T12:00:41+00:00"
+    },
+    "tvConnected": true
+  }
+}

@@ -1,6 +1,7 @@
 package com.max.reel.ui.cast
 
 import android.graphics.Bitmap
+import android.graphics.Color
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -13,33 +14,29 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 
 @Composable
-fun QrCodeImage(
-    content: String,
-    size: Dp,
-    modifier: Modifier = Modifier,
-) {
-    val bitmap = remember(content) {
-        val writer = QRCodeWriter()
-        val hints = mapOf(EncodeHintType.MARGIN to 1)
-        val matrix = writer.encode(content, BarcodeFormat.QR_CODE, 512, 512, hints)
-
-        val width = matrix.width
-        val height = matrix.height
-        val pixels = IntArray(width * height)
-
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                pixels[y * width + x] = if (matrix[x, y]) {
-                    android.graphics.Color.WHITE
-                } else {
-                    android.graphics.Color.TRANSPARENT
+fun QrCodeImage(content: String, size: Dp, modifier: Modifier = Modifier) {
+    val bitmap =
+        remember(content) {
+            val matrix =
+                QRCodeWriter().encode(
+                    content,
+                    BarcodeFormat.QR_CODE,
+                    512,
+                    512,
+                    mapOf(EncodeHintType.MARGIN to 1),
+                )
+            val pixels =
+                IntArray(matrix.width * matrix.height) { i ->
+                    if (matrix[i % matrix.width, i / matrix.width]) Color.WHITE else Color.TRANSPARENT
                 }
-            }
+            Bitmap
+                .createBitmap(
+                    pixels,
+                    matrix.width,
+                    matrix.height,
+                    Bitmap.Config.ARGB_8888,
+                ).asImageBitmap()
         }
-
-        Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
-            .asImageBitmap()
-    }
 
     Image(
         bitmap = bitmap,

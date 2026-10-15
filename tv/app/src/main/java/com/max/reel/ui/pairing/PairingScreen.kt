@@ -10,89 +10,59 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Button
 import androidx.tv.material3.Text
-import com.max.reel.data.ApiClient
-import com.max.reel.data.ConnectResult
+import com.max.reel.data.ApiResult
+import com.max.reel.data.ConnectResponse
 import com.max.reel.data.DiscoveredServer
-import com.max.reel.data.PreferencesManager
-import com.max.reel.data.ServerDiscoverer
+import com.max.reel.data.PairedServer
+import com.max.reel.data.PairingStore
+import com.max.reel.data.discoverServers
 import com.max.reel.ui.theme.ReelColors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Text as FieldLabel
 
-data class PairingState(
-    val error: String? = null,
-    val connecting: Boolean = false,
-)
+data class PairingState(val error: String? = null, val connecting: Boolean = false)
 
-class PairingViewModel(
-    private val apiClient: ApiClient,
-    private val prefs: PreferencesManager,
-    private val discovery: ServerDiscoverer,
-    private val connect: suspend (String, String, String) -> ConnectResult = apiClient::connect,
-) : ViewModel() {
-
+// Lives exactly as long as the pairing screen, so re-pairing after "Forget" starts fresh.
+// Saving the pairing is what leaves this screen.
+class PairingModel(
+    private val scope: CoroutineScope,
+    private val pairing: PairingStore,
+    private val connect: suspend (DiscoveredServer) -> ApiResult<ConnectResponse>,
+) {
     private val _state = MutableStateFlow(PairingState())
     val state: StateFlow<PairingState> = _state.asStateFlow()
-
-    private var onSuccessCallback: (() -> Unit)? = null
-    private var discoveryJob: Job? = null
-    private var connectJob: Job? = null
-    private var connectGeneration = 0L
     private var lastServer: DiscoveredServer? = null
+    private var connectJob: Job? = null
 
-    fun setOnSuccess(callback: () -> Unit) {
-        onSuccessCallback = callback
-    }
-
-    fun startDiscovery(context: android.content.Context) {
-        if (discoveryJob != null) return
-        discoveryJob = viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
-            discovery.servers.collect { found ->
-                lastServer = found
-                startConnect(found)
-            }
-        }
-        discovery.start(context)
-    }
-
-    fun stopDiscovery() {
-        discoveryJob?.cancel()
-        discoveryJob = null
-        discovery.stop()
-    }
+    suspend fun discover(servers: Flow<DiscoveredServer>) = servers.collect { startConnect(it) }
 
     fun retry() {
-        lastServer?.let { server ->
-            startConnect(server)
-        }
+        lastServer?.let(::startConnect)
     }
 
     fun connectManually(host: String, port: String, key: String) {
@@ -101,76 +71,55 @@ class PairingViewModel(
             _state.update { it.copy(error = "Enter a valid server, port, and key") }
             return
         }
-
-        val server = DiscoveredServer(host.trim(), parsedPort, key.trim())
-        lastServer = server
-        startConnect(server)
+        startConnect(DiscoveredServer(host.trim(), parsedPort, key.trim()))
     }
 
     private fun startConnect(server: DiscoveredServer) {
-        val generation = ++connectGeneration
+        lastServer = server
         connectJob?.cancel()
-        connectJob = viewModelScope.launch { connect(server, generation) }
-    }
+        connectJob =
+            scope.launch {
+                _state.update { it.copy(error = null, connecting = true) }
+                val result = connect(server)
+                ensureActive()
+                when (result) {
+                    is ApiResult.Success -> {
+                        val name = result.value.serverName.orEmpty()
+                        pairing.save(PairedServer(server.host, server.port, server.key, name))
+                    }
 
-    private suspend fun connect(server: DiscoveredServer, generation: Long) {
-        _state.update { it.copy(error = null, connecting = true) }
-        val result = connect(server.ip, server.port.toString(), server.secretKey)
-        if (generation != connectGeneration) return
-        when (result) {
-            is ConnectResult.Success -> {
-                prefs.savePairing(server.ip, server.port.toString(), server.secretKey, result.serverName)
-                stopDiscovery()
-                onSuccessCallback?.invoke()
+                    is ApiResult.Failure -> {
+                        _state.update {
+                            val error =
+                                when (result.statusCode) {
+                                    401 -> "Server found but key was rejected"
+                                    403 -> "Server found but it only accepts devices on its own network"
+                                    else -> "Server found but can't connect"
+                                }
+                            it.copy(error = error, connecting = false)
+                        }
+                    }
+                }
             }
-            is ConnectResult.Unauthorized ->
-                _state.update { it.copy(error = "Server found but key was rejected", connecting = false) }
-            is ConnectResult.NetworkError ->
-                _state.update { it.copy(error = "Server found but can't connect", connecting = false) }
-        }
-    }
-
-    override fun onCleared() {
-        connectJob?.cancel()
-        stopDiscovery()
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun PairingScreen(
-    apiClient: ApiClient,
-    prefs: PreferencesManager,
-    discovery: ServerDiscoverer,
-    onPaired: () -> Unit,
-) {
-    val viewModel: PairingViewModel = viewModel(
-        factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return PairingViewModel(apiClient, prefs, discovery) as T
-            }
-        }
-    )
-
-    val state by viewModel.state.collectAsStateWithLifecycle()
+fun PairingScreen(pairing: PairingStore, connect: suspend (DiscoveredServer) -> ApiResult<ConnectResponse>) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val model = remember { PairingModel(scope, pairing, connect) }
+    val state by model.state.collectAsStateWithLifecycle()
     var manualEntry by remember { mutableStateOf(false) }
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("8080") }
     var key by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        viewModel.setOnSuccess(onPaired)
-        viewModel.startDiscovery(context)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose { viewModel.stopDiscovery() }
-    }
+    LaunchedEffect(model) { model.discover(discoverServers(context)) }
 
     Column(
-        modifier = Modifier
+        modifier =
+        Modifier
             .fillMaxSize()
             .background(ReelColors.backgroundGradient)
             .padding(32.dp),
@@ -200,11 +149,12 @@ fun PairingScreen(
                 fontSize = 14.sp,
                 color = ReelColors.disconnected,
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = viewModel::retry) { Text("Retry") }
-                Button(onClick = { manualEntry = !manualEntry }) { Text("Enter server") }
-            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (state.error != null) Button(onClick = model::retry) { Text("Retry") }
+            Button(onClick = { manualEntry = !manualEntry }) { Text("Enter server manually") }
         }
 
         if (manualEntry) {
@@ -213,27 +163,27 @@ fun PairingScreen(
                 OutlinedTextField(
                     value = host,
                     onValueChange = { host = it },
-                    label = { androidx.compose.material3.Text("Server address") },
+                    label = { FieldLabel("Server address") },
                     singleLine = true,
                     modifier = Modifier.width(240.dp),
                 )
                 OutlinedTextField(
                     value = port,
                     onValueChange = { port = it },
-                    label = { androidx.compose.material3.Text("Port") },
+                    label = { FieldLabel("Port") },
                     singleLine = true,
                     modifier = Modifier.width(120.dp),
                 )
                 OutlinedTextField(
                     value = key,
                     onValueChange = { key = it },
-                    label = { androidx.compose.material3.Text("Key") },
+                    label = { FieldLabel("Key") },
                     singleLine = true,
                     modifier = Modifier.width(240.dp),
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Button(onClick = { viewModel.connectManually(host, port, key) }) {
+            Button(onClick = { model.connectManually(host, port, key) }) {
                 Text("Connect")
             }
         }

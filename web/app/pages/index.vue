@@ -1,17 +1,3 @@
 <script setup lang="ts">
-definePageMeta({
-  layout: false,
-  middleware: () => {
-    const { isConnected } = useConnection();
-    if (!isConnected.value) {
-      return navigateTo("/connect", { replace: true });
-    }
-
-    return navigateTo("/library", { replace: true });
-  },
-});
+definePageMeta({ redirect: "/library" });
 </script>
-
-<template>
-  <div />
-</template>

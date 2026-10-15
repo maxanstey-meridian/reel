@@ -2,44 +2,35 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Contracts.Reel;
 
 namespace Reel.Server.Tests;
 
-public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+public sealed class ProgressEndpointTests : IDisposable
 {
-    private const string TestSecretKey = "REEL-TEST";
-
+    private readonly TempMediaRoot _media = new();
     private readonly WebApplicationFactory<Program> _factory;
-    private readonly string _tempMediaRoot;
 
-    public ProgressEndpointTests(WebApplicationFactory<Program> factory)
+    public ProgressEndpointTests()
     {
-        _tempMediaRoot = Path.Combine(Path.GetTempPath(), $"reel-progress-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(_tempMediaRoot, "Films"));
         foreach (var name in new[] { "test.mp4", "upsert.mp4", "older.mp4", "newer.mp4" })
-            File.WriteAllBytes(Path.Combine(_tempMediaRoot, "Films", name), [1]);
-
-        _factory = factory.WithWebHostBuilder(builder =>
         {
-            builder.UseSetting("Reel:MediaRoot", _tempMediaRoot);
-            builder.UseSetting("Reel:SecretKey", TestSecretKey);
-            builder.UseSetting("Reel:Port", "8080");
-        });
+            _media.Write($"Films/{name}");
+        }
+
+        _factory = _media.CreateFactory();
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public Task DisposeAsync()
+    public void Dispose()
     {
-        if (Directory.Exists(_tempMediaRoot))
-            Directory.Delete(_tempMediaRoot, recursive: true);
-        return Task.CompletedTask;
+        _factory.Dispose();
+        _media.Dispose();
     }
 
     [Fact]
     public async Task PostProgress_StoresEntry()
     {
-        var client = CreateAuthenticatedClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         var postResponse = await client.PostAsJsonAsync(
             "/api/progress",
@@ -55,7 +46,7 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
         var getResponse = await client.GetAsync("/api/progress");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var entries = await getResponse.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
+        var entries = await getResponse.Content.ReadFromJsonAsync<List<WatchProgress>>();
         entries.Should().ContainSingle(e => e.RelativePath == "Films/test.mp4");
 
         var entry = entries!.First(e => e.RelativePath == "Films/test.mp4");
@@ -67,7 +58,7 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     [Fact]
     public async Task PostProgress_Upserts()
     {
-        var client = CreateAuthenticatedClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         await client.PostAsJsonAsync(
             "/api/progress",
@@ -90,7 +81,7 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
         );
 
         var response = await client.GetAsync("/api/progress");
-        var entries = await response.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
+        var entries = await response.Content.ReadFromJsonAsync<List<WatchProgress>>();
         var entry = entries!.First(e => e.RelativePath == "Films/upsert.mp4");
         entry.PositionSeconds.Should().Be(300.0);
     }
@@ -98,7 +89,7 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
     [Fact]
     public async Task GetAll_ReturnsSortedByLastWatched()
     {
-        var client = CreateAuthenticatedClient();
+        var client = _factory.CreateAuthenticatedClient();
 
         await client.PostAsJsonAsync(
             "/api/progress",
@@ -124,37 +115,76 @@ public sealed class ProgressEndpointTests : IClassFixture<WebApplicationFactory<
         );
 
         var response = await client.GetAsync("/api/progress");
-        var entries = await response.Content.ReadFromJsonAsync<List<WatchProgressDto>>();
+        var entries = await response.Content.ReadFromJsonAsync<List<WatchProgress>>();
 
         entries.Should().HaveCountGreaterThanOrEqualTo(2);
         var olderIdx = entries!.FindIndex(e => e.RelativePath == "Films/older.mp4");
         var newerIdx = entries.FindIndex(e => e.RelativePath == "Films/newer.mp4");
-        newerIdx.Should().BeLessThan(olderIdx, "newer entry should appear first (descending order)");
+        newerIdx
+            .Should()
+            .BeLessThan(olderIdx, "newer entry should appear first (descending order)");
     }
 
-    [Theory]
-    [InlineData("POST", "/api/progress")]
-    [InlineData("GET", "/api/progress")]
-    public async Task ProgressEndpoints_RequireAuth(string method, string path)
+    [Fact]
+    public async Task PostProgress_ForPlayableFileAddedAfterStartup_IndexesAndStores()
     {
-        var client = _factory.CreateClient();
+        await _factory.WaitForStartupIndexAsync();
+        _media.Write("Films/late.mp4");
+        var client = _factory.CreateAuthenticatedClient();
 
-        var response = method == "GET" ? await client.GetAsync(path) : await client.PostAsync(path, null);
+        var response = await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/late.mp4",
+                positionSeconds = 5.0,
+                durationSeconds = 50.0,
+            }
+        );
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var entries = await client.GetFromJsonAsync<List<WatchProgress>>("/api/progress");
+        entries.Should().ContainSingle(e => e.RelativePath == "Films/late.mp4");
     }
 
-    private HttpClient CreateAuthenticatedClient()
+    [Fact]
+    public async Task PostProgress_ForMissingFile_Returns404()
     {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", TestSecretKey);
-        return client;
+        var client = _factory.CreateAuthenticatedClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films/missing.mp4",
+                positionSeconds = 5.0,
+                durationSeconds = 50.0,
+            }
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private sealed record WatchProgressDto(
-        string RelativePath,
-        double PositionSeconds,
-        double DurationSeconds,
-        DateTime LastWatched
-    );
+    // A path that differs only by an empty segment must land on the scanned row, which a rescan keeps.
+    [Fact]
+    public async Task PostProgress_StoresTheCanonicalPathThatSurvivesARescan()
+    {
+        var client = _factory.CreateAuthenticatedClient();
+
+        await client.PostAsJsonAsync(
+            "/api/progress",
+            new
+            {
+                relativePath = "Films//test.mp4",
+                positionSeconds = 5.0,
+                durationSeconds = 50.0,
+            }
+        );
+        (await client.PostAsync("/api/library/rescan", null))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.OK);
+
+        var entries = await client.GetFromJsonAsync<List<WatchProgress>>("/api/progress");
+        entries.Should().ContainSingle().Which.RelativePath.Should().Be("Films/test.mp4");
+    }
 }

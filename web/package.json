@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "nuxi dev",
     "build": "nuxi build",
+    "generate": "nuxi generate",
     "preview": "nuxi preview",
-    "lint": "oxlint app/ && eslint .",
-    "lint:fix": "oxlint --fix app/ && eslint . --fix",
+    "lint": "oxlint . && eslint .",
+    "lint:fix": "oxlint --fix . && eslint . --fix",
     "fmt": "oxfmt --write .",
     "fmt:check": "oxfmt --check .",
     "check": "nuxi typecheck",
@@ -19,26 +20,26 @@
   },
   "dependencies": {
     "@nuxt/ui": "^3.3.7",
+    "@vueuse/core": "^13.9.0",
     "nuxt": "^4.4.2",
     "openapi-fetch": "^0.17.0",
     "tailwindcss": "^4.2.2",
-    "vue": "^3.5.32",
-    "vue-router": "^5.0.4",
-    "zod": "^3.25.76"
+    "vue": "^3.5.32"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.15.2",
     "@nuxt/test-utils": "^3.23.0",
     "@parcel/watcher": "^2.5.6",
     "@playwright/test": "^1.59.1",
-    "@vite-pwa/nuxt": "^1.1.1",
+    "@vue/test-utils": "^2.5.1",
     "eslint": "^10.2.0",
-    "jsdom": "^29.0.2",
+    "happy-dom": "^20.14.5",
     "openapi-typescript": "^7.13.0",
     "oxfmt": "^0.43.0",
     "oxlint": "^1.59.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.3.11"
   },
   "packageManager": "pnpm@10.8.0"
 }

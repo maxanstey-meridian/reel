@@ -1,29 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Network access for Ktor and ExoPlayer -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
-    <!--
-        Declare leanback support — required for the app to appear in the
-        Fire TV launcher. required="false" so the APK can also sideload on
-        non-TV Android if needed during development.
-    -->
+    <!-- Not required, so the APK still sideloads on non-TV Android during development. -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
-
-    <!--
-        TV devices have no touchscreen. This declaration is mandatory;
-        without it the Play Store (and some launcher checks) will reject
-        the APK as incompatible with TV hardware.
-    -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
     <application
+        android:name=".ReelApplication"
         android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:banner="@drawable/banner"
@@ -35,22 +24,15 @@
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:screenOrientation="landscape">
-
-            <!-- Standard launcher intent -->
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <!-- TV launcher intent — required to appear on Fire TV home screen -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity>
     </application>
 

@@ -4,29 +4,27 @@ definePageMeta({ layout: "blank" });
 const route = useRoute();
 const { connect } = useConnection();
 
-const url = ref((route.query.url as string) || "http://localhost:8080");
-const key = ref((route.query.key as string) || "");
+const code = ref(typeof route.query.key === "string" ? route.query.key : "");
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-const handleConnect = async () => {
+const pair = async () => {
   loading.value = true;
   error.value = null;
-
   try {
-    await connect(url.value, key.value);
+    await connect(code.value.trim());
     await navigateTo("/", { replace: true });
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : "Connection failed";
+  } catch (caught) {
+    error.value = (caught as Error).message;
   } finally {
     loading.value = false;
   }
 };
 
-// Auto-connect when both params are provided (QR code flow)
+// Scanning the TV's QR code opens this page with the code filled in.
 onMounted(async () => {
-  if (route.query.url && route.query.key) {
-    await handleConnect();
+  if (code.value) {
+    await pair();
   }
 });
 </script>
@@ -36,26 +34,26 @@ onMounted(async () => {
     <div class="w-full max-w-sm space-y-6">
       <div class="text-center">
         <h1 class="text-3xl font-bold tracking-tight">Reel</h1>
-        <p class="mt-2 text-neutral-400">Connect to your media server</p>
+        <p class="mt-2 text-neutral-400">Pair this phone with your TV to use it as a remote.</p>
       </div>
 
       <UAlert v-if="error" color="error" icon="i-lucide-alert-circle" :title="error" />
 
-      <form class="space-y-4" @submit.prevent="handleConnect">
-        <UFormField label="Server URL">
-          <UInput v-model="url" placeholder="http://192.168.1.x:8080" icon="i-lucide-server" />
-        </UFormField>
-
-        <UFormField label="Secret Key">
+      <form class="space-y-4" @submit.prevent="pair">
+        <UFormField
+          label="Pairing code shown on your TV"
+          help="Scanning the QR code on the TV with this phone fills it in for you."
+        >
           <UInput
-            v-model="key"
-            type="text"
-            placeholder="Enter secret key"
+            v-model="code"
+            autocomplete="off"
+            autocapitalize="off"
+            :spellcheck="false"
             icon="i-lucide-key-round"
           />
         </UFormField>
 
-        <UButton type="submit" block :loading="loading" :disabled="!url || !key"> Connect </UButton>
+        <UButton type="submit" block :loading="loading" :disabled="!code.trim()">Pair</UButton>
       </form>
     </div>
   </div>

@@ -1,174 +1,161 @@
-namespace Reel.Server.Tests;
-
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Dapper;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Data.Sqlite;
+using Reel.Server.Common;
+using Reel.Server.Contracts.Reel;
 
-public sealed class LibraryEndpointTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+namespace Reel.Server.Tests;
+
+public sealed class LibraryEndpointTests : IDisposable
 {
-    private readonly string _mediaRoot;
+    private readonly TempMediaRoot _media = new();
     private readonly WebApplicationFactory<Program> _factory;
+    private readonly HttpClient _client;
 
-    public LibraryEndpointTests(WebApplicationFactory<Program> factory)
+    public LibraryEndpointTests()
     {
-        _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-lib-test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(_mediaRoot);
-
-        // Create test files
-        File.WriteAllBytes(Path.Combine(_mediaRoot, "test.mp4"), new byte[2048]);
-        File.WriteAllBytes(Path.Combine(_mediaRoot, "The.Matrix.1999.1080p.BluRay.x264.mkv"), new byte[1024]);
-
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", _mediaRoot);
-            builder.UseSetting("Reel:SecretKey", "REEL-TEST");
-            builder.UseSetting("Reel:Port", "8080");
-        });
+        _media.Write("test.mp4", new byte[2048]);
+        _media.Write("The.Matrix.1999.1080p.BluRay.x264.mkv", new byte[1024]);
+        _factory = _media.CreateFactory();
+        _client = _factory.CreateAuthenticatedClient();
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(_mediaRoot))
-            Directory.Delete(_mediaRoot, recursive: true);
+        _client.Dispose();
+        _factory.Dispose();
+        _media.Dispose();
     }
 
     [Fact]
-    public async Task ValidKey_ReturnsTree()
+    public async Task Library_ReturnsCamelCaseTreeWithParsedTitlesAndNullsForDirectories()
     {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+        await _factory.WaitForStartupIndexAsync();
+        var json = await _client.GetStringAsync("/api/library");
+        var root = JsonDocument.Parse(json).RootElement;
 
-        var response = await client.GetAsync("/api/library");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
+        json.Should().NotContain("\"RelativePath\"").And.NotContain("watched");
         root.GetProperty("type").GetString().Should().Be("directory");
         root.GetProperty("relativePath").GetString().Should().BeEmpty();
-        root.GetProperty("children").GetArrayLength().Should().BeGreaterThan(0);
-    }
+        foreach (var field in new[] { "parsedTitle", "year", "extension", "sizeBytes" })
+        {
+            root.GetProperty(field).ValueKind.Should().Be(JsonValueKind.Null);
+        }
 
-    [Fact]
-    public async Task WithoutKey_Returns401()
-    {
-        var client = _factory.CreateClient();
-
-        var response = await client.GetAsync("/api/library");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task JsonProperties_AreCamelCase()
-    {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
-
-        var response = await client.GetAsync("/api/library");
-        var json = await response.Content.ReadAsStringAsync();
-
-        json.Should().Contain("\"relativePath\"");
-        json.Should().Contain("\"sizeBytes\"");
-        json.Should().NotContain("\"RelativePath\"");
-        json.Should().NotContain("\"SizeBytes\"");
-    }
-
-    [Fact]
-    public async Task FileNodes_ContainParsedTitleAndYear()
-    {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
-
-        var response = await client.GetAsync("/api/library");
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-
-        var children = doc.RootElement.GetProperty("children");
-        var matrixNode = children
+        var matrix = root.GetProperty("children")
             .EnumerateArray()
-            .First(c => c.GetProperty("name").GetString() == "The.Matrix.1999.1080p.BluRay.x264.mkv");
-
-        matrixNode.GetProperty("parsedTitle").GetString().Should().Be("The Matrix");
-        matrixNode.GetProperty("year").GetInt32().Should().Be(1999);
+            .Single(c =>
+                c.GetProperty("name").GetString() == "The.Matrix.1999.1080p.BluRay.x264.mkv"
+            );
+        matrix.GetProperty("parsedTitle").GetString().Should().Be("The Matrix");
+        matrix.GetProperty("year").GetInt32().Should().Be(1999);
+        matrix.GetProperty("sizeBytes").GetInt64().Should().Be(1024);
     }
 
     [Fact]
-    public async Task DirectoryNodes_HaveNullParsedTitleAndYear()
+    public async Task Rescan_IndexesFilesAddedAfterStartupForSearch()
     {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+        await _factory.WaitForStartupIndexAsync();
+        _media.Write("New.Release.2026.mkv");
+        (await _client.GetFromJsonAsync<JsonElement>("/api/search?q=New.Release"))
+            .GetArrayLength()
+            .Should()
+            .Be(0);
 
-        var response = await client.GetAsync("/api/library");
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
+        var response = await _client.PostAsync("/api/library/rescan", null);
 
-        // Root node is a directory
-        doc.RootElement.GetProperty("parsedTitle").ValueKind.Should().Be(JsonValueKind.Null);
-        doc.RootElement.GetProperty("year").ValueKind.Should().Be(JsonValueKind.Null);
-    }
-
-    [Fact]
-    public async Task NullFields_AreSerialisedAsNull()
-    {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
-
-        var response = await client.GetAsync("/api/library");
-        var json = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(json);
-
-        // Root directory should have null extension and sizeBytes
-        var root = doc.RootElement;
-        root.GetProperty("extension").ValueKind.Should().Be(JsonValueKind.Null);
-        root.GetProperty("sizeBytes").ValueKind.Should().Be(JsonValueKind.Null);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _client.GetFromJsonAsync<JsonElement>("/api/search?q=New.Release"))
+            .EnumerateArray()
+            .Select(node => node.GetProperty("relativePath").GetString())
+            .Should()
+            .Contain("New.Release.2026.mkv");
     }
 
     [Fact]
     public async Task Rescan_DeletesMissingMediaAndDependentRows()
     {
-        using var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
-        await client.GetAsync("/api/search");
-
-        const string path = "test.mp4";
-        await client.PostAsJsonAsync(
+        await _factory.WaitForStartupIndexAsync();
+        var saved = await _client.PostAsJsonAsync(
             "/api/progress",
-            new { path, positionSeconds = 10, durationSeconds = 100 }
+            new
+            {
+                relativePath = "test.mp4",
+                positionSeconds = 10,
+                durationSeconds = 100,
+            }
         );
-        File.Delete(Path.Combine(_mediaRoot, path));
+        saved.StatusCode.Should().Be(HttpStatusCode.OK);
+        File.Delete(Path.Combine(_media.Root, "test.mp4"));
 
-        var response = await client.PostAsync("/api/library/rescan", null);
+        (await _client.PostAsync("/api/library/rescan", null))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.OK);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        await using var connection = new SqliteConnection(
-            $"Data Source={Path.Combine(_mediaRoot, ".reel", "reel-v2.db")}"
-        );
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT
-                (SELECT COUNT(*) FROM media WHERE relative_path = 'test.mp4'),
-                (SELECT COUNT(*) FROM progress WHERE relative_path = 'test.mp4');
-            """;
-        await using var reader = await command.ExecuteReaderAsync();
-        (await reader.ReadAsync()).Should().BeTrue();
-        reader.GetInt32(0).Should().Be(0);
-        reader.GetInt32(1).Should().Be(0);
+        using var connection = _media.Database.GetConnection();
+        connection
+            .ExecuteScalar<int>(
+                "SELECT (SELECT COUNT(*) FROM media WHERE relative_path = 'test.mp4') + (SELECT COUNT(*) FROM progress);"
+            )
+            .Should()
+            .Be(0);
     }
 
     [Fact]
-    public async Task Rescan_WithoutKeyReturns401()
+    public async Task BrowseAndSearch_DescribeEachFileIdentically()
     {
-        using var client = _factory.CreateClient();
+        _media.Write("Shows/Show/Show.S01E01.mkv", new byte[64]);
+        await _factory.WaitForStartupIndexAsync();
+        (await _client.PostAsync("/api/library/rescan", null)).EnsureSuccessStatusCode();
 
-        var response = await client.PostAsync("/api/library/rescan", null);
+        var tree = await _client.GetFromJsonAsync<FileNode>("/api/library", _factory.JsonOptions());
+        var search = await _client.GetFromJsonAsync<FileNode[]>(
+            "/api/search",
+            _factory.JsonOptions()
+        );
 
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        search
+            .Should()
+            .HaveCount(3)
+            .And.BeEquivalentTo(Files(tree!), options => options.WithStrictOrdering());
     }
+
+    [Fact]
+    public async Task RemovedFile_StaysInBrowseUntilARescan()
+    {
+        await _factory.WaitForStartupIndexAsync();
+        File.Delete(Path.Combine(_media.Root, "test.mp4"));
+
+        (await BrowsedPathsAsync()).Should().Contain("test.mp4");
+        (await _client.PostAsync("/api/library/rescan", null)).EnsureSuccessStatusCode();
+        (await BrowsedPathsAsync()).Should().NotContain("test.mp4");
+    }
+
+    [Fact]
+    public async Task Rescan_FindingNoMediaIsRefusedAndKeepsTheIndex()
+    {
+        await _factory.WaitForStartupIndexAsync();
+        foreach (var file in Directory.EnumerateFiles(_media.Root))
+        {
+            File.Delete(file);
+        }
+
+        var response = await _client.PostAsync("/api/library/rescan", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        (await response.Content.ReadFromJsonAsync<ErrorResponse>())!
+            .Code.Should()
+            .Be("rescan_refused");
+        (await BrowsedPathsAsync()).Should().HaveCount(2);
+    }
+
+    private async Task<IEnumerable<string>> BrowsedPathsAsync() =>
+        Files((await _client.GetFromJsonAsync<FileNode>("/api/library", _factory.JsonOptions()))!)
+            .Select(node => node.RelativePath);
+
+    private static IEnumerable<FileNode> Files(FileNode node) =>
+        node.Children is null ? [node] : node.Children.SelectMany(Files);
 }

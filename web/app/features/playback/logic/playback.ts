@@ -20,11 +20,6 @@ export const formatPlaybackTime = (seconds: number): string => {
     : `${minutes}:${remainder.toString().padStart(2, "0")}`;
 };
 
-export const playbackTitle = (relativePath: string): string => {
-  const fileName = relativePath.split("/").pop() ?? relativePath;
-  return fileName.replace(/\.[^.]+$/, "").replace(/[._]+/g, " ");
-};
-
 export const isPlaybackPending = (session: PlaybackSession | null): boolean => {
   if (!session) {
     return false;
@@ -48,10 +43,15 @@ export const isPlaybackPending = (session: PlaybackSession | null): boolean => {
   return observation.state !== confirmedState[session.intent.desiredState];
 };
 
-export const hasIncompleteProgress = (
-  progress: { positionSeconds: number; durationSeconds: number } | undefined,
-): boolean =>
-  !!progress &&
-  progress.positionSeconds > 0 &&
-  progress.durationSeconds > 0 &&
-  progress.positionSeconds / progress.durationSeconds < 0.9;
+type Progress = { positionSeconds: number; durationSeconds: number };
+
+export const progressFraction = (progress: Progress | undefined): number =>
+  progress && progress.durationSeconds > 0
+    ? clampPosition(progress.positionSeconds, progress.durationSeconds) / progress.durationSeconds
+    : 0;
+
+// Progress past 95% counts as watched, so it neither resumes nor appears in Continue Watching.
+export const hasIncompleteProgress = (progress: Progress | undefined): boolean => {
+  const fraction = progressFraction(progress);
+  return fraction > 0 && fraction < 0.95;
+};

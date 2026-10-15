@@ -4,28 +4,26 @@ import com.max.reel.data.PlaybackDesiredState
 import com.max.reel.data.PlaybackIntentResponse
 import com.max.reel.data.PlaybackSessionResponse
 import com.max.reel.data.SeekRequestResponse
-import com.max.reel.data.PlaybackObservationState
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 
 class PlaybackStateTest {
     private fun session(revision: Long, seekId: Long? = null) = PlaybackSessionResponse(
         sessionId = "session-1",
         revision = revision,
-        createdAtUtc = "2026-08-11T10:00:00Z",
-        updatedAtUtc = "2026-08-11T10:00:01Z",
-        intent = PlaybackIntentResponse(
+        intent =
+        PlaybackIntentResponse(
             relativePath = "Films/movie.mp4",
+            title = "Movie",
             desiredState = PlaybackDesiredState.Playing,
             pendingSeek = seekId?.let { SeekRequestResponse(it, 42.0, revision) },
         ),
-        tvConnected = true,
     )
 
     @Test
@@ -45,189 +43,124 @@ class PlaybackStateTest {
 
     @Test
     fun `seek is acknowledged only at its introducing revision`() {
-        val futureSeek = session(4, 9).copy(
-            intent = session(4, 9).intent.copy(
-                pendingSeek = SeekRequestResponse(9, 42.0, introducedRevision = 5),
-            ),
-        )
+        val futureSeek =
+            session(4, 9).copy(
+                intent =
+                session(4, 9).intent.copy(
+                    pendingSeek = SeekRequestResponse(9, 42.0, introducedRevision = 5),
+                ),
+            )
 
         assertNull(reconcile(futureSeek, AppliedIntent("session-1", revision = 3)).seekId)
-        assertEquals(9L, reconcile(futureSeek.copy(revision = 5), AppliedIntent("session-1", revision = 4)).seekId)
+        assertEquals(
+            9L,
+            reconcile(
+                futureSeek.copy(revision = 5),
+                AppliedIntent("session-1", revision = 4),
+            ).seekId,
+        )
     }
 
     @Test
     fun `subtitle disabling is represented as an explicit change`() {
-        val decision = reconcile(
-            session(4),
-            AppliedIntent("session-1", revision = 3, subtitleIndex = 2),
-        )
+        val decision =
+            reconcile(
+                session(4),
+                AppliedIntent("session-1", revision = 3, subtitleIndex = 2),
+            )
 
         assertTrue(decision.subtitleChanged)
-        assertNull(decision.subtitleIndex)
-    }
-
-    @Test
-    fun `progress is due only each ten seconds while playing`() {
-        assertTrue(isProgressDue(true, 10_000, null))
-        assertTrue(isProgressDue(true, 20_000, 10_000))
-        assertEquals(false, isProgressDue(true, 19_999, 10_000))
-        assertEquals(false, isProgressDue(false, 30_000, 10_000))
-    }
-
-    @Test
-    fun `poll failure exposes bounded retry without changing playback state`() {
-        val tracker = PollingFailureTracker()
-        assertEquals(PlaybackConnection.Retrying(1, 1, "offline"), tracker.failed("offline"))
-        repeat(6) { tracker.failed("offline") }
-        assertEquals(PlaybackConnection.Retrying(8, 8, "offline"), tracker.failed("offline"))
-        assertEquals(PlaybackConnection.Connected, tracker.succeeded())
-        assertEquals(0, tracker.failures)
-    }
-
-    @Test
-    fun `pairing remains authoritative while playback chooses ready or player`() {
-        assertEquals(AppDestination.Pairing, appDestination(false, "Films/movie.mp4"))
-        assertEquals(AppDestination.Ready, appDestination(true, null))
-        assertEquals(AppDestination.Player, appDestination(true, "Films/movie.mp4"))
     }
 
     @Test
     fun `accepted local stop does not restart on the next identical poll`() {
-        val stopped = session(4).copy(
-            intent = session(4).intent.copy(desiredState = PlaybackDesiredState.Stopped),
-        )
-        val applied = AppliedIntent(
-            sessionId = stopped.sessionId,
-            revision = stopped.revision,
-            relativePath = stopped.intent.relativePath,
-        )
+        val stopped =
+            session(4).copy(
+                intent = session(4).intent.copy(desiredState = PlaybackDesiredState.Stopped),
+            )
+        val applied =
+            AppliedIntent(
+                sessionId = stopped.sessionId,
+                revision = stopped.revision,
+                relativePath = stopped.intent.relativePath,
+            )
 
         assertEquals(ReconciliationDecision(), reconcile(stopped, applied))
     }
 
     @Test
-    fun `hardware play pause preserves subtitle and sends no seek`() {
+    fun `local intent preserves subtitle and expects the revision it was based on`() {
         val current = session(3).copy(intent = session(3).intent.copy(subtitleIndex = 2))
-        val request = localIntentRequest(current, localPlayPauseIntent(isPlaying = true))
+        val request = localIntentRequest(current, PlaybackDesiredState.Paused)
 
         assertEquals(PlaybackDesiredState.Paused, request.desiredState)
         assertEquals(2, request.subtitleIndex)
         assertNull(request.seekPositionSeconds)
+        assertEquals(3L, request.expectedRevision)
     }
 
     @Test
-    fun `loading snapshot carries the new path before observation`() {
-        val loading = loadingState(
-            PlaybackUiState(relativePath = "old.mp4", positionSeconds = 90.0, durationSeconds = 120.0),
-            "new.mp4",
-            1,
-        )
+    fun `reapply re-asserts desired state at the same revision without reloading`() {
+        val applied = AppliedIntent("session-1", revision = 3, relativePath = "Films/movie.mp4")
 
-        assertEquals("new.mp4", loading.relativePath)
-        assertEquals(1, loading.subtitleIndex)
-        assertEquals(PlaybackObservationState.Loading, loading.actualState)
-        assertEquals(0.0, loading.positionSeconds, 0.0)
-        assertEquals(0.0, loading.durationSeconds, 0.0)
+        assertEquals(ReconciliationDecision(), reconcile(session(3), applied))
+        val decision = reconcile(session(3), applied, reapply = true)
+        assertEquals(PlaybackDesiredState.Playing, decision.desiredState)
+        assertNull(decision.loadPath)
+        assertEquals(false, decision.subtitleChanged)
     }
 
     @Test
-    fun `background lifecycle pauses only an active session`() {
-        assertEquals(PlaybackDesiredState.Paused, lifecycleIntent(hasActiveSession = true))
-        assertNull(lifecycleIntent(hasActiveSession = false))
+    fun `locally stopped media reloads when a newer revision arrives`() {
+        val applied = AppliedIntent("session-1", revision = 3, relativePath = null)
+
+        assertEquals(ReconciliationDecision(), reconcile(session(3), applied))
+        assertEquals("Films/movie.mp4", reconcile(session(4), applied).loadPath)
     }
 
     @Test
-    fun `background lifecycle synchronously disables all control surfaces`() {
-        assertEquals(
-            LifecycleDecision(false, false, false, PlaybackDesiredState.Paused),
-            lifecycleDecision(foreground = false, hasActiveSession = true),
-        )
-        assertEquals(
-            LifecycleDecision(true, true, true, null),
-            lifecycleDecision(foreground = true, hasActiveSession = true),
-        )
+    fun `skip clamps to duration only when duration is known`() {
+        assertEquals(40.0, skipTarget(30.0, 10.0, durationSeconds = 0.0), 0.0)
+        assertEquals(60.0, skipTarget(55.0, 10.0, durationSeconds = 60.0), 0.0)
+        assertEquals(0.0, skipTarget(5.0, -10.0, durationSeconds = 0.0), 0.0)
     }
 
     @Test
-    fun `delayed poll cannot overwrite command or resurrect old session`() {
-        val gate = SessionApplicationGate()
-        val delayedPoll = gate.requestGeneration()
-        gate.acceptCommand(session(4))
-
-        assertEquals(false, gate.acceptPoll(delayedPoll, session(3)))
-        val oldSessionPoll = gate.requestGeneration()
-        gate.acceptCommand(session(5).copy(sessionId = "session-2"))
-        assertEquals(false, gate.acceptPoll(oldSessionPoll, session(9)))
-
-        val endingPoll = gate.requestGeneration()
-        assertTrue(gate.acceptPoll(endingPoll, null))
-        assertEquals(false, gate.acceptPoll(endingPoll, session(9)))
+    fun `failed progress is replaced by latest position and does not block another file`() = runTest {
+        val attempts = mutableListOf<Pair<String, Double>>()
+        var reachable = false
+        val writer =
+            ProgressWriter {
+                attempts += it.path to it.position
+                reachable
+            }
+        writer.request(ProgressSnapshot("old.mp4", 30.0, 60.0))
+        writer.save()
+        writer.request(ProgressSnapshot("old.mp4", 10.0, 60.0))
+        writer.request(ProgressSnapshot("new.mp4", 5.0, 60.0))
+        reachable = true
+        writer.save()
+        writer.save()
+        assertEquals(listOf("old.mp4" to 30.0, "old.mp4" to 10.0, "new.mp4" to 5.0), attempts)
     }
 
     @Test
-    fun `observations are sent serially in transition order`() = runTest {
-        val firstMayFinish = CompletableDeferred<Unit>()
-        val sent = mutableListOf<String>()
-        val queue = ObservationQueue<String>(
-            scope = this,
-            send = {
-                if (it == "loading") firstMayFinish.await()
-                sent += it
-                true
-            },
-        )
-
-        queue.request("loading")
-        runCurrent()
-        queue.request("playing")
-        firstMayFinish.complete(Unit)
-        advanceUntilIdle()
-
-        assertEquals(listOf("loading", "playing"), sent)
-        queue.close()
-    }
-
-    @Test
-    fun `progress retries failure and supersedes it with latest position`() = runTest {
-        val attempts = mutableListOf<Double>()
-        val writer = ProgressWriter(
-            scope = this,
-            send = {
-                attempts += it.position
-                attempts.size > 1
-            },
-        )
-
-        writer.request(ProgressSnapshot("session-1", "movie.mp4", 10.0, 60.0))
-        runCurrent()
-        writer.request(ProgressSnapshot("session-1", "movie.mp4", 20.0, 60.0))
-        assertTrue(writer.close())
-
-        assertEquals(listOf(10.0, 10.0, 20.0), attempts)
-    }
-
-    @Test
-    fun `progress flush is a delivery barrier and close keeps worker as sole writer`() = runTest {
+    fun `position requested during an in-flight save is sent by that save`() = runTest {
+        val release = CompletableDeferred<Unit>()
         val sent = mutableListOf<Double>()
-        val writer = ProgressWriter(this, send = { sent += it.position; true })
+        val writer =
+            ProgressWriter {
+                if (it.position == 30.0) release.await()
+                sent += it.position
+                true
+            }
+        writer.request(ProgressSnapshot("movie.mp4", 30.0, 60.0))
+        val save = launch { writer.save() }
+        runCurrent()
+        writer.request(ProgressSnapshot("movie.mp4", 10.0, 60.0))
+        release.complete(Unit)
+        save.join()
 
-        writer.request(ProgressSnapshot("session-1", "old.mp4", 10.0, 60.0))
-        assertTrue(writer.flush(ProgressSnapshot("session-1", "old.mp4", 20.0, 60.0)))
-        assertTrue(writer.close(ProgressSnapshot("session-1", "old.mp4", 30.0, 60.0)))
-
-        assertEquals(listOf(10.0, 20.0, 30.0), sent)
-    }
-
-    @Test
-    fun `observation sequence resumes above local or server maximum`() {
-        assertEquals(8L, nextObservationSequence(local = 3, server = 7))
-        assertEquals(9L, nextObservationSequence(local = 8, server = 4))
-    }
-
-    @Test
-    fun `missing requested subtitle is disabled instead of substituted`() {
-        assertEquals(2, availableSubtitleIndex(2, listOf(1, 2, 3)))
-        assertNull(availableSubtitleIndex(4, listOf(1, 2, 3)))
-        assertNull(availableSubtitleIndex(null, listOf(1, 2, 3)))
+        assertEquals(listOf(30.0, 10.0), sent)
     }
 }

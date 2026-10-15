@@ -1,57 +1,42 @@
 <script setup lang="ts">
+import { findNodeByPath } from "~~/app/features/library/logic/library";
 import type { FileNode } from "~~/app/lib/api";
-import { useFavourites } from "../composables/useFavourites";
-import { useLibrary } from "../composables/useLibrary";
-import { usePullToRefresh } from "../composables/usePullToRefresh";
-import { findNodeByPath } from "../utils/findNodeByPath";
+import { injectFavourites } from "~~/app/ports/favourites";
 
-const { favourites, loading, error, fetch: fetchFavourites } = useFavourites();
+const { favourites, loading, error, refresh } = injectFavourites();
+const library = useLibrary();
+const refreshAll = async () => {
+  await Promise.all([refresh(), library.refresh()]);
+};
 
-const { refreshing, pullOffset } = usePullToRefresh(() => fetchFavourites());
-const { tree } = useLibrary();
-
-onMounted(() => {
-  fetchFavourites();
-});
-
+// A favourite missing from the tree (library unavailable, or the file moved) still shows by path.
 const favouriteNodes = computed(() =>
-  favourites.value
-    .map((fav) => findNodeByPath(tree.value, fav.relativePath))
-    .filter((node): node is FileNode => node !== null),
+  favourites.value.map(
+    (fav): FileNode =>
+      findNodeByPath(library.tree.value, fav.relativePath) ?? {
+        name: fav.relativePath.split("/").pop() ?? fav.relativePath,
+        type: "file",
+        relativePath: fav.relativePath,
+      },
+  ),
 );
 </script>
 
 <template>
   <div class="space-y-4">
-    <!-- Pull to refresh indicator -->
-    <div
-      v-if="refreshing || pullOffset > 0"
-      class="flex justify-center overflow-hidden transition-all"
-      :style="{ height: refreshing ? '32px' : `${Math.min(pullOffset, 60)}px` }"
-    >
-      <UIcon
-        :name="refreshing ? 'i-lucide-loader-2' : 'i-lucide-arrow-down'"
-        class="size-5 text-neutral-500"
-        :class="{ 'animate-spin': refreshing }"
-      />
+    <PullToRefresh :refresh="refreshAll" />
+
+    <h1 class="page-title">Favourites</h1>
+
+    <div v-if="loading || library.loading.value" class="media-grid">
+      <USkeleton v-for="i in 6" :key="i" class="h-48" />
     </div>
 
-    <div class="page-header">
-      <h1 class="page-title">Favourites</h1>
+    <div v-else-if="error && favourites.length === 0" class="space-y-4">
+      <UAlert color="error" icon="i-lucide-alert-circle" :title="error.message" />
+      <UButton block @click="refresh()">Retry</UButton>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="space-y-3">
-      <USkeleton v-for="i in 4" :key="i" class="h-[192px] w-[140px]" />
-    </div>
-
-    <!-- Error -->
-    <div v-else-if="error" class="space-y-4">
-      <UAlert color="error" icon="i-lucide-alert-circle" :title="error" />
-      <UButton block @click="fetchFavourites()">Retry</UButton>
-    </div>
-
-    <!-- Empty state -->
     <div
       v-else-if="favouriteNodes.length === 0"
       class="flex flex-col items-center justify-center py-16 text-neutral-500"
@@ -61,15 +46,17 @@ const favouriteNodes = computed(() =>
       <p class="text-xs text-neutral-600 mt-1">Browse your library and tap the heart icon</p>
     </div>
 
-    <!-- Favourites grid -->
-    <div v-else class="grid grid-cols-2 gap-3">
-      <MediaCard
-        v-for="node in favouriteNodes"
-        :key="node.relativePath"
-        :node="node"
-        @select="navigateTo(`/detail/${encodeURIComponent(node.relativePath)}`)"
+    <template v-else>
+      <UAlert
+        v-if="library.error.value"
+        color="warning"
+        variant="soft"
+        title="Library details unavailable"
+        :description="library.error.value.message"
       />
-    </div>
-
+      <div class="media-grid">
+        <MediaCard v-for="node in favouriteNodes" :key="node.relativePath" :node="node" />
+      </div>
+    </template>
   </div>
 </template>

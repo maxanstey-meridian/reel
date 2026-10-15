@@ -1,18 +1,20 @@
 package com.max.reel.data
 
-import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,46 +26,140 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class ApiClientTest {
     private val json = Json { ignoreUnknownKeys = true }
-    private val jsonHeaders = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+    private val server = PairedServer("localhost", 8080, "test-key", "Test server")
+    private val pairing = PairingStore(RuntimeEnvironment.getApplication()).also { it.save(server) }
 
-    private fun prefs() = PreferencesManager(RuntimeEnvironment.getApplication()).also {
-        it.savePairing("localhost", "8080", "test-key", "Test server")
-    }
+    private fun client(handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData) =
+        ApiClient(pairing, MockEngine(handler))
+
+    private fun MockRequestHandleScope.respondJson(body: String, status: HttpStatusCode = HttpStatusCode.OK) = respond(
+        body,
+        status,
+        headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+    )
 
     @Test
     fun `playback session decodes exact camelCase wire contract and ignores additions`() = runTest {
-        val engine = MockEngine {
-            respond(
-                """{"session":{"sessionId":"session-1","revision":7,"createdAtUtc":"2026-08-11T10:00:00Z","updatedAtUtc":"2026-08-11T10:00:01Z","intent":{"relativePath":"Films/movie.mp4","desiredState":"playing","subtitleIndex":2,"pendingSeek":{"seekId":4,"positionSeconds":12.5,"introducedRevision":7}},"observation":null,"tvConnected":false,"futureField":true}}""",
-                HttpStatusCode.OK,
-                jsonHeaders,
-            )
-        }
-        val client = HttpClient(engine) {
-            install(ContentNegotiation) { json(json) }
-            expectSuccess = false
-        }
+        val api =
+            client {
+                respondJson(
+                    """{"session":{"sessionId":"session-1","revision":7,"intent":{"relativePath":"Films/movie.mp4","title":"Movie","desiredState":"playing","subtitleIndex":2,"pendingSeek":{"seekId":4,"positionSeconds":12.5,"introducedRevision":7}},"observation":null,"tvConnected":false,"futureField":true}}""",
+                )
+            }
 
-        val result = ApiClient(prefs(), client).getPlaybackSession() as ApiResult.Success
+        val session = (api.getPlaybackSession() as ApiResult.Success).value.session
 
-        assertEquals(PlaybackDesiredState.Playing, result.value.session?.intent?.desiredState)
-        assertEquals(4L, result.value.session?.intent?.pendingSeek?.seekId)
-        assertEquals(7L, result.value.session?.intent?.pendingSeek?.introducedRevision)
+        assertEquals("Movie", session?.intent?.title)
+        assertEquals(PlaybackDesiredState.Playing, session?.intent?.desiredState)
+        assertEquals(4L, session?.intent?.pendingSeek?.seekId)
+        assertEquals(7L, session?.intent?.pendingSeek?.introducedRevision)
+    }
+
+    @Test
+    fun `stream urls pin the transcode height so a settings edit cannot change a playing stream`() {
+        val api = client { respondJson("{}") }
+
+        assertEquals(
+            "http://localhost:8080/api/files/stream?path=a.mkv",
+            api.streamUrl(server, "a.mkv", null, 30.0),
+        )
+        assertEquals(
+            "http://localhost:8080/api/files/stream?path=a.mkv&height=480&start=30.0",
+            api.streamUrl(server, "a.mkv", 480, 30.0),
+        )
+    }
+
+    @Test
+    fun `urls bracket IPv6 hosts and encode the key`() {
+        val api = client { respondJson("{}") }
+
+        assertEquals(
+            "http://[fe80::1]:8080/pair?key=a+%26+b",
+            api.pairUrl(PairedServer("fe80::1", 8080, "a & b", "")),
+        )
+    }
+
+    @Test
+    fun `requests carry the paired server, key and encoded path`() = runTest {
+        var seen: HttpRequestData? = null
+        val api =
+            client { request ->
+                seen = request
+                respondJson("""{"durationSeconds":60.5,"transcodeHeight":480}""")
+            }
+
+        val info = (api.streamInfo("Shows/A & B/ep 1.mkv") as ApiResult.Success).value
+
+        assertEquals(StreamInfo(60.5, transcodeHeight = 480), info)
+        assertEquals(
+            "http://localhost:8080/api/files/stream/info?path=Shows%2FA+%26+B%2Fep+1.mkv",
+            seen?.url.toString(),
+        )
+        assertEquals("test-key", seen?.headers?.get("X-Secret-Key"))
+    }
+
+    @Test
+    fun `a rejected connect goes to the discovered server and keeps the current pairing`() = runTest {
+        var seen: HttpRequestData? = null
+        val api =
+            client { request ->
+                seen = request
+                respondJson(
+                    """{"code":"unauthorized","message":"That code doesn't match your TV."}""",
+                    HttpStatusCode.Unauthorized,
+                )
+            }
+
+        val result =
+            api.connect(
+                DiscoveredServer("192.168.1.9", 9090, "secret"),
+            ) as ApiResult.Failure
+
+        assertEquals(401, result.statusCode)
+        assertEquals("http://192.168.1.9:9090/api/connect", seen?.url.toString())
+        assertEquals(server, pairing.server.value)
+    }
+
+    @Test
+    fun `rejected key unpairs`() = runTest {
+        val api =
+            client {
+                respondJson(
+                    """{"code":"unauthorized","message":"Missing or invalid secret key."}""",
+                    HttpStatusCode.Unauthorized,
+                )
+            }
+
+        api.startPlayback("Films/movie.mp4")
+
+        assertNull(pairing.server.value)
+    }
+
+    @Test
+    fun `a request outside the private network keeps the pairing and says why`() = runTest {
+        val api = client { respond("", HttpStatusCode.Forbidden) }
+
+        val result = api.getPlaybackSession() as ApiResult.Failure
+
+        assertEquals(403, result.statusCode)
+        assertEquals("The server only accepts devices on its own network", result.message)
+        assertNotNull(pairing.server.value)
     }
 
     @Test
     fun `observation encodes camelCase enum values`() {
-        val encoded = json.encodeToString(
-            ReportPlaybackObservationRequest(
-                sessionId = "session-1",
-                observationSequence = 1,
-                appliedRevision = 3,
-                state = PlaybackObservationState.Buffering,
-                relativePath = "Films/movie.mp4",
-                positionSeconds = 5.0,
-                durationSeconds = 60.0,
-            ),
-        )
+        val encoded =
+            json.encodeToString(
+                ReportPlaybackObservationRequest(
+                    sessionId = "session-1",
+                    observationSequence = 1,
+                    appliedRevision = 3,
+                    state = PlaybackObservationState.Buffering,
+                    relativePath = "Films/movie.mp4",
+                    positionSeconds = 5.0,
+                    durationSeconds = 60.0,
+                ),
+            )
 
         assertTrue(encoded.contains("\"appliedRevision\":3"))
         assertTrue(encoded.contains("\"state\":\"buffering\""))
@@ -71,20 +167,30 @@ class ApiClientTest {
     }
 
     @Test
-    fun `non-success playback response retains status and server message`() = runTest {
-        val engine = MockEngine {
-            respond(
-                """{"error":"Session is stale"}""",
-                HttpStatusCode.Conflict,
-                jsonHeaders,
+    fun `intent encodes expected revision only when present`() {
+        val guarded =
+            UpdatePlaybackIntentRequest(
+                "session-1",
+                PlaybackDesiredState.Paused,
+                expectedRevision = 3,
             )
-        }
-        val client = HttpClient(engine) {
-            install(ContentNegotiation) { json(json) }
-            expectSuccess = false
-        }
+        val unguarded = UpdatePlaybackIntentRequest("session-1", PlaybackDesiredState.Stopped)
 
-        val result = ApiClient(prefs(), client).getPlaybackSession() as ApiResult.Failure
+        assertTrue(json.encodeToString(guarded).contains("\"expectedRevision\":3"))
+        assertTrue(!json.encodeToString(unguarded).contains("expectedRevision"))
+    }
+
+    @Test
+    fun `non-success playback response retains status and server message`() = runTest {
+        val api =
+            client {
+                respondJson(
+                    """{"code":"conflict","message":"Session is stale"}""",
+                    HttpStatusCode.Conflict,
+                )
+            }
+
+        val result = api.getPlaybackSession() as ApiResult.Failure
 
         assertEquals(409, result.statusCode)
         assertEquals("Session is stale", result.message)

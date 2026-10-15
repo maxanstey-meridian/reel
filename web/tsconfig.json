@@ -1,4 +1,3 @@
 {
-  "extends": "./.nuxt/tsconfig.json",
-  "exclude": ["playwright.config.ts", "vitest.config.ts", "e2e"]
+  "extends": "./.nuxt/tsconfig.json"
 }

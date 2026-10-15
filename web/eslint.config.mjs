@@ -8,19 +8,6 @@ const nuxtConfig = withNuxt({
     "vue/require-v-for-key": "error",
     "vue/multi-word-component-names": "off",
     "vue/html-self-closing": "off",
-    "no-restricted-imports": [
-      "error",
-      {
-        patterns: [
-          {
-            group: ["~~/generated/rivet/rivet"],
-            importNames: ["rivetFetch"],
-            message:
-              "Use generated clients from ~~/generated/rivet/client/ instead of rivetFetch directly.",
-          },
-        ],
-      },
-    ],
   },
 });
 

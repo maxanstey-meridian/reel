@@ -2,42 +2,10 @@ import type { TrickplayMetadata } from "~~/app/lib/api";
 import { clampPosition } from "./playback";
 
 export type TrickplayFrame = {
-  frame: number;
   sheet: number;
   x: number;
   y: number;
   positionSeconds: number;
-};
-
-export const createScrubInteraction = (
-  duration: () => number,
-  preview: (position: number) => void,
-  commit: (position: number) => void,
-) => {
-  let dragging = false;
-  let position = 0;
-
-  return {
-    get dragging(): boolean {
-      return dragging;
-    },
-    get position(): number {
-      return position;
-    },
-    move(target: number): void {
-      dragging = true;
-      position = clampPosition(target, duration());
-      preview(position);
-    },
-    release(target: number): void {
-      position = clampPosition(target, duration());
-      dragging = false;
-      commit(position);
-    },
-    cancel(): void {
-      dragging = false;
-    },
-  };
 };
 
 export const trickplayFrameAt = (
@@ -65,7 +33,6 @@ export const trickplayFrameAt = (
   const framesPerSheet = metadata.columns * metadata.rows;
   const frameOnSheet = frame % framesPerSheet;
   return {
-    frame,
     sheet: Math.floor(frame / framesPerSheet),
     x: (frameOnSheet % metadata.columns) * metadata.thumbWidth,
     y: Math.floor(frameOnSheet / metadata.columns) * metadata.thumbHeight,

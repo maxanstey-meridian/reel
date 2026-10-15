@@ -1,171 +1,115 @@
-import { computed, onBeforeUnmount, onMounted, readonly, ref } from "vue";
-import { api, type PlaybackDesiredState, type PlaybackSession } from "~~/app/lib/api";
+import { useDocumentVisibility, useTimeoutPoll } from "@vueuse/core";
+import { client, unwrap, type PlaybackDesiredState, type PlaybackSession } from "~~/app/lib/api";
 import { isPlaybackPending } from "./logic/playback";
+import type { CompletedPlayback, Playback } from "./ports/playback";
 
-const ACTIVE_POLL_MS = 1_000;
-const IDLE_POLL_MS = 5_000;
-const HIDDEN_ACTIVE_POLL_MS = 5_000;
-const HIDDEN_IDLE_POLL_MS = 15_000;
+// A poll that was in flight while a control landed may describe the older session;
+// keep it only when it is the same session at the same or a later revision.
+const isStalePoll = (next: PlaybackSession | null, current: PlaybackSession | null): boolean =>
+  !next || !current || next.sessionId !== current.sessionId || next.revision < current.revision;
 
 export const usePlaybackSession = () => {
   const session = ref<PlaybackSession | null>(null);
+  const completed = ref<CompletedPlayback | null>(null);
   const loading = ref(true);
-  const error = ref<string | null>(null);
+  const error = shallowRef<Error | null>(null);
   const commandError = ref<string | null>(null);
   const sending = ref(false);
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let stopped = false;
-  let sessionVersion = 0;
-  let pollInFlight: Promise<void> | null = null;
-  let commandQueue = Promise.resolve();
-  let queuedCommands = 0;
-  let commandRequestVersion = 0;
-
-  const pending = computed(() => sending.value || isPlaybackPending(session.value));
-
-  const pollDelay = (): number => {
-    const hidden = typeof document !== "undefined" && document.hidden;
-    if (hidden) {
-      return session.value ? HIDDEN_ACTIVE_POLL_MS : HIDDEN_IDLE_POLL_MS;
-    }
-    return session.value ? ACTIVE_POLL_MS : IDLE_POLL_MS;
-  };
 
   const fetchSession = async (): Promise<void> => {
-    if (pollInFlight) {
-      return pollInFlight;
-    }
-    const version = sessionVersion;
-    pollInFlight = (async () => {
-      try {
-        const envelope = await api.playbackGet();
-        if (version === sessionVersion) {
-          session.value = envelope.session ?? null;
-          error.value = null;
-        }
-      } catch (caught) {
-        if (version === sessionVersion) {
-          error.value = caught instanceof Error ? caught.message : "Unable to reach Reel";
-        }
-      } finally {
-        loading.value = false;
-        pollInFlight = null;
+    const before = session.value;
+    try {
+      const next = unwrap(await client.GET("/api/playback/session")).session ?? null;
+      if (session.value !== before && isStalePoll(next, session.value)) {
+        return;
       }
-    })();
-    return pollInFlight;
-  };
-
-  const schedule = (): void => {
-    clearTimeout(timer);
-    if (!stopped) {
-      timer = setTimeout(runPoll, pollDelay());
+      if (next?.observation?.state === "ended") {
+        completed.value = { relativePath: next.intent.relativePath, title: next.intent.title };
+      } else if (next && next.intent.desiredState !== "stopped") {
+        completed.value = null;
+      }
+      session.value = next;
+      error.value = null;
+    } catch (caught) {
+      error.value = caught as Error;
+    } finally {
+      loading.value = false;
     }
   };
 
-  const runPoll = async (): Promise<void> => {
-    await fetchSession();
-    schedule();
-  };
+  // The interval is read when each wait starts, so it stays short until the first answer says whether anything is playing.
+  const { pause, resume } = useTimeoutPoll(
+    fetchSession,
+    () => (session.value || loading.value ? 1_000 : 5_000),
+    {
+      immediateCallback: true,
+    },
+  );
+  watch(useDocumentVisibility(), (visibility) => (visibility === "visible" ? resume() : pause()));
 
-  const runCommand = <T>(command: () => Promise<T>): Promise<T> => {
-    queuedCommands++;
+  const send = async (command: () => Promise<PlaybackSession>): Promise<boolean> => {
+    if (sending.value) {
+      return false;
+    }
     sending.value = true;
-    const result = commandQueue.then(command, command);
-    commandQueue = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result.finally(() => {
-      queuedCommands--;
-      sending.value = queuedCommands > 0;
-    });
-  };
-
-  const start = async (relativePath: string, startPositionSeconds = 0): Promise<void> => {
-    const request = ++commandRequestVersion;
     commandError.value = null;
     try {
-      await runCommand(async () => {
-        sessionVersion++;
-        session.value = await api.playbackStart({ relativePath, startPositionSeconds });
-      });
+      session.value = await command();
+      return true;
     } catch (caught) {
-      if (request === commandRequestVersion) {
-        commandError.value = caught instanceof Error ? caught.message : "Playback request failed";
-      }
-      throw caught;
+      commandError.value = (caught as Error).message;
+      return false;
     } finally {
-      schedule();
+      sending.value = false;
     }
   };
+
+  const start = (relativePath: string, startPositionSeconds = 0): Promise<boolean> =>
+    send(async () => {
+      const started = unwrap(
+        await client.POST("/api/playback/session", {
+          body: { relativePath, startPositionSeconds },
+        }),
+      );
+      completed.value = null;
+      return started;
+    });
 
   const updateIntent = async (
     desiredState: PlaybackDesiredState,
     options: { subtitleIndex?: number | null; seekPositionSeconds?: number } = {},
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     const current = session.value;
-    if (!current) {
-      return;
-    }
-    const request = ++commandRequestVersion;
-    commandError.value = null;
-    try {
-      await runCommand(async () => {
-        const latest = session.value;
-        if (!latest) {
-          return;
-        }
-        sessionVersion++;
-        session.value = await api.playbackUpdateIntent({
-          sessionId: latest.sessionId,
-          desiredState,
-          subtitleIndex: Object.hasOwn(options, "subtitleIndex")
-            ? options.subtitleIndex
-            : latest.intent.subtitleIndex,
-          seekPositionSeconds: options.seekPositionSeconds,
-        });
-      });
-    } catch (caught) {
-      if (request === commandRequestVersion) {
-        commandError.value = caught instanceof Error ? caught.message : "Playback control failed";
-      }
-      throw caught;
-    } finally {
-      schedule();
-    }
+    return (
+      !!current &&
+      send(async () =>
+        unwrap(
+          await client.PUT("/api/playback/session/intent", {
+            body: {
+              sessionId: current.sessionId,
+              desiredState,
+              subtitleIndex: Object.hasOwn(options, "subtitleIndex")
+                ? options.subtitleIndex
+                : current.intent.subtitleIndex,
+              seekPositionSeconds: options.seekPositionSeconds,
+            },
+          }),
+        ),
+      )
+    );
   };
 
-  const refreshOnVisibility = (): void => {
-    if (!document.hidden) {
-      void runPoll();
-    } else {
-      schedule();
-    }
-  };
-
-  onMounted(() => {
-    stopped = false;
-    document.addEventListener("visibilitychange", refreshOnVisibility);
-    void runPoll();
-  });
-
-  onBeforeUnmount(() => {
-    stopped = true;
-    clearTimeout(timer);
-    document.removeEventListener("visibilitychange", refreshOnVisibility);
-  });
-
-  return {
+  const implementation = {
     session: readonly(session),
+    completed: readonly(completed),
     loading: readonly(loading),
-    error: readonly(error),
+    error: shallowReadonly(error),
     commandError: readonly(commandError),
     sending: readonly(sending),
-    pending,
-    refresh: fetchSession,
+    pending: computed(() => isPlaybackPending(session.value)),
     start,
     updateIntent,
   };
+  implementation satisfies Playback;
+  return implementation;
 };
-
-export type PlaybackContext = ReturnType<typeof usePlaybackSession>;

@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/api/playback/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["playback_get"];
+        put?: never;
+        post: operations["playback_start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/playback/session/intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["playback_updateIntent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/playback/session/observation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["playback_reportObservation"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/connect": {
         parameters: {
             query?: never;
@@ -52,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/library/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["reel_nextEpisode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library/rescan": {
         parameters: {
             query?: never;
@@ -62,6 +126,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["reel_libraryRescan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["reel_tags"];
+        put: operations["reel_tagsUpdate"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -108,6 +188,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["reel_stream"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/stream/info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["reel_streamInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["reel_thumbnail"];
         put?: never;
         post?: never;
         delete?: never;
@@ -196,139 +308,13 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/playback/session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["playback_get"];
-        put?: never;
-        post: operations["playback_start"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/playback/session/intent": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["playback_updateIntent"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/playback/session/observation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["playback_reportObservation"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        ConnectResponse: {
-            status: string;
-            serverName?: string | null;
-        };
-        ConnectRequest: {
-            key: string;
-        };
-        HealthResponse: {
-            status: string;
-            uptime: string;
-        };
-        FileNode: {
-            name: string;
-            type: components["schemas"]["FileNodeType"];
-            relativePath: string;
-            extension?: string | null;
-            /** Format: int64 */
-            sizeBytes?: number | null;
-            children?: components["schemas"]["FileNode"][] | null;
-            parsedTitle?: string | null;
-            /** Format: int32 */
-            year?: number | null;
-            watched?: boolean | null;
-        };
-        LibraryRescanResponse: {
-            /** Format: int32 */
-            mediaCount: number;
-        };
         ErrorResponse: {
-            error: string;
-        };
-        ProgressRequest: {
-            relativePath: string;
-            /** Format: double */
-            positionSeconds: number;
-            /** Format: double */
-            durationSeconds: number;
-        };
-        WatchProgress: {
-            relativePath: string;
-            /** Format: double */
-            positionSeconds: number;
-            /** Format: double */
-            durationSeconds: number;
-            /** Format: date-time */
-            lastWatched: string;
-        };
-        FavouriteRequest: {
-            relativePath: string;
-        };
-        Favourite: {
-            relativePath: string;
-            /** Format: date-time */
-            addedAt: string;
-        };
-        SubtitleTrack: {
-            /** Format: int32 */
-            index: number;
-            label: string;
-            language: string;
-            format: string;
-            source: string;
-            externalPath?: string | null;
-        };
-        TrickplayMetadata: {
-            /** Format: int32 */
-            intervalMs: number;
-            /** Format: int32 */
-            columns: number;
-            /** Format: int32 */
-            rows: number;
-            /** Format: int32 */
-            thumbWidth: number;
-            /** Format: int32 */
-            thumbHeight: number;
-            /** Format: int32 */
-            totalThumbs: number;
-            spritePath: string;
-        };
-        PlaybackErrorResponse: {
-            error: string;
+            code: string;
+            message: string;
         };
         SeekRequestResponse: {
             /** Format: int64 */
@@ -340,6 +326,7 @@ export interface components {
         };
         PlaybackIntentResponse: {
             relativePath: string;
+            title: string;
             desiredState: components["schemas"]["PlaybackDesiredStateDto"];
             /** Format: int32 */
             subtitleIndex?: number | null;
@@ -396,6 +383,8 @@ export interface components {
             subtitleIndex?: number | null;
             /** Format: double */
             seekPositionSeconds?: number | null;
+            /** Format: int64 */
+            expectedRevision?: number | null;
         };
         ReportPlaybackObservationRequest: {
             /** Format: uuid */
@@ -417,12 +406,107 @@ export interface components {
             errorCode?: string | null;
             errorMessage?: string | null;
         };
-        /** @enum {string} */
-        FileNodeType: "file" | "directory";
+        ConnectResponse: {
+            serverName: string;
+        };
+        ConnectRequest: {
+            key: string;
+        };
+        HealthUnavailableResponse: {
+            status: string;
+            reason: string;
+        };
+        HealthResponse: {
+            status: string;
+        };
+        FileNode: {
+            name: string;
+            type: components["schemas"]["FileNodeType"];
+            kind?: components["schemas"]["MediaKind"] | null;
+            relativePath: string;
+            extension?: string | null;
+            /** Format: int64 */
+            sizeBytes?: number | null;
+            children?: components["schemas"]["FileNode"][] | null;
+            parsedTitle?: string | null;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        NextEpisodeResponse: {
+            relativePath?: string | null;
+            title?: string | null;
+        };
+        LibraryRescanResponse: {
+            /** Format: int32 */
+            mediaCount: number;
+        };
+        TagUpdateRequest: {
+            path: string;
+            tags: string[];
+        };
+        ProgressRequest: {
+            relativePath: string;
+            /** Format: double */
+            positionSeconds: number;
+            /** Format: double */
+            durationSeconds: number;
+        };
+        WatchProgress: {
+            relativePath: string;
+            /** Format: double */
+            positionSeconds: number;
+            /** Format: double */
+            durationSeconds: number;
+            /** Format: date-time */
+            lastWatched: string;
+        };
+        FavouriteRequest: {
+            relativePath: string;
+        };
+        Favourite: {
+            relativePath: string;
+            /** Format: date-time */
+            addedAt: string;
+        };
+        StreamInfoResponse: {
+            /** Format: double */
+            durationSeconds: number;
+            /** Format: int32 */
+            transcodeHeight?: number | null;
+        };
+        SubtitleTrack: {
+            /** Format: int32 */
+            index: number;
+            label: string;
+            language: string;
+            format: string;
+            source: components["schemas"]["SubtitleSource"];
+            imageBased: boolean;
+        };
+        TrickplayMetadata: {
+            /** Format: int32 */
+            intervalMs: number;
+            /** Format: int32 */
+            columns: number;
+            /** Format: int32 */
+            rows: number;
+            /** Format: int32 */
+            thumbWidth: number;
+            /** Format: int32 */
+            thumbHeight: number;
+            /** Format: int32 */
+            totalThumbs: number;
+        };
         /** @enum {string} */
         PlaybackDesiredStateDto: "playing" | "paused" | "stopped";
         /** @enum {string} */
         PlaybackObservationStateDto: "idle" | "loading" | "buffering" | "playing" | "paused" | "ended" | "error";
+        /** @enum {string} */
+        FileNodeType: "file" | "directory";
+        /** @enum {string} */
+        MediaKind: "video" | "audio";
+        /** @enum {string} */
+        SubtitleSource: "embedded" | "external";
     };
     responses: never;
     parameters: never;
@@ -432,6 +516,161 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    playback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackSessionEnvelope"];
+                };
+            };
+        };
+    };
+    playback_start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartPlaybackSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackSessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    playback_updateIntent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePlaybackIntentRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackSessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    playback_reportObservation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportPlaybackObservationRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackSessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     reel_connect: {
         parameters: {
             query?: never;
@@ -460,7 +699,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ConnectResponse"];
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -481,6 +720,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Status 503 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthUnavailableResponse"];
                 };
             };
         };
@@ -505,6 +753,28 @@ export interface operations {
             };
         };
     };
+    reel_nextEpisode: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextEpisodeResponse"];
+                };
+            };
+        };
+    };
     reel_libraryRescan: {
         parameters: {
             query?: never;
@@ -521,6 +791,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LibraryRescanResponse"];
+                };
+            };
+            /** @description Status 503 */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reel_tags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string[];
+                    };
+                };
+            };
+        };
+    };
+    reel_tagsUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
@@ -660,6 +994,8 @@ export interface operations {
         parameters: {
             query: {
                 path: string;
+                start?: number | null;
+                height?: number | null;
                 token: string;
             };
             header?: never;
@@ -675,6 +1011,78 @@ export interface operations {
                 };
                 content: {
                     "application/octet-stream": string;
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reel_streamInfo: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamInfoResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reel_thumbnail: {
+        parameters: {
+            query: {
+                path: string;
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
                 };
             };
             /** @description Bad Request */
@@ -739,6 +1147,15 @@ export interface operations {
                     "application/json": components["schemas"]["SubtitleTrack"][];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     reel_subtitlesContent: {
@@ -746,7 +1163,7 @@ export interface operations {
             query: {
                 path: string;
                 index: number;
-                format?: string | null;
+                start?: number | null;
                 token: string;
             };
             header?: never;
@@ -761,24 +1178,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": string;
+                    "text/vtt": string;
                 };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Not Found */
             404: {
@@ -818,6 +1219,24 @@ export interface operations {
                     "application/json": components["schemas"]["TrickplayMetadata"];
                 };
             };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     reel_trickplaySprite: {
@@ -851,13 +1270,6 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -865,152 +1277,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    playback_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackSessionEnvelope"];
-                };
-            };
-        };
-    };
-    playback_start: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StartPlaybackSessionRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackSessionResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackErrorResponse"];
-                };
-            };
-        };
-    };
-    playback_updateIntent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdatePlaybackIntentRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackSessionResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackErrorResponse"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackErrorResponse"];
-                };
-            };
-        };
-    };
-    playback_reportObservation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReportPlaybackObservationRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackSessionResponse"];
-                };
-            };
-            /** @description Bad Request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackErrorResponse"];
-                };
-            };
-            /** @description Not Found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackErrorResponse"];
-                };
-            };
-            /** @description Conflict */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlaybackErrorResponse"];
                 };
             };
         };

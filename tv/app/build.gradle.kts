@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ktlint)
 }
 
 android {
@@ -17,9 +18,15 @@ android {
         versionName = "1.0"
     }
 
+    // Release is what gets sideloaded: shrunk by R8 and signed with the local debug key.
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 
@@ -41,51 +48,31 @@ android {
     }
 }
 
+ktlint {
+    version.set(
+        libs.versions.ktlint.cli
+            .get(),
+    )
+}
+
 dependencies {
-    // AndroidX core
+    implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
-
-    // Material3 (theme parent for TV)
-    implementation(libs.androidx.material3)
-
-    // Compose Material3 (text fields, progress indicators)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.compose.icons.extended)
-
-    // Compose for TV
-    implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
-
-    // Media3 / ExoPlayer
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
-    implementation(libs.media3.ui.compose)
-    implementation(libs.media3.session)
-
-    // Ktor HTTP client
     implementation(libs.ktor.client.android)
     implementation(libs.ktor.client.content.neg)
     implementation(libs.ktor.serialization.json)
-
-    // kotlinx-serialization
     implementation(libs.kotlinx.serialization.json)
-
-    // Coroutines
     implementation(libs.kotlinx.coroutines.android)
-
-    // Lifecycle (ViewModel + collectAsStateWithLifecycle)
-    implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.zxing.core)
 
-    // QR code generation
-    implementation("com.google.zxing:core:3.5.3")
-
-    // Testing
     testImplementation(libs.junit)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
-    testImplementation(libs.compose.ui.test.junit4)
-    debugImplementation(libs.compose.ui.test.manifest)
 }

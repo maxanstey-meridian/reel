@@ -1,19 +1,18 @@
 namespace Reel.Server.Contracts.Playback;
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
-
 public sealed record StartPlaybackSessionRequest(
     string RelativePath,
     double StartPositionSeconds,
     int? SubtitleIndex
 );
 
+// ExpectedRevision lets a client apply a change only to the session state it last saw.
 public sealed record UpdatePlaybackIntentRequest(
     Guid SessionId,
     PlaybackDesiredStateDto DesiredState,
     int? SubtitleIndex,
-    double? SeekPositionSeconds
+    double? SeekPositionSeconds,
+    long? ExpectedRevision = null
 );
 
 public sealed record ReportPlaybackObservationRequest(
@@ -42,14 +41,20 @@ public sealed record PlaybackSessionResponse(
     bool TvConnected
 );
 
+// Title is the same parsed title the library shows for RelativePath.
 public sealed record PlaybackIntentResponse(
     string RelativePath,
+    string Title,
     PlaybackDesiredStateDto DesiredState,
     int? SubtitleIndex,
     SeekRequestResponse? PendingSeek
 );
 
-public sealed record SeekRequestResponse(long SeekId, double PositionSeconds, long IntroducedRevision);
+public sealed record SeekRequestResponse(
+    long SeekId,
+    double PositionSeconds,
+    long IntroducedRevision
+);
 
 public sealed record PlaybackObservationResponse(
     long ObservationSequence,
@@ -65,9 +70,6 @@ public sealed record PlaybackObservationResponse(
     DateTimeOffset UpdatedAtUtc
 );
 
-public sealed record PlaybackErrorResponse(string Error);
-
-[JsonConverter(typeof(PlaybackDesiredStateJsonConverter))]
 public enum PlaybackDesiredStateDto
 {
     Playing,
@@ -75,7 +77,6 @@ public enum PlaybackDesiredStateDto
     Stopped,
 }
 
-[JsonConverter(typeof(PlaybackObservationStateJsonConverter))]
 public enum PlaybackObservationStateDto
 {
     Idle,
@@ -86,9 +87,3 @@ public enum PlaybackObservationStateDto
     Ended,
     Error,
 }
-
-public sealed class PlaybackDesiredStateJsonConverter()
-    : JsonStringEnumConverter<PlaybackDesiredStateDto>(JsonNamingPolicy.CamelCase, allowIntegerValues: false);
-
-public sealed class PlaybackObservationStateJsonConverter()
-    : JsonStringEnumConverter<PlaybackObservationStateDto>(JsonNamingPolicy.CamelCase, allowIntegerValues: false);

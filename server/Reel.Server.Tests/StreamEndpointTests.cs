@@ -1,189 +1,183 @@
-namespace Reel.Server.Tests;
-
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Contracts.Reel;
 
-public sealed class StreamEndpointTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+namespace Reel.Server.Tests;
+
+public sealed class StreamEndpointTests : IDisposable
 {
-    private const string SecretKey = "REEL-TEST";
-    private readonly string _mediaRoot;
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TempMediaRoot _media = new();
+    private readonly WebApplicationFactory<Program> _direct;
 
-    public StreamEndpointTests(WebApplicationFactory<Program> factory)
+    public StreamEndpointTests()
     {
-        _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-stream-test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(_mediaRoot);
-
-        // Create test files
-        var filmsDir = Path.Combine(_mediaRoot, "Films");
-        Directory.CreateDirectory(filmsDir);
-        File.WriteAllBytes(Path.Combine(filmsDir, "test.mp4"), "fake-mp4-content"u8.ToArray());
-        File.WriteAllBytes(Path.Combine(_mediaRoot, "song.mp3"), "fake-mp3-content"u8.ToArray());
-        File.WriteAllBytes(Path.Combine(filmsDir, "movie.mkv"), "fake-mkv-content"u8.ToArray());
-
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", _mediaRoot);
-            builder.UseSetting("Reel:SecretKey", SecretKey);
-            builder.UseSetting("Reel:Port", "8080");
-        });
+        _media.Write("Films/test.mp4", "fake-mp4-content"u8.ToArray());
+        _media.Write("Films/movie.mkv", "fake-mkv-content"u8.ToArray());
+        _media.Write("song.mp3", "fake-mp3-content"u8.ToArray());
+        _direct = _media.CreateFactory();
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(_mediaRoot))
-            Directory.Delete(_mediaRoot, recursive: true);
+        _direct.Dispose();
+        _media.Dispose();
     }
 
-    private HttpClient CreateAuthenticatedClient()
-    {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", SecretKey);
-        return client;
-    }
+    private WebApplicationFactory<Program> CreateCompressedFactory() =>
+        _media.CreateFactory(builder => builder.UseSetting("Reel:Compression", "480p"));
 
-    [Fact]
-    public async Task ValidPath_Returns200WithFileContent()
+    [Theory]
+    [InlineData("Films/test.mp4&start=30", "video/mp4", "fake-mp4-content")]
+    [InlineData("Films/movie.mkv", "video/x-matroska", "fake-mkv-content")]
+    [InlineData("song.mp3", "audio/mpeg", "fake-mp3-content")]
+    public async Task DirectMode_ServesTheFileWithItsContentTypeIgnoringStart(
+        string query,
+        string type,
+        string body
+    )
     {
-        using var client = CreateAuthenticatedClient();
+        using var client = _direct.CreateAuthenticatedClient();
 
-        var response = await client.GetAsync("/api/files/stream?path=Films/test.mp4");
+        var response = await client.GetAsync($"/api/files/stream?path={query}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var content = await response.Content.ReadAsByteArrayAsync();
-        content.Should().BeEquivalentTo("fake-mp4-content"u8.ToArray());
+        response.Content.Headers.ContentType!.MediaType.Should().Be(type);
+        response.Headers.AcceptRanges.Should().Contain("bytes");
+        (await response.Content.ReadAsStringAsync()).Should().Be(body);
     }
 
     [Fact]
-    public async Task ValidPath_ReturnsCorrectMimeType()
+    public async Task DirectMode_RangeRequest_Returns206WithContentRange()
     {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=Films/test.mp4");
-
-        response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
-    }
-
-    [Fact]
-    public async Task Mp3File_ReturnsAudioMimeType()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=song.mp3");
-
-        response.Content.Headers.ContentType!.MediaType.Should().Be("audio/mpeg");
-    }
-
-    [Fact]
-    public async Task MkvFile_ReturnsCorrectContentType()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=Films/movie.mkv");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        response.Content.Headers.ContentType!.MediaType.Should().Be("video/x-matroska");
-    }
-
-    [Fact]
-    public async Task MissingPathParam_Returns400()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task EmptyPathParam_Returns400()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task NonexistentFile_Returns404()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=Films/nope.mp4");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task PathTraversal_Returns404()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=../../../etc/passwd");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task PathTraversalWithEncodedDots_Returns404()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=Films/../../etc/passwd");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task WithoutSecretKey_Returns401()
-    {
-        var client = _factory.CreateClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=Films/test.mp4");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task RangeRequest_Returns206PartialContent()
-    {
-        using var client = CreateAuthenticatedClient();
-
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/files/stream?path=Films/test.mp4");
+        using var client = _direct.CreateAuthenticatedClient();
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/files/stream?path=Films/test.mp4"
+        );
         request.Headers.Range = new RangeHeaderValue(0, 3);
 
         var response = await client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.PartialContent);
-        var content = await response.Content.ReadAsByteArrayAsync();
-        content.Should().HaveCount(4); // bytes 0-3 inclusive
+        response.Content.Headers.ContentRange!.From.Should().Be(0);
+        response.Content.Headers.ContentRange.To.Should().Be(3);
+        (await response.Content.ReadAsByteArrayAsync()).Should().HaveCount(4);
     }
 
     [Fact]
-    public async Task RangeRequest_ReturnsContentRangeHeader()
+    public async Task MissingPath_Returns400()
     {
-        using var client = CreateAuthenticatedClient();
+        using var client = _direct.CreateAuthenticatedClient();
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/files/stream?path=Films/test.mp4");
+        (await client.GetAsync("/api/files/stream"))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Films/nope.mp4")]
+    [InlineData("../../../etc/passwd")]
+    [InlineData("Films/../../etc/passwd")]
+    public async Task NotAPlayableLibraryFile_Returns404(string path)
+    {
+        using var client = _direct.CreateAuthenticatedClient();
+
+        (await client.GetAsync($"/api/files/stream?path={path}"))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.NotFound);
+        (await client.GetAsync($"/api/files/stream/info?path={path}"))
+            .StatusCode.Should()
+            .Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task WithHeight_TranscodesVideoToFragmentedMp4()
+    {
+        TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
+        using var client = _direct.CreateAuthenticatedClient();
+
+        var response = await client.GetAsync(
+            "/api/files/stream?path=Films/real.mp4&start=1&height=240"
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
+        var body = await response.Content.ReadAsByteArrayAsync();
+        Encoding.ASCII.GetString(body, 4, 4).Should().Be("ftyp");
+    }
+
+    // Transcoding maps the first video stream, so audio used to come back as an empty 200.
+    [Fact]
+    public async Task WithHeight_ServesAudioDirectlyWithRanges()
+    {
+        using var client = _direct.CreateAuthenticatedClient();
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/files/stream?path=song.mp3&height=480"
+        );
         request.Headers.Range = new RangeHeaderValue(0, 3);
 
         var response = await client.SendAsync(request);
 
-        response.Content.Headers.ContentRange.Should().NotBeNull();
-        response.Content.Headers.ContentRange!.From.Should().Be(0);
-        response.Content.Headers.ContentRange.To.Should().Be(3);
+        response.StatusCode.Should().Be(HttpStatusCode.PartialContent);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("audio/mpeg");
     }
 
+    // The stream follows its URL, not the live setting, so a settings edit cannot change a playing stream.
     [Fact]
-    public async Task FullRequest_ReturnsAcceptRangesHeader()
+    public async Task CompressedMode_StreamWithoutHeight_StaysDirect()
     {
-        using var client = CreateAuthenticatedClient();
+        using var factory = CreateCompressedFactory();
+        using var client = factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync("/api/files/stream?path=Films/test.mp4");
 
-        response.Headers.AcceptRanges.Should().Contain("bytes");
+        response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
+        (await response.Content.ReadAsStringAsync()).Should().Be("fake-mp4-content");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(481)]
+    public async Task InvalidHeight_Returns400(int height)
+    {
+        using var client = _direct.CreateAuthenticatedClient();
+
+        var response = await client.GetAsync(
+            $"/api/files/stream?path=Films/test.mp4&height={height}"
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Theory]
+    [InlineData(false, "Films/real.mp4", null)]
+    [InlineData(true, "Films/real.mp4", 480)]
+    [InlineData(true, "song.mp3", null)]
+    public async Task StreamInfo_ReportsDurationAndTheHeightToTranscodeTo(
+        bool compressed,
+        string path,
+        int? transcodeHeight
+    )
+    {
+        TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
+        using var factory = compressed ? CreateCompressedFactory() : _media.CreateFactory();
+        using var client = factory.CreateAuthenticatedClient();
+
+        var info = await client.GetFromJsonAsync<StreamInfoResponse>(
+            $"/api/files/stream/info?path={path}",
+            factory.JsonOptions()
+        );
+
+        info!.TranscodeHeight.Should().Be(transcodeHeight);
+        if (path.EndsWith(".mp4"))
+        {
+            info.DurationSeconds.Should().BeApproximately(3, 0.5);
+        }
     }
 }

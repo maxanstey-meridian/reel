@@ -1,159 +1,86 @@
 <script setup lang="ts">
 import PlaybackScrubber from "~~/app/features/playback/components/PlaybackScrubber.vue";
-import { playbackTitle } from "~~/app/features/playback/logic/playback";
+import { clampPosition } from "~~/app/features/playback/logic/playback";
 import { trickplayFrameAt, type TrickplayFrame } from "~~/app/features/playback/logic/trickplay";
-import { injectPlayback } from "~~/app/features/playback/playback-context";
-import { api, type SubtitleTrack, type TrickplayMetadata } from "~~/app/lib/api";
+import { injectPlayback } from "~~/app/features/playback/ports/playback";
+import { client, trickplaySpriteUrl, unwrap } from "~~/app/lib/api";
 
 const router = useRouter();
-const { serverUrl, secretKey } = useConnection();
 const playback = injectPlayback();
-const { session, loading, error, commandError, pending } = playback;
-const subtitles = ref<SubtitleTrack[]>([]);
-const metadata = ref<TrickplayMetadata | null>(null);
+const { session, completed, loading, error, commandError, pending, sending } = playback;
+const path = computed(() => session.value?.intent.relativePath);
+const completedPath = computed(() => completed.value?.relativePath);
 const preview = ref<TrickplayFrame | null>(null);
-const spriteUrl = ref<string | null>(null);
-const mediaError = ref<string | null>(null);
-let loadedSheet: number | null = null;
-let spriteRequest = 0;
-let mediaGeneration = 0;
-let mediaController: AbortController | null = null;
-let spriteController: AbortController | null = null;
+
+const { data: nextEpisode } = useAsyncData(
+  () => `next-episode:${completedPath.value}`,
+  async (_nuxtApp, { signal }) =>
+    completedPath.value
+      ? unwrap(
+          await client.GET("/api/library/next", {
+            params: { query: { path: completedPath.value } },
+            signal,
+          }),
+        )
+      : null,
+);
+const { data: subtitles, status: subtitlesStatus } = useAsyncData(
+  () => `subtitles:${path.value}`,
+  async (_nuxtApp, { signal }) =>
+    path.value
+      ? unwrap(
+          await client.GET("/api/files/subtitles", {
+            params: { query: { path: path.value } },
+            signal,
+          }),
+        )
+      : [],
+  { default: () => [] },
+);
+const { data: metadata, error: metadataError } = useAsyncData(
+  () => `trickplay:${path.value}`,
+  async (_nuxtApp, { signal }) =>
+    path.value
+      ? unwrap(
+          await client.GET("/api/files/trickplay", {
+            params: { query: { path: path.value } },
+            signal,
+          }),
+        )
+      : null,
+);
 
 const observation = computed(() => session.value?.observation ?? null);
 const actualState = computed(() => observation.value?.state ?? "loading");
-const title = computed(() => playbackTitle(session.value?.intent.relativePath ?? ""));
 const position = computed(() => observation.value?.positionSeconds ?? 0);
 const duration = computed(() => observation.value?.durationSeconds ?? 0);
-const isActuallyPlaying = computed(() => actualState.value === "playing");
-
-const revokeSprite = (): void => {
-  if (spriteUrl.value) {
-    URL.revokeObjectURL(spriteUrl.value);
-  }
-  spriteUrl.value = null;
-  loadedSheet = null;
-};
-
-const loadMediaControls = async (path: string): Promise<void> => {
-  const generation = ++mediaGeneration;
-  mediaController?.abort();
-  mediaController = new AbortController();
-  spriteRequest++;
-  spriteController?.abort();
-  revokeSprite();
-  metadata.value = null;
-  subtitles.value = [];
-  mediaError.value = null;
-  try {
-    const [tracks, trickplay] = await Promise.all([
-      api.subtitlesList(path, mediaController.signal),
-      api.trickplayInfo(path, mediaController.signal),
-    ]);
-    if (generation !== mediaGeneration) {
-      return;
-    }
-    subtitles.value = tracks;
-    metadata.value = trickplay;
-  } catch (caught) {
-    if (generation !== mediaGeneration) {
-      return;
-    }
-    mediaError.value = caught instanceof Error ? caught.message : "Preview controls unavailable";
-  }
-};
-
-watch(
-  () => session.value?.intent.relativePath,
-  (path) => {
-    if (path) {
-      void loadMediaControls(path);
-    } else {
-      mediaGeneration++;
-      mediaController?.abort();
-      spriteController?.abort();
-      revokeSprite();
-    }
-  },
-  { immediate: true },
+const requestedPosition = computed(
+  () => session.value?.intent.pendingSeek?.positionSeconds ?? position.value,
+);
+const wantsPlaying = computed(() => session.value?.intent.desiredState === "playing");
+const desiredState = computed(() => session.value?.intent.desiredState ?? "paused");
+const spriteUrl = computed(() =>
+  path.value && preview.value ? trickplaySpriteUrl(path.value, preview.value.sheet) : null,
 );
 
-const showPreview = async (target: number): Promise<void> => {
-  const currentSession = session.value;
-  const info = metadata.value;
-  if (!currentSession || !info) {
-    return;
+const showPreview = (target: number): void => {
+  if (metadata.value) {
+    preview.value = trickplayFrameAt(target, duration.value, metadata.value);
   }
-  const frame = trickplayFrameAt(target, duration.value, info);
-  if (!frame) {
-    preview.value = null;
-    mediaError.value = "Trickplay preview unavailable";
-    return;
-  }
-  preview.value = frame;
-  if (loadedSheet === frame.sheet) {
-    return;
-  }
-  const request = ++spriteRequest;
-  spriteController?.abort();
-  spriteController = new AbortController();
-  const path = currentSession.intent.relativePath;
-  try {
-    const blob = await api.trickplaySprite(
-      serverUrl.value,
-      secretKey.value,
-      path,
-      frame.sheet,
-      spriteController.signal,
-    );
-    if (request !== spriteRequest || session.value?.intent.relativePath !== path) {
-      return;
-    }
-    revokeSprite();
-    spriteUrl.value = URL.createObjectURL(blob);
-    loadedSheet = frame.sheet;
-  } catch (caught) {
-    if (request !== spriteRequest) {
-      return;
-    }
-    mediaError.value = caught instanceof Error ? caught.message : "Trickplay preview unavailable";
-  }
-};
-
-const sendIntent = async (
-  desiredState: "playing" | "paused" | "stopped",
-  options: { subtitleIndex?: number | null; seekPositionSeconds?: number } = {},
-): Promise<void> => {
-  try {
-    await playback.updateIntent(desiredState, options);
-  } catch {
-    // The layout-owned context retains and renders the request error.
-  }
-};
-
-const togglePlayPause = (): void => {
-  void sendIntent(isActuallyPlaying.value ? "paused" : "playing");
 };
 
 const seek = (target: number): void => {
   preview.value = null;
-  void sendIntent(session.value?.intent.desiredState ?? "paused", { seekPositionSeconds: target });
+  void playback.updateIntent(desiredState.value, { seekPositionSeconds: target });
 };
+
+const skip = (seconds: number): void =>
+  seek(clampPosition(requestedPosition.value + seconds, duration.value));
 
 const selectSubtitle = (event: Event): void => {
   const value = Number((event.target as HTMLSelectElement).value);
-  void sendIntent(session.value?.intent.desiredState ?? "paused", {
-    subtitleIndex: value === -1 ? null : value,
-  });
+  void playback.updateIntent(desiredState.value, { subtitleIndex: value === -1 ? null : value });
 };
-
-onBeforeUnmount(() => {
-  mediaGeneration++;
-  mediaController?.abort();
-  spriteController?.abort();
-  spriteRequest++;
-  revokeSprite();
-});
 </script>
 
 <template>
@@ -175,21 +102,32 @@ onBeforeUnmount(() => {
       <USkeleton class="h-5 w-2/3" />
     </div>
 
+    <div v-else-if="!session && completed" class="space-y-4">
+      <h2>Finished: {{ completed.title }}</h2>
+      <UButton
+        v-if="nextEpisode?.relativePath"
+        :loading="sending"
+        @click="void playback.start(nextEpisode.relativePath)"
+        >Play next: {{ nextEpisode.title }}</UButton
+      >
+      <UAlert v-if="commandError" color="error" :title="commandError" />
+    </div>
+
     <UAlert
-      v-else-if="!session"
+      v-else-if="!session && !error"
       color="neutral"
       variant="soft"
       title="Nothing is playing"
       description="Choose a file from Library, Search, or Favourites."
     />
 
-    <template v-else>
+    <template v-else-if="session">
       <div
         class="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900"
       >
         <UIcon name="i-lucide-film" class="size-16 text-neutral-700" />
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 px-4 pb-4 pt-10">
-          <h2 class="truncate text-lg font-semibold">{{ title }}</h2>
+          <h2 class="truncate text-lg font-semibold">{{ session.intent.title }}</h2>
           <p
             class="text-sm capitalize"
             :class="session.tvConnected ? 'text-neutral-300' : 'text-amber-400'"
@@ -209,14 +147,22 @@ onBeforeUnmount(() => {
         </span>
       </div>
 
+      <UButton
+        v-if="actualState === 'ended' && nextEpisode?.relativePath"
+        :loading="sending"
+        @click="void playback.start(nextEpisode.relativePath)"
+      >
+        Play next: {{ nextEpisode.title }}
+      </UButton>
+
       <PlaybackScrubber
-        :position="position"
+        :position="requestedPosition"
         :duration="duration"
         :preview="preview"
         :sprite-url="spriteUrl"
         :thumb-width="metadata?.thumbWidth ?? 160"
         :thumb-height="metadata?.thumbHeight ?? 90"
-        :disabled="!session.tvConnected || pending"
+        :disabled="!session.tvConnected || sending"
         @preview="showPreview"
         @commit="seek"
         @cancel="preview = null"
@@ -224,22 +170,34 @@ onBeforeUnmount(() => {
 
       <div class="flex items-center justify-center gap-4">
         <UButton
+          aria-label="Back 10 seconds"
+          :disabled="!session.tvConnected || sending || duration <= 0"
+          @click="skip(-10)"
+          >−10s</UButton
+        >
+        <UButton
           size="xl"
           color="neutral"
           variant="soft"
           icon="i-lucide-square"
           aria-label="Stop playback"
-          :disabled="pending"
-          @click="sendIntent('stopped')"
+          :disabled="sending"
+          @click="void playback.updateIntent('stopped')"
         />
         <UButton
           size="xl"
           class="rounded-full"
-          :icon="isActuallyPlaying ? 'i-lucide-pause' : 'i-lucide-play'"
-          :aria-label="isActuallyPlaying ? 'Pause playback' : 'Play playback'"
-          :loading="pending"
-          @click="togglePlayPause"
+          :icon="wantsPlaying ? 'i-lucide-pause' : 'i-lucide-play'"
+          :aria-label="wantsPlaying ? 'Pause playback' : 'Play playback'"
+          :loading="sending"
+          @click="void playback.updateIntent(wantsPlaying ? 'paused' : 'playing')"
         />
+        <UButton
+          aria-label="Forward 10 seconds"
+          :disabled="!session.tvConnected || sending || duration <= 0"
+          @click="skip(10)"
+          >+10s</UButton
+        >
       </div>
 
       <div>
@@ -248,10 +206,20 @@ onBeforeUnmount(() => {
           id="subtitle-track"
           class="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
           :value="observation?.subtitleIndex ?? -1"
-          :disabled="pending"
+          :disabled="sending || subtitlesStatus !== 'success' || subtitles.length === 0"
           @change="selectSubtitle"
         >
-          <option :value="-1">Off</option>
+          <option :value="-1">
+            {{
+              subtitlesStatus === "error"
+                ? "Could not load subtitles"
+                : subtitlesStatus !== "success"
+                  ? "Loading subtitles…"
+                  : subtitles.length === 0
+                    ? "No subtitles available"
+                    : "Off"
+            }}
+          </option>
           <option v-for="track in subtitles" :key="track.index" :value="track.index">
             {{ track.label }}{{ track.language ? ` (${track.language})` : "" }}
           </option>
@@ -259,20 +227,15 @@ onBeforeUnmount(() => {
       </div>
 
       <UAlert
-        v-if="error"
-        color="error"
-        variant="soft"
-        title="Connection problem"
-        :description="error"
-      />
-      <UAlert
         v-if="commandError"
         color="error"
         variant="soft"
         title="Control not sent"
         :description="commandError"
       />
-      <p v-if="mediaError" class="text-sm text-amber-400">{{ mediaError }}</p>
+      <p v-if="metadataError" class="text-sm text-amber-400">
+        Preview images are unavailable. Seeking still works.
+      </p>
     </template>
   </div>
 </template>

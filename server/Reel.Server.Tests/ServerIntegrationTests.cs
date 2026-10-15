@@ -1,97 +1,98 @@
 using System.Net;
+using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Reel.Server.Infrastructure.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Reel.Server.Contracts.Reel;
+using Reel.Server.Pairing;
 
 namespace Reel.Server.Tests;
 
-public sealed class ServerIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ServerIntegrationTests : IDisposable
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly TempMediaRoot _media = new();
 
-    public ServerIntegrationTests(WebApplicationFactory<Program> factory)
-    {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", "/tmp/reel-test-media");
-            builder.UseSetting("Reel:SecretKey", "REEL-TEST");
-            builder.UseSetting("Reel:Port", "8080");
-        });
-    }
+    public void Dispose() => _media.Dispose();
 
     [Fact]
     public async Task UnknownRoute_WithKey_Returns404()
     {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+        using var factory = _media.CreateFactory();
+        using var client = factory.CreateAuthenticatedClient();
 
-        var response = await client.GetAsync("/");
-
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await client.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public void ReelConfig_IsResolvableFromDI()
+    public void TestHost_DoesNotAdvertiseOverMdns()
     {
-        using var scope = _factory.Services.CreateScope();
-        var config = scope.ServiceProvider.GetService<ReelConfig>();
+        using var factory = _media.CreateFactory();
 
-        config.Should().NotBeNull();
-        config!.MediaRoot.Should().Be("/tmp/reel-test-media");
-        config.SecretKey.Should().Be("REEL-TEST");
-        config.Port.Should().Be(8080);
+        factory
+            .Services.GetServices<IHostedService>()
+            .Should()
+            .NotContain(service => service is MdnsAdvertiser);
     }
 
-    [Fact]
-    public void ReelConfig_PortFromConfig_IsUsedByDI()
-    {
-        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", "/tmp/reel-test-media");
-            builder.UseSetting("Reel:SecretKey", "REEL-TEST");
-            builder.UseSetting("Reel:Port", "9999");
-        });
-
-        using var scope = factory.Services.CreateScope();
-        var config = scope.ServiceProvider.GetRequiredService<ReelConfig>();
-
-        config.Port.Should().Be(9999);
-    }
-
-    [Fact]
-    public void Startup_ThrowsInvalidOperationException_WhenMediaRootMissing()
+    [Theory]
+    [InlineData(false, ReelTestHost.SecretKey, "off", "*MediaRoot*")]
+    [InlineData(true, "", "off", "*SecretKey*")]
+    [InlineData(true, ReelTestHost.SecretKey, "abc", "*Compression*")]
+    [InlineData(true, ReelTestHost.SecretKey, "0p", "*Compression*")]
+    [InlineData(true, ReelTestHost.SecretKey, "481p", "*Compression*")]
+    public void Startup_RejectsInvalidSettings(
+        bool hasMediaRoot,
+        string secretKey,
+        string compression,
+        string message
+    )
     {
         var act = () =>
         {
-            var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-            {
-                builder.UseSetting("Reel:MediaRoot", "");
-                builder.UseSetting("Reel:SecretKey", "REEL-TEST");
-                builder.UseSetting("Reel:Port", "8080");
-            });
-
+            using var factory = new WebApplicationFactory<Program>().WithReelSettings(
+                hasMediaRoot ? _media.Root : "",
+                secretKey,
+                builder => builder.UseSetting("Reel:Compression", compression)
+            );
             _ = factory.Services;
         };
 
-        act.Should().Throw<InvalidOperationException>().WithMessage("*MediaRoot*required*");
+        act.Should().Throw<OptionsValidationException>().WithMessage(message);
     }
 
     [Fact]
-    public void Startup_ThrowsInvalidOperationException_WhenSecretKeyMissing()
+    public async Task Compression_EditedInTheSettingsFile_AppliesToTheNextStream()
     {
-        var act = () =>
+        _media.Write("Films/a.mp4");
+        var settings = Path.Combine(_media.Root, "settings.json");
+        await File.WriteAllTextAsync(settings, """{ "Reel": { "Compression": "off" } }""");
+        using var factory = _media.CreateFactory(builder =>
+            builder.ConfigureAppConfiguration(config =>
+                config.AddJsonFile(settings, optional: false, reloadOnChange: true)
+            )
+        );
+        using var client = factory.CreateAuthenticatedClient();
+        async Task<bool> Transcoded() =>
+            (
+                await client.GetFromJsonAsync<StreamInfoResponse>(
+                    "/api/files/stream/info?path=Films/a.mp4"
+                )
+            )!.TranscodeHeight
+                is not null;
+        (await Transcoded()).Should().BeFalse();
+
+        await File.WriteAllTextAsync(settings, """{ "Reel": { "Compression": "720p" } }""");
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!await Transcoded() && DateTime.UtcNow < deadline)
         {
-            var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-            {
-                builder.UseSetting("Reel:MediaRoot", "/tmp/reel-test-media");
-                builder.UseSetting("Reel:SecretKey", "");
-                builder.UseSetting("Reel:Port", "8080");
-            });
+            await Task.Delay(100);
+        }
 
-            _ = factory.Services;
-        };
-
-        act.Should().Throw<InvalidOperationException>().WithMessage("*SecretKey*required*");
+        (await Transcoded()).Should().BeTrue();
     }
 }

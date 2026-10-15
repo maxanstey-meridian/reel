@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { clampPosition, formatPlaybackTime } from "../logic/playback";
 import type { TrickplayFrame } from "../logic/trickplay";
-import { createScrubInteraction } from "../logic/trickplay";
 import TrickplayPreview from "./TrickplayPreview.vue";
 
 const props = defineProps<{
@@ -15,43 +14,37 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ preview: [position: number]; commit: [position: number]; cancel: [] }>();
 
-const scrub = createScrubInteraction(
-  () => props.duration,
-  (position) => emit("preview", position),
-  (position) => emit("commit", position),
-);
-const dragging = ref(false);
-const localPosition = ref(0);
-const displayedPosition = computed(() => (dragging.value ? localPosition.value : props.position));
+// Set while the thumb is being dragged; only release sends a seek.
+const dragPosition = ref<number | null>(null);
+const displayedPosition = computed(() => dragPosition.value ?? props.position);
 
 const readPosition = (event: Event): number =>
   clampPosition(Number((event.target as HTMLInputElement).value), props.duration);
 
 const onInput = (event: Event): void => {
-  scrub.move(readPosition(event));
-  dragging.value = true;
-  localPosition.value = scrub.position;
+  dragPosition.value = readPosition(event);
+  emit("preview", dragPosition.value);
 };
 
 const onChange = (event: Event): void => {
-  scrub.release(readPosition(event));
-  dragging.value = false;
+  if (dragPosition.value !== null) {
+    dragPosition.value = null;
+    emit("commit", readPosition(event));
+  }
 };
 
 const cancel = (): void => {
-  if (!scrub.dragging) {
-    return;
+  if (dragPosition.value !== null) {
+    dragPosition.value = null;
+    emit("cancel");
   }
-  scrub.cancel();
-  dragging.value = false;
-  emit("cancel");
 };
 </script>
 
 <template>
   <div class="relative pt-2">
     <TrickplayPreview
-      v-if="dragging && preview"
+      v-if="dragPosition !== null && preview"
       :frame="preview"
       :sprite-url="spriteUrl"
       :width="thumbWidth"
@@ -69,12 +62,14 @@ const cancel = (): void => {
       class="w-full accent-green-500 disabled:opacity-50"
       @input="onInput"
       @change="onChange"
+      @pointercancel="cancel"
+      @touchcancel="cancel"
       @keyup.escape="cancel"
       @blur="cancel"
     />
     <div class="flex justify-between text-xs tabular-nums text-neutral-500">
       <span>{{ formatPlaybackTime(displayedPosition) }}</span>
-      <span>{{ formatPlaybackTime(duration) }}</span>
+      <span>−{{ formatPlaybackTime(Math.max(0, duration - displayedPosition)) }} remaining</span>
     </div>
   </div>
 </template>

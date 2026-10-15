@@ -1,61 +1,66 @@
-import { ref } from "vue";
-import { api, type Favourite } from "~~/app/lib/api";
-
-export type { Favourite };
+import { client, unwrap } from "~~/app/lib/api";
+import type { Favourites } from "~~/app/ports/favourites";
 
 export const useFavourites = () => {
-  const favourites = useState<Favourite[]>("reel:favourites", () => []);
-  const loading = ref(false);
-  const error = ref<string | null>(null);
-
-  const favouritePaths = computed(() => new Set(favourites.value.map((f) => f.relativePath)));
-
-  const isFavourite = (relativePath: string) => favouritePaths.value.has(relativePath);
-
-  const fetch = async () => {
-    loading.value = true;
-    error.value = null;
-
-    try {
-      favourites.value = await api.favouritesAll();
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : "Failed to fetch favourites";
-    } finally {
-      loading.value = false;
-    }
-  };
+  const toast = useToast();
+  const toggling = new Set<string>();
+  const {
+    data: favourites,
+    status,
+    error,
+    refresh,
+  } = useBrowseData(
+    "favourites",
+    async (signal) => unwrap(await client.GET("/api/favourites", { signal })),
+    () => [],
+  );
+  const loading = computed(() => status.value === "pending" && favourites.value.length === 0);
+  const isFavourite = (relativePath: string) =>
+    favourites.value.some((f) => f.relativePath === relativePath);
+  const without = (relativePath: string) =>
+    favourites.value.filter((f) => f.relativePath !== relativePath);
 
   const toggle = async (relativePath: string) => {
-    const wasFavourited = isFavourite(relativePath);
-    const original = favourites.value.find((f) => f.relativePath === relativePath);
-
-    // Optimistic update
-    if (wasFavourited) {
-      favourites.value = favourites.value.filter((f) => f.relativePath !== relativePath);
-    } else {
-      favourites.value = [{ relativePath, addedAt: new Date().toISOString() }, ...favourites.value];
+    if (toggling.has(relativePath)) {
+      return;
     }
-
+    toggling.add(relativePath);
+    const original = favourites.value.find((f) => f.relativePath === relativePath);
+    const optimistic = original
+      ? without(relativePath)
+      : [{ relativePath, addedAt: new Date().toISOString() }, ...favourites.value];
+    favourites.value = optimistic;
     try {
-      if (wasFavourited) {
-        await api.favouritesRemove(relativePath);
-        const toast = useToast();
-        toast.add({ title: "Removed from favourites", icon: "i-lucide-heart-off", color: "neutral" });
+      if (original) {
+        unwrap(
+          await client.DELETE("/api/favourites", { params: { query: { path: relativePath } } }),
+        );
+        toast.add({
+          title: "Removed from favourites",
+          icon: "i-lucide-heart-off",
+          color: "neutral",
+        });
       } else {
-        await api.favouritesAdd({ relativePath });
-        const toast = useToast();
+        unwrap(await client.POST("/api/favourites", { body: { relativePath } }));
         toast.add({ title: "Added to favourites", icon: "i-lucide-heart", color: "success" });
       }
-    } catch (e) {
-      // Revert optimistic update
-      if (wasFavourited && original) {
-        favourites.value = [original, ...favourites.value];
-      } else {
-        favourites.value = favourites.value.filter((f) => f.relativePath !== relativePath);
+      // A load that overlapped the change may have answered from before it; ask again now it is saved.
+      if (status.value === "pending" || favourites.value !== optimistic) {
+        void refresh({ dedupe: "cancel" });
       }
-      error.value = e instanceof Error ? e.message : "Failed to toggle favourite";
+    } catch (caught) {
+      favourites.value = original ? [original, ...without(relativePath)] : without(relativePath);
+      toast.add({
+        title: "Could not update favourite",
+        description: (caught as Error).message,
+        color: "error",
+      });
+    } finally {
+      toggling.delete(relativePath);
     }
   };
 
-  return { favourites, favouritePaths, loading, error, isFavourite, toggle, fetch };
+  const implementation = { favourites, loading, error, refresh, isFavourite, toggle };
+  implementation satisfies Favourites;
+  return implementation;
 };

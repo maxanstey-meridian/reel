@@ -13,6 +13,192 @@
     }
   ],
   "paths": {
+    "/api/playback/session": {
+      "post": {
+        "x-rivet-contract": "playback",
+        "x-rivet-endpoint": "start",
+        "operationId": "playback_start",
+        "tags": [
+          "Playback"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartPlaybackSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "x-rivet-contract": "playback",
+        "x-rivet-endpoint": "get",
+        "operationId": "playback_get",
+        "tags": [
+          "Playback"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/session/intent": {
+      "put": {
+        "x-rivet-contract": "playback",
+        "x-rivet-endpoint": "updateIntent",
+        "operationId": "playback_updateIntent",
+        "tags": [
+          "Playback"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlaybackIntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/playback/session/observation": {
+      "put": {
+        "x-rivet-contract": "playback",
+        "x-rivet-endpoint": "reportObservation",
+        "operationId": "playback_reportObservation",
+        "tags": [
+          "Playback"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPlaybackObservationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/connect": {
       "post": {
         "x-rivet-contract": "reel",
@@ -47,7 +233,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConnectResponse"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -70,6 +256,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthUnavailableResponse"
                 }
               }
             }
@@ -99,6 +295,38 @@
         }
       }
     },
+    "/api/library/next": {
+      "get": {
+        "x-rivet-contract": "reel",
+        "x-rivet-endpoint": "nextEpisode",
+        "operationId": "reel_nextEpisode",
+        "tags": [
+          "Reel"
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextEpisodeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library/rescan": {
       "post": {
         "x-rivet-contract": "reel",
@@ -114,6 +342,87 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryRescanResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Status 503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "x-rivet-contract": "reel",
+        "x-rivet-endpoint": "tags",
+        "operationId": "reel_tags",
+        "tags": [
+          "Reel"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "x-rivet-contract": "reel",
+        "x-rivet-endpoint": "tagsUpdate",
+        "operationId": "reel_tagsUpdate",
+        "tags": [
+          "Reel"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TagUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -288,6 +597,30 @@
             }
           },
           {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
+            }
+          },
+          {
             "name": "token",
             "in": "query",
             "required": true,
@@ -301,6 +634,112 @@
             "description": "Success",
             "content": {
               "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-rivet-query-auth": {
+          "parameterName": "token"
+        }
+      }
+    },
+    "/api/files/stream/info": {
+      "get": {
+        "x-rivet-contract": "reel",
+        "x-rivet-endpoint": "streamInfo",
+        "operationId": "reel_streamInfo",
+        "tags": [
+          "Reel"
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamInfoResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/thumbnail": {
+      "get": {
+        "x-rivet-contract": "reel",
+        "x-rivet-endpoint": "thumbnail",
+        "operationId": "reel_thumbnail",
+        "tags": [
+          "Reel"
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "image/jpeg": {
                 "schema": {
                   "type": "string",
                   "format": "binary"
@@ -403,6 +842,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -434,14 +883,15 @@
             }
           },
           {
-            "name": "format",
+            "name": "start",
             "in": "query",
             "required": false,
             "schema": {
               "type": [
-                "string",
+                "number",
                 "null"
-              ]
+              ],
+              "format": "double"
             }
           },
           {
@@ -457,26 +907,13 @@
           "200": {
             "description": "Success",
             "content": {
-              "application/octet-stream": {
+              "text/vtt": {
                 "schema": {
                   "type": "string",
                   "format": "binary"
                 }
               }
             }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden"
           },
           "404": {
             "description": "Not Found",
@@ -522,6 +959,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrickplayMetadata"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -589,9 +1046,6 @@
               }
             }
           },
-          "403": {
-            "description": "Forbidden"
-          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -607,470 +1061,23 @@
           "parameterName": "token"
         }
       }
-    },
-    "/api/playback/session": {
-      "post": {
-        "x-rivet-contract": "playback",
-        "x-rivet-endpoint": "start",
-        "operationId": "playback_start",
-        "tags": [
-          "Playback"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StartPlaybackSessionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackSessionResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "x-rivet-contract": "playback",
-        "x-rivet-endpoint": "get",
-        "operationId": "playback_get",
-        "tags": [
-          "Playback"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackSessionEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/playback/session/intent": {
-      "put": {
-        "x-rivet-contract": "playback",
-        "x-rivet-endpoint": "updateIntent",
-        "operationId": "playback_updateIntent",
-        "tags": [
-          "Playback"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePlaybackIntentRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackSessionResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/playback/session/observation": {
-      "put": {
-        "x-rivet-contract": "playback",
-        "x-rivet-endpoint": "reportObservation",
-        "operationId": "playback_reportObservation",
-        "tags": [
-          "Playback"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportPlaybackObservationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackSessionResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PlaybackErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
-      "ConnectResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "serverName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "status"
-        ]
-      },
-      "ConnectRequest": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "key"
-        ]
-      },
-      "HealthResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "uptime": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "uptime"
-        ]
-      },
-      "FileNode": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/FileNodeType"
-          },
-          "relativePath": {
-            "type": "string"
-          },
-          "extension": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sizeBytes": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "children": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/FileNode"
-            }
-          },
-          "parsedTitle": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "year": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "watched": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "name",
-          "type",
-          "relativePath"
-        ]
-      },
-      "LibraryRescanResponse": {
-        "type": "object",
-        "properties": {
-          "mediaCount": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "required": [
-          "mediaCount"
-        ]
-      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
-          "error": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
             "type": "string"
           }
         },
         "required": [
-          "error"
-        ]
-      },
-      "ProgressRequest": {
-        "type": "object",
-        "properties": {
-          "relativePath": {
-            "type": "string"
-          },
-          "positionSeconds": {
-            "type": "number",
-            "format": "double"
-          },
-          "durationSeconds": {
-            "type": "number",
-            "format": "double"
-          }
-        },
-        "required": [
-          "relativePath",
-          "positionSeconds",
-          "durationSeconds"
-        ]
-      },
-      "WatchProgress": {
-        "type": "object",
-        "properties": {
-          "relativePath": {
-            "type": "string"
-          },
-          "positionSeconds": {
-            "type": "number",
-            "format": "double"
-          },
-          "durationSeconds": {
-            "type": "number",
-            "format": "double"
-          },
-          "lastWatched": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "relativePath",
-          "positionSeconds",
-          "durationSeconds",
-          "lastWatched"
-        ]
-      },
-      "FavouriteRequest": {
-        "type": "object",
-        "properties": {
-          "relativePath": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "relativePath"
-        ]
-      },
-      "Favourite": {
-        "type": "object",
-        "properties": {
-          "relativePath": {
-            "type": "string"
-          },
-          "addedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "relativePath",
-          "addedAt"
-        ]
-      },
-      "SubtitleTrack": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "label": {
-            "type": "string"
-          },
-          "language": {
-            "type": "string"
-          },
-          "format": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "externalPath": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "index",
-          "label",
-          "language",
-          "format",
-          "source"
-        ]
-      },
-      "TrickplayMetadata": {
-        "type": "object",
-        "properties": {
-          "intervalMs": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "columns": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "rows": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "thumbWidth": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "thumbHeight": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "totalThumbs": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "spritePath": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "intervalMs",
-          "columns",
-          "rows",
-          "thumbWidth",
-          "thumbHeight",
-          "totalThumbs",
-          "spritePath"
-        ]
-      },
-      "PlaybackErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "error"
+          "code",
+          "message"
         ]
       },
       "SeekRequestResponse": {
@@ -1101,6 +1108,9 @@
           "relativePath": {
             "type": "string"
           },
+          "title": {
+            "type": "string"
+          },
           "desiredState": {
             "$ref": "#/components/schemas/PlaybackDesiredStateDto"
           },
@@ -1124,6 +1134,7 @@
         },
         "required": [
           "relativePath",
+          "title",
           "desiredState"
         ]
       },
@@ -1304,6 +1315,13 @@
               "null"
             ],
             "format": "double"
+          },
+          "expectedRevision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         },
         "required": [
@@ -1379,11 +1397,325 @@
           "durationSeconds"
         ]
       },
-      "FileNodeType": {
-        "type": "string",
-        "enum": [
-          "file",
-          "directory"
+      "ConnectResponse": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverName"
+        ]
+      },
+      "ConnectRequest": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ]
+      },
+      "HealthUnavailableResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason"
+        ]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "FileNode": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FileNodeType"
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MediaKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relativePath": {
+            "type": "string"
+          },
+          "extension": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "children": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FileNode"
+            }
+          },
+          "parsedTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "relativePath"
+        ]
+      },
+      "NextEpisodeResponse": {
+        "type": "object",
+        "properties": {
+          "relativePath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "LibraryRescanResponse": {
+        "type": "object",
+        "properties": {
+          "mediaCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "mediaCount"
+        ]
+      },
+      "TagUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "tags"
+        ]
+      },
+      "ProgressRequest": {
+        "type": "object",
+        "properties": {
+          "relativePath": {
+            "type": "string"
+          },
+          "positionSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "required": [
+          "relativePath",
+          "positionSeconds",
+          "durationSeconds"
+        ]
+      },
+      "WatchProgress": {
+        "type": "object",
+        "properties": {
+          "relativePath": {
+            "type": "string"
+          },
+          "positionSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "durationSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "lastWatched": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "relativePath",
+          "positionSeconds",
+          "durationSeconds",
+          "lastWatched"
+        ]
+      },
+      "FavouriteRequest": {
+        "type": "object",
+        "properties": {
+          "relativePath": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "relativePath"
+        ]
+      },
+      "Favourite": {
+        "type": "object",
+        "properties": {
+          "relativePath": {
+            "type": "string"
+          },
+          "addedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "relativePath",
+          "addedAt"
+        ]
+      },
+      "StreamInfoResponse": {
+        "type": "object",
+        "properties": {
+          "durationSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "transcodeHeight": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        },
+        "required": [
+          "durationSeconds"
+        ]
+      },
+      "SubtitleTrack": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SubtitleSource"
+          },
+          "imageBased": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "index",
+          "label",
+          "language",
+          "format",
+          "source",
+          "imageBased"
+        ]
+      },
+      "TrickplayMetadata": {
+        "type": "object",
+        "properties": {
+          "intervalMs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "columns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "thumbWidth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "thumbHeight": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalThumbs": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "intervalMs",
+          "columns",
+          "rows",
+          "thumbWidth",
+          "thumbHeight",
+          "totalThumbs"
         ]
       },
       "PlaybackDesiredStateDto": {
@@ -1404,6 +1736,27 @@
           "paused",
           "ended",
           "error"
+        ]
+      },
+      "FileNodeType": {
+        "type": "string",
+        "enum": [
+          "file",
+          "directory"
+        ]
+      },
+      "MediaKind": {
+        "type": "string",
+        "enum": [
+          "video",
+          "audio"
+        ]
+      },
+      "SubtitleSource": {
+        "type": "string",
+        "enum": [
+          "embedded",
+          "external"
         ]
       }
     }

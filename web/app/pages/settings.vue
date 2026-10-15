@@ -1,5 +1,9 @@
 <script setup lang="ts">
-const { serverUrl, isConnected, disconnect } = useConnection();
+import { injectPlayback } from "~~/app/features/playback/ports/playback";
+
+const { disconnect } = useConnection();
+const { loading, error } = injectPlayback();
+const reachable = computed(() => !loading.value && !error.value);
 
 const handleDisconnect = () => {
   disconnect();
@@ -9,34 +13,26 @@ const handleDisconnect = () => {
 
 <template>
   <div class="space-y-6">
-    <div class="page-header">
-      <h1 class="page-title">Settings</h1>
-    </div>
+    <h1 class="page-title">Settings</h1>
 
     <section class="space-y-2">
       <h2 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide px-1">Server</h2>
-      <div class="rounded-lg bg-neutral-900 p-4 space-y-3" data-testid="server-section">
+      <div class="rounded-lg bg-neutral-900 p-4 space-y-3">
         <div class="space-y-2 text-sm">
           <div class="flex items-center gap-2">
-            <span class="text-neutral-500">URL</span>
-            <span class="text-neutral-300 font-mono truncate">{{ serverUrl || "Not connected" }}</span>
-          </div>
-          <div class="flex items-center gap-2">
             <span class="text-neutral-500">Status</span>
-            <span class="size-2 rounded-full" :class="isConnected ? 'bg-green-500' : 'bg-red-500'" />
-            <span :class="isConnected ? 'text-green-500' : 'text-red-500'">
-              {{ isConnected ? "Connected" : "Disconnected" }}
+            <span class="size-2 rounded-full" :class="reachable ? 'bg-green-500' : 'bg-red-500'" />
+            <span :class="reachable ? 'text-green-500' : 'text-red-500'">
+              {{ loading ? "Checking…" : error ? "Paired · server unavailable" : "Connected" }}
             </span>
           </div>
         </div>
 
         <UButton
-          v-if="isConnected"
           variant="outline"
           color="error"
           block
           icon="i-lucide-log-out"
-          data-testid="disconnect-btn"
           @click="handleDisconnect"
         >
           Disconnect

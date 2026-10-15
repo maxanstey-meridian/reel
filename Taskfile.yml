@@ -1,6 +1,11 @@
 version: '3'
 
 tasks:
+  publish:
+    desc: Publish one server with the phone UI
+    cmds:
+      - bash scripts/publish.sh
+
   server:build:
     desc: Build server project
     dir: server
@@ -18,6 +23,12 @@ tasks:
     dir: server
     cmds:
       - dotnet rivet --project Reel.Server/Reel.Server.csproj --check --quiet
+
+  server:fmt:check:
+    desc: Check server formatting (CSharpier)
+    dir: server
+    cmds:
+      - dotnet csharpier check .
 
   server:run:
     desc: Run server
@@ -37,11 +48,30 @@ tasks:
     cmds:
       - ./gradlew :app:testDebugUnitTest
 
-  tv:install:
-    desc: Sideload debug APK to connected Fire TV via ADB
+  tv:release:
+    desc: Assemble release APK (R8-shrunk, signed with the local debug key)
     dir: tv
     cmds:
-      - adb install -r app/build/outputs/apk/debug/app-debug.apk
+      - ./gradlew :app:assembleRelease
+
+  tv:install:
+    desc: Sideload the release APK to the connected Fire TV via ADB
+    dir: tv
+    deps: [tv:release]
+    cmds:
+      - adb install -r app/build/outputs/apk/release/app-release.apk
+
+  tv:fmt:
+    desc: Format TV Kotlin (ktlint)
+    dir: tv
+    cmds:
+      - ./gradlew ktlintFormat
+
+  tv:fmt:check:
+    desc: Check TV Kotlin formatting (ktlint)
+    dir: tv
+    cmds:
+      - ./gradlew ktlintCheck
 
   dev:
     desc: Run server and web UI concurrently
@@ -73,7 +103,7 @@ tasks:
     desc: Build web UI for production
     dir: web
     cmds:
-      - pnpm build
+      - pnpm generate
 
   web:check:
     desc: Typecheck, lint, test, and build the web app
@@ -82,7 +112,7 @@ tasks:
       - pnpm check
       - pnpm lint
       - pnpm test
-      - pnpm build
+      - pnpm generate
 
   web:test:
     desc: Run web unit tests
@@ -108,12 +138,21 @@ tasks:
     cmds:
       - pnpm fmt
 
+  web:fmt:check:
+    desc: Check web UI formatting (oxfmt)
+    dir: web
+    cmds:
+      - pnpm fmt:check
+
   check:
     desc: Run all application checks
     cmds:
+      - task: server:fmt:check
       - task: server:test
       - task: server:contract
+      - task: web:fmt:check
       - task: web:check
+      - task: tv:fmt:check
       - task: tv:test
 
   ci:

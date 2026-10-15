@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const serverUrl = `http://127.0.0.1:${process.env.E2E_SERVER_PORT ?? "18080"}`;
-const connectUrl = `/connect?url=${encodeURIComponent(serverUrl)}&key=REEL-E2E`;
+const connectUrl = "/connect?key=REEL-E2E";
 
 test.describe("Smoke", () => {
   test("app redirects to connect page", async ({ page }) => {
@@ -22,7 +21,7 @@ test.describe("Layout", () => {
     await expect(page).toHaveURL(/\/library$/);
     const nav = page.getByTestId("bottom-nav");
     await expect(nav).toBeVisible();
-    await expect(nav.locator("a")).toHaveCount(3);
+    await expect(nav.locator("a")).toHaveCount(5);
   });
 
   test("active nav item is highlighted", async ({ page }) => {
@@ -34,15 +33,14 @@ test.describe("Layout", () => {
 });
 
 test.describe("Connection isolation", () => {
-  test("failed reconnect keeps the existing working connection", async ({ page }) => {
+  test("a wrong pairing code keeps the existing working pairing", async ({ page }) => {
     await page.goto(connectUrl);
     await expect(page).toHaveURL(/\/library$/);
 
     await page.goto("/connect");
-    await page.getByLabel("Server URL").fill(serverUrl);
-    await page.getByLabel("Secret Key").fill("WRONG-KEY");
-    await page.getByRole("button", { name: "Connect", exact: true }).click();
-    await expect(page.getByText("API request failed with status 401", { exact: true })).toBeVisible();
+    await page.getByLabel("Pairing code shown on your TV").fill("WRONG-KEY");
+    await page.getByRole("button", { name: "Pair", exact: true }).click();
+    await expect(page.getByText("That code doesn't match your TV.", { exact: true })).toBeVisible();
     await page.goto("/library");
     await expect(page).toHaveURL(/\/library$/);
     await expect(page.getByTestId("bottom-nav")).toBeVisible();

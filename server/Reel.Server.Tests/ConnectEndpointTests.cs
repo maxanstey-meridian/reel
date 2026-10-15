@@ -3,23 +3,23 @@ using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Common;
+using Reel.Server.Contracts.Reel;
 
 namespace Reel.Server.Tests;
 
-public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class ConnectEndpointTests : IDisposable
 {
-    private const string TestSecretKey = "REEL-TEST";
-
+    private const string TestSecretKey = ReelTestHost.SecretKey;
+    private readonly TempMediaRoot _media = new();
     private readonly WebApplicationFactory<Program> _factory;
 
-    public ConnectEndpointTests(WebApplicationFactory<Program> factory)
+    public ConnectEndpointTests() => _factory = _media.CreateFactory();
+
+    public void Dispose()
     {
-        _factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", "/tmp/reel-test-media");
-            builder.UseSetting("Reel:SecretKey", TestSecretKey);
-            builder.UseSetting("Reel:Port", "8080");
-        });
+        _factory.Dispose();
+        _media.Dispose();
     }
 
     [Fact]
@@ -32,10 +32,8 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
 
-        var body = await response.Content.ReadFromJsonAsync<ConnectResponseDto>();
-        body!.Status.Should().Be("ok");
-        body.ServerName.Should().NotBeNullOrEmpty();
-        body.ServerName.Should().Be(Environment.MachineName);
+        var body = await response.Content.ReadFromJsonAsync<ConnectResponse>();
+        body!.ServerName.Should().Be(Environment.MachineName);
     }
 
     [Fact]
@@ -47,9 +45,9 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
-        var body = await response.Content.ReadFromJsonAsync<ConnectResponseDto>();
-        body!.Status.Should().Be("unauthorized");
-        body.ServerName.Should().BeNull();
+        var body = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+        body!.Code.Should().Be("unauthorized");
+        body.Message.Should().Be("That code doesn't match your TV.");
     }
 
     [Fact]
@@ -57,7 +55,10 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
     {
         var client = _factory.CreateClient();
 
-        var response = await client.PostAsync("/api/connect", new StringContent("", Encoding.UTF8, "application/json"));
+        var response = await client.PostAsync(
+            "/api/connect",
+            new StringContent("", Encoding.UTF8, "application/json")
+        );
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -71,6 +72,4 @@ public sealed class ConnectEndpointTests : IClassFixture<WebApplicationFactory<P
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
     }
-
-    private sealed record ConnectResponseDto(string Status, string? ServerName);
 }

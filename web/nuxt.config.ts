@@ -1,7 +1,7 @@
 export default defineNuxtConfig({
   ssr: false,
   compatibilityDate: "2025-01-01",
-  modules: ["@nuxt/ui", "@nuxt/eslint", "@vite-pwa/nuxt"],
+  modules: ["@nuxt/ui", "@nuxt/eslint"],
 
   app: {
     head: {
@@ -19,45 +19,24 @@ export default defineNuxtConfig({
     },
   },
 
-  pwa: {
-    registerType: "autoUpdate",
-    manifest: {
-      name: "Reel",
-      short_name: "Reel",
-      description: "Cast to your TV",
-      theme_color: "#0a0a0a",
-      background_color: "#0a0a0a",
-      display: "standalone",
-      orientation: "portrait",
-      icons: [
-        { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-        { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-        { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-      ],
-    },
-    workbox: {
-      navigateFallback: "/",
-      globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest}"],
-    },
-    devOptions: {
-      enabled: false,
-    },
-  },
   css: ["~/assets/css/app.css"],
-
-  vite: {
-    optimizeDeps: {
-      include: ["zod"],
-    },
-  },
-
-  runtimeConfig: {
-    public: {
-      serverUrl: "http://localhost:8080",
-    },
-  },
 
   devServer: {
     port: 3000,
+  },
+
+  // The phone app talks to its own origin; in development that origin is this server, so the
+  // API is forwarded to the .NET server (override with REEL_API_URL, e.g. for e2e runs).
+  nitro: {
+    devProxy: {
+      "/api": {
+        target: `${process.env.REEL_API_URL ?? "http://localhost:8080"}/api`,
+        changeOrigin: true,
+      },
+    },
+  },
+
+  typescript: {
+    tsConfig: { include: ["../tests/**/*", "../e2e/**/*", "../playwright.config.ts"] },
   },
 });

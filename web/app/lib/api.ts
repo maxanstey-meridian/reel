@@ -1,99 +1,75 @@
+import { useLocalStorage } from "@vueuse/core";
 import createClient from "openapi-fetch";
-import type { paths, components } from "~~/generated/rivet/schema";
+import type { components, paths } from "~~/generated/rivet/schema";
 
 export type FileNode = components["schemas"]["FileNode"];
-export type Favourite = components["schemas"]["Favourite"];
-export type WatchProgress = components["schemas"]["WatchProgress"];
-export type SubtitleTrack = components["schemas"]["SubtitleTrack"];
-export type TrickplayMetadata = components["schemas"]["TrickplayMetadata"];
 export type PlaybackSession = components["schemas"]["PlaybackSessionResponse"];
-export type PlaybackIntent = components["schemas"]["PlaybackIntentResponse"];
-export type PlaybackObservation = components["schemas"]["PlaybackObservationResponse"];
 export type PlaybackDesiredState = components["schemas"]["PlaybackDesiredStateDto"];
-export type PlaybackObservationState = components["schemas"]["PlaybackObservationStateDto"];
-export type StartPlaybackRequest = components["schemas"]["StartPlaybackSessionRequest"];
-export type UpdatePlaybackIntentRequest = components["schemas"]["UpdatePlaybackIntentRequest"];
+export type TrickplayMetadata = components["schemas"]["TrickplayMetadata"];
+type ErrorBody = components["schemas"]["ErrorResponse"];
 
-type ApiResult<T> = {
-  data?: T;
-  error?: unknown;
-  response: Response;
-};
-
-export class ApiError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly body: unknown,
-  ) {
-    const message =
-      typeof body === "object" && body !== null && "error" in body && typeof body.error === "string"
-        ? body.error
-        : `API request failed with status ${status}`;
-    super(message);
-    this.name = "ApiError";
+/** No answer: the Studio is off, asleep, or not on this network. */
+export class ServerUnreachableError extends Error {
+  constructor(cause: unknown) {
+    super("Can't reach the Reel server", { cause });
   }
 }
 
-let client = createClient<paths>();
+// The phone app is served by the Reel server itself, so every request is same-origin.
+export const pairingKey = useLocalStorage("reel:secretKey", "");
+// fetch is looked up per request rather than captured once, so tests can stand in for the server.
+export const client = createClient<paths>({ fetch: (request) => globalThis.fetch(request) });
 
-export const configureApi = (baseUrl: string, secretKey?: string): void => {
-  client = createClient<paths>({
-    baseUrl,
-    headers: secretKey ? { "X-Secret-Key": secretKey } : undefined,
-  });
-};
+const REQUEST_TIMEOUT_MS = 15_000;
+// A rescan walks the whole media folder, which can take minutes on a large library.
+const RESCAN_TIMEOUT_MS = 10 * 60_000;
 
-export const validateApiConnection = async (baseUrl: string, key: string) => {
-  const candidate = createClient<paths>({ baseUrl });
-  return unwrap(await candidate.POST("/api/connect", { body: { key } }));
-};
-
-const unwrap = <T>({ data, error, response }: ApiResult<T>): T => {
-  if (!response.ok || error !== undefined) {
-    throw new ApiError(response.status, error);
-  }
-  return data as T;
-};
-
-export const api = {
-  connect: async (key: string) => unwrap(await client.POST("/api/connect", { body: { key } })),
-  library: async () => unwrap(await client.GET("/api/library")),
-  search: async (q: string, signal?: AbortSignal) =>
-    unwrap(await client.GET("/api/search", { params: { query: { q } }, signal })),
-  progressAll: async () => unwrap(await client.GET("/api/progress")),
-  progressUpdate: async (body: components["schemas"]["ProgressRequest"]) =>
-    unwrap(await client.POST("/api/progress", { body })),
-  favouritesAll: async () => unwrap(await client.GET("/api/favourites")),
-  favouritesAdd: async (body: components["schemas"]["FavouriteRequest"]) =>
-    unwrap(await client.POST("/api/favourites", { body })),
-  favouritesRemove: async (path: string) =>
-    unwrap(await client.DELETE("/api/favourites", { params: { query: { path } } })),
-  subtitlesList: async (path: string, signal?: AbortSignal) =>
-    unwrap(await client.GET("/api/files/subtitles", { params: { query: { path } }, signal })),
-  trickplayInfo: async (path: string, signal?: AbortSignal) =>
-    unwrap(await client.GET("/api/files/trickplay", { params: { query: { path } }, signal })),
-  // Binary requests use fetch so credentials stay in headers rather than URL/query logs.
-  trickplaySprite: async (
-    baseUrl: string,
-    secretKey: string,
-    path: string,
-    sheet: number | null,
-    signal?: AbortSignal,
-  ) => {
-    const url = new URL("/api/files/trickplay/sprite", baseUrl);
-    url.searchParams.set("path", path);
-    if (sheet !== null) {
-      url.searchParams.set("sheet", String(sheet));
+client.use({
+  onRequest: ({ request, schemaPath }) => {
+    const timeout = AbortSignal.timeout(
+      schemaPath === "/api/library/rescan" ? RESCAN_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+    );
+    const timed = new Request(request, { signal: AbortSignal.any([request.signal, timeout]) });
+    if (pairingKey.value) {
+      timed.headers.set("X-Secret-Key", pairingKey.value);
     }
-    const response = await fetch(url, { headers: { "X-Secret-Key": secretKey }, signal });
-    if (!response.ok) {
-      throw new ApiError(response.status, await response.text());
-    }
-    return response.blob();
+    return timed;
   },
-  playbackStart: async (body: StartPlaybackRequest) =>
-    unwrap(await client.POST("/api/playback/session", { body })),
-  playbackGet: async () => unwrap(await client.GET("/api/playback/session")),
-  playbackUpdateIntent: async (body: UpdatePlaybackIntentRequest) =>
-    unwrap(await client.PUT("/api/playback/session/intent", { body })),
+  onResponse: ({ response, schemaPath }) => {
+    // A rejected pairing code is answered on the connect page itself.
+    if (response.status === 401 && schemaPath !== "/api/connect") {
+      pairingKey.value = "";
+      void navigateTo("/connect", { replace: true });
+    }
+  },
+  // Callers cancel superseded requests and expect the abort itself.
+  onError: ({ error }) =>
+    error instanceof DOMException && error.name === "AbortError"
+      ? undefined
+      : new ServerUnreachableError(error),
+});
+
+// Every openapi-fetch result; constraining `error` to ErrorResponse makes an endpoint that
+// declares any other error shape a compile error here.
+type ApiResult = { data?: unknown; error?: ErrorBody; response: Response };
+type Success<R extends ApiResult> = Extract<R, { data: unknown }>["data"];
+
+export const unwrap = <R extends ApiResult>(result: R): Success<R> => {
+  if (result.response.ok) {
+    return result.data as Success<R>;
+  }
+  // The server answered, but refused or failed the request.
+  throw new Error(
+    result.error?.message ??
+      `The Reel server could not complete the request (${result.response.status})`,
+  );
 };
+
+// <img> and CSS backgrounds cannot send headers, so file URLs carry the key as `token`.
+const fileUrl = (route: string, query: Record<string, string>): string =>
+  `${route}?${new URLSearchParams({ ...query, token: pairingKey.value })}`;
+
+export const thumbnailUrl = (path: string): string => fileUrl("/api/files/thumbnail", { path });
+
+export const trickplaySpriteUrl = (path: string, sheet: number): string =>
+  fileUrl("/api/files/trickplay/sprite", { path, sheet: String(sheet) });

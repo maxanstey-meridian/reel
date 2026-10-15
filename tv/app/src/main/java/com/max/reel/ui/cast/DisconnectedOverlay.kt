@@ -25,11 +25,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.max.reel.ui.theme.ReelColors
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun DisconnectedOverlay(visible: Boolean) {
     AnimatedVisibility(
@@ -38,7 +36,8 @@ fun DisconnectedOverlay(visible: Boolean) {
         exit = fadeOut(tween(500)),
     ) {
         Box(
-            modifier = Modifier
+            modifier =
+            Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.6f)),
             contentAlignment = Alignment.Center,
@@ -47,7 +46,8 @@ fun DisconnectedOverlay(visible: Boolean) {
             val pulseAlpha by pulseTransition.animateFloat(
                 initialValue = 0.4f,
                 targetValue = 1.0f,
-                animationSpec = infiniteRepeatable(
+                animationSpec =
+                infiniteRepeatable(
                     animation = tween(1200),
                     repeatMode = RepeatMode.Reverse,
                 ),
@@ -56,7 +56,8 @@ fun DisconnectedOverlay(visible: Boolean) {
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
-                    modifier = Modifier
+                    modifier =
+                    Modifier
                         .size(12.dp)
                         .alpha(pulseAlpha)
                         .background(color = ReelColors.disconnected, shape = CircleShape),

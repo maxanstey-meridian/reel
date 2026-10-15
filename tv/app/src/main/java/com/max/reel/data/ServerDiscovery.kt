@@ -1,98 +1,77 @@
+@file:Suppress("ktlint:standard:filename")
+
 package com.max.reel.data
 
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
+import android.os.Build
 import android.util.Log
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.net.InetAddress
 
-private const val TAG = "ServerDiscovery"
+data class DiscoveredServer(val host: String, val port: Int, val key: String)
 
-data class DiscoveredServer(
-    val ip: String,
-    val port: Int,
-    val secretKey: String,
-)
+fun discoverServers(context: Context): Flow<DiscoveredServer> = callbackFlow {
+    val nsd = context.getSystemService(NsdManager::class.java)
 
-interface ServerDiscoverer {
-    val servers: Flow<DiscoveredServer>
+    fun resolve(service: NsdServiceInfo) {
+        nsd.resolveService(
+            service,
+            object : NsdManager.ResolveListener {
+                override fun onServiceResolved(info: NsdServiceInfo) {
+                    val host = preferredAddress(info)?.hostAddress ?: return
+                    val key = info.attributes["key"]?.decodeToString() ?: return
+                    trySend(DiscoveredServer(host, info.port, key))
+                }
 
-    fun start(context: Context)
-    fun stop()
+                // Before Android 14 only one resolve may run at a time, so a second service waits its turn.
+                override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) {
+                    if (errorCode == NsdManager.FAILURE_ALREADY_ACTIVE) {
+                        launch {
+                            delay(500)
+                            resolve(service)
+                        }
+                    } else {
+                        Log.w("ServerDiscovery", "Resolving ${info.serviceName} failed: $errorCode")
+                    }
+                }
+            },
+        )
+    }
+
+    val listener =
+        object : NsdManager.DiscoveryListener {
+            override fun onServiceFound(service: NsdServiceInfo) = resolve(service)
+
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                Log.w("ServerDiscovery", "Discovery failed to start: $errorCode")
+            }
+
+            override fun onDiscoveryStarted(serviceType: String) = Unit
+
+            override fun onDiscoveryStopped(serviceType: String) = Unit
+
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) = Unit
+
+            override fun onServiceLost(service: NsdServiceInfo) = Unit
+        }
+    nsd.discoverServices("_reel._tcp.", NsdManager.PROTOCOL_DNS_SD, listener)
+    // Throws if discovery never started.
+    awaitClose { runCatching { nsd.stopServiceDiscovery(listener) } }
 }
 
-class ServerDiscovery : ServerDiscoverer {
-
-    private val _servers = MutableSharedFlow<DiscoveredServer>(extraBufferCapacity = 8)
-    override val servers: Flow<DiscoveredServer> = _servers
-
-    private var nsdManager: NsdManager? = null
-    private var discoveryListener: NsdManager.DiscoveryListener? = null
-    private var generation = 0
-
-    override fun start(context: Context) {
-        if (discoveryListener != null) return
-
-        Log.i(TAG, "Starting discovery...")
-        val activeGeneration = ++generation
-        val manager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
-        nsdManager = manager
-
-        discoveryListener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(serviceType: String) {
-                Log.i(TAG, "Discovery started for $serviceType")
-            }
-            override fun onDiscoveryStopped(serviceType: String) {
-                Log.i(TAG, "Discovery stopped")
-            }
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Log.i(TAG, "Discovery start failed: error=$errorCode")
-            }
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Log.i(TAG, "Discovery stop failed: error=$errorCode")
-            }
-
-            override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                Log.i(TAG, "Service found: ${serviceInfo.serviceName} type=${serviceInfo.serviceType}")
-                manager.resolveService(serviceInfo, object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                        Log.i(TAG, "Resolve failed: ${serviceInfo.serviceName} error=$errorCode")
-                    }
-
-                    override fun onServiceResolved(resolved: NsdServiceInfo) {
-                        if (activeGeneration != generation) return
-                        val host = resolved.host?.hostAddress ?: return
-                        val port = resolved.port
-                        Log.i(TAG, "Resolved: $host:$port attrs=${resolved.attributes.keys}")
-                        val key = resolved.attributes["key"]
-                            ?.let { String(it, Charsets.UTF_8) }
-                            ?: return
-
-                        Log.i(TAG, "Server discovered: $host:$port")
-                        _servers.tryEmit(DiscoveredServer(host, port, key))
-                    }
-                })
-            }
-
-            override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                Log.i(TAG, "Service lost: ${serviceInfo.serviceName}")
-            }
-        }
-
-        manager.discoverServices("_reel._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-    }
-
-    override fun stop() {
-        generation++
-        discoveryListener?.let { listener ->
-            try {
-                nsdManager?.stopServiceDiscovery(listener)
-            } catch (_: Exception) {
-                // Already stopped
-            }
-        }
-        discoveryListener = null
-        nsdManager = null
-    }
+// IPv4 avoids IPv6 link-local addresses, which need an interface scope to be reachable.
+private fun preferredAddress(info: NsdServiceInfo): InetAddress? = if (Build.VERSION.SDK_INT >=
+    Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+) {
+    info.hostAddresses.firstOrNull { it is Inet4Address } ?: info.hostAddresses.firstOrNull()
+} else {
+    @Suppress("DEPRECATION")
+    info.host
 }

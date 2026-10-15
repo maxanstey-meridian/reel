@@ -5,92 +5,68 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
-import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.tv.material3.Surface
-import com.max.reel.data.ServerDiscovery
-import com.max.reel.playback.AppDestination
+import com.max.reel.data.ApiClient
+import com.max.reel.data.PairingStore
+import com.max.reel.data.discoverServers
 import com.max.reel.playback.PlaybackConnection
 import com.max.reel.playback.PlaybackViewModel
-import com.max.reel.playback.appDestination
 import com.max.reel.ui.pairing.PairingScreen
 import com.max.reel.ui.player.PlayerScreen
 import com.max.reel.ui.ready.ReadyScreen
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val app get() = application as ReelApplication
+    private val viewModel: PlaybackViewModel by viewModels {
+        viewModelFactory {
+            initializer { PlaybackViewModel(app, app.pairing, app.api) { discoverServers(app) } }
+        }
+    }
 
-    private val playbackViewModel: PlaybackViewModel by viewModels()
-
-    @OptIn(ExperimentalTvMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.poll() } }
+        setContent { ReelApp(app.pairing, app.api, viewModel) }
+    }
 
-        val discovery = ServerDiscovery()
-
-        setContent {
-            ReelApp(
-                viewModel = playbackViewModel,
-                discovery = discovery,
-            )
-        }
+    override fun onStop() {
+        super.onStop()
+        viewModel.pauseForBackground()
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ReelApp(
-    viewModel: PlaybackViewModel,
-    discovery: ServerDiscovery,
-) {
-    val playbackState by viewModel.state.collectAsStateWithLifecycle()
-    val paired = remember { mutableStateOf(viewModel.preferences.isPaired) }
-
-    LaunchedEffect(playbackState.pairingInvalid) {
-        if (playbackState.pairingInvalid) paired.value = false
-    }
-
-    DisposableEffect(paired.value) {
-        viewModel.setPollingEnabled(paired.value)
-        onDispose { viewModel.setPollingEnabled(false) }
-    }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        viewModel.resumeAfterBackground(paired.value)
-    }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        viewModel.pauseForBackground()
-    }
-
-    when (appDestination(paired.value, playbackState.relativePath)) {
-        AppDestination.Pairing -> Surface {
-            PairingScreen(
-                apiClient = viewModel.apiClient,
-                prefs = viewModel.preferences,
-                discovery = discovery,
-                onPaired = {
-                    paired.value = true
-                    viewModel.onPaired()
-                },
-            )
+private fun ReelApp(pairing: PairingStore, api: ApiClient, viewModel: PlaybackViewModel) {
+    val server by pairing.server.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val paired = server
+    when {
+        paired == null -> {
+            Surface { PairingScreen(pairing, api::connect) }
         }
 
-        AppDestination.Ready -> Surface {
-            ReadyScreen(
-                prefs = viewModel.preferences,
-                connected = playbackState.connection is PlaybackConnection.Connected,
-                onForgetPairing = {
-                    viewModel.forgetPairing()
-                    paired.value = false
-                },
-            )
+        state.relativePath != null -> {
+            PlayerScreen(viewModel)
         }
 
-        AppDestination.Player -> PlayerScreen(viewModel)
+        else -> {
+            Surface {
+                ReadyScreen(
+                    server = paired,
+                    pairUrl = api.pairUrl(paired),
+                    connection = state.connection,
+                    connectionError = state.connectionError,
+                    onForgetPairing = pairing::forget,
+                )
+            }
+        }
     }
 }

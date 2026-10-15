@@ -1,48 +1,34 @@
-namespace Reel.Server.Tests;
-
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Common;
 using Reel.Server.Contracts.Playback;
 
+namespace Reel.Server.Tests;
+
+// HTTP mapping of the session service; validation rules themselves are covered by PlaybackSessionServiceTests.
 public sealed class PlaybackSessionEndpointTests : IDisposable
 {
-    private const string SecretKey = "REEL-TEST";
+    private readonly TempMediaRoot _media = new();
     private readonly HttpClient _client;
+    private readonly JsonSerializerOptions _json;
     private readonly WebApplicationFactory<Program> _factory;
-    private readonly string _mediaRoot;
 
     public PlaybackSessionEndpointTests()
     {
-        _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-playback-endpoint-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(Path.Combine(_mediaRoot, "Films"));
-        File.WriteAllBytes(Path.Combine(_mediaRoot, "Films", "movie.mp4"), [1]);
-
-        _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", _mediaRoot);
-            builder.UseSetting("Reel:SecretKey", SecretKey);
-            builder.UseSetting("Reel:Port", "8080");
-        });
-        _client = _factory.CreateClient();
-        _client.DefaultRequestHeaders.Add("X-Secret-Key", SecretKey);
+        _media.Write("Films/movie.mp4");
+        _factory = _media.CreateFactory();
+        _json = _factory.JsonOptions();
+        _client = _factory.CreateAuthenticatedClient();
     }
 
     public void Dispose()
     {
         _client.Dispose();
         _factory.Dispose();
-        Directory.Delete(_mediaRoot, recursive: true);
-    }
-
-    [Fact]
-    public void Contract_OwnsExactPlaybackRoutes()
-    {
-        PlaybackContract.Start.Route.Should().Be("/api/playback/session");
-        PlaybackContract.Get.Route.Should().Be("/api/playback/session");
-        PlaybackContract.UpdateIntent.Route.Should().Be("/api/playback/session/intent");
-        PlaybackContract.ReportObservation.Route.Should().Be("/api/playback/session/observation");
+        _media.Dispose();
     }
 
     [Fact]
@@ -51,7 +37,9 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         var response = await _client.GetAsync(PlaybackContract.Get.Route);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await response.Content.ReadFromJsonAsync<PlaybackSessionEnvelope>())!.Session.Should().BeNull();
+        (await response.Content.ReadFromJsonAsync<PlaybackSessionEnvelope>(_json))!
+            .Session.Should()
+            .BeNull();
     }
 
     [Fact]
@@ -66,37 +54,32 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task Start_InvalidPathAndPosition_ReturnExplicitBadRequest()
-    {
-        var pathResponse = await _client.PostAsJsonAsync(
-            PlaybackContract.Start.Route,
-            new StartPlaybackSessionRequest("missing.mp4", 0, null)
-        );
-        var positionResponse = await _client.PostAsJsonAsync(
-            PlaybackContract.Start.Route,
-            new StartPlaybackSessionRequest("Films/movie.mp4", -1, null)
-        );
-
-        pathResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        positionResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await pathResponse.Content.ReadFromJsonAsync<PlaybackErrorResponse>())!.Error.Should().NotBeEmpty();
-    }
-
-    [Fact]
     public async Task Intent_ReturnsUpdatedTransportContractAndStaleIdReturnsNotFound()
     {
         var session = await Start();
         var update = await _client.PutAsJsonAsync(
             PlaybackContract.UpdateIntent.Route,
-            new UpdatePlaybackIntentRequest(session.SessionId, PlaybackDesiredStateDto.Paused, 2, 30)
+            new UpdatePlaybackIntentRequest(
+                session.SessionId,
+                PlaybackDesiredStateDto.Paused,
+                2,
+                30
+            ),
+            _json
         );
         var stale = await _client.PutAsJsonAsync(
             PlaybackContract.UpdateIntent.Route,
-            new UpdatePlaybackIntentRequest(Guid.NewGuid(), PlaybackDesiredStateDto.Playing, null, null)
+            new UpdatePlaybackIntentRequest(
+                Guid.NewGuid(),
+                PlaybackDesiredStateDto.Playing,
+                null,
+                null
+            ),
+            _json
         );
 
         update.StatusCode.Should().Be(HttpStatusCode.OK);
-        var updated = await update.Content.ReadFromJsonAsync<PlaybackSessionResponse>();
+        var updated = await update.Content.ReadFromJsonAsync<PlaybackSessionResponse>(_json);
         updated!.Revision.Should().Be(2);
         updated.Intent.DesiredState.Should().Be(PlaybackDesiredStateDto.Paused);
         updated.Intent.SubtitleIndex.Should().Be(2);
@@ -108,22 +91,29 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
     {
         var session = await Start(10);
         var validRequest = Observation(session, appliedRevision: 1, appliedSeekId: 1);
-        var valid = await _client.PutAsJsonAsync(PlaybackContract.ReportObservation.Route, validRequest);
+        var valid = await _client.PutAsJsonAsync(
+            PlaybackContract.ReportObservation.Route,
+            validRequest,
+            _json
+        );
         var invalid = await _client.PutAsJsonAsync(
             PlaybackContract.ReportObservation.Route,
-            Observation(session, position: -1)
+            Observation(session, position: -1),
+            _json
         );
         var missing = await _client.PutAsJsonAsync(
             PlaybackContract.ReportObservation.Route,
-            Observation(session with { SessionId = Guid.NewGuid() })
+            Observation(session with { SessionId = Guid.NewGuid() }),
+            _json
         );
         var regressing = await _client.PutAsJsonAsync(
             PlaybackContract.ReportObservation.Route,
-            Observation(session, appliedRevision: 0)
+            Observation(session, appliedRevision: 0),
+            _json
         );
 
         valid.StatusCode.Should().Be(HttpStatusCode.OK);
-        var observed = await valid.Content.ReadFromJsonAsync<PlaybackSessionResponse>();
+        var observed = await valid.Content.ReadFromJsonAsync<PlaybackSessionResponse>(_json);
         observed!.Observation!.State.Should().Be(PlaybackObservationStateDto.Playing);
         observed.Intent.PendingSeek.Should().BeNull();
         observed.TvConnected.Should().BeTrue();
@@ -133,56 +123,101 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
     }
 
     [Fact]
-    public async Task Observation_RevisionAheadOfSessionReturnsDeclaredConflict()
+    public async Task IntegerEnumValues_AreRejectedAsBadRequest()
+    {
+        var session = await Start();
+
+        var intent = await _client.PutAsJsonAsync(
+            PlaybackContract.UpdateIntent.Route,
+            new { sessionId = session.SessionId, desiredState = 9 },
+            _json
+        );
+        var observation = await _client.PutAsJsonAsync(
+            PlaybackContract.ReportObservation.Route,
+            new
+            {
+                sessionId = session.SessionId,
+                observationSequence = 1,
+                appliedRevision = 1,
+                state = 9,
+                relativePath = session.Intent.RelativePath,
+                positionSeconds = 1,
+                durationSeconds = 10,
+            },
+            _json
+        );
+
+        intent.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        observation.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Intent_WithMatchingExpectedRevision_Applies()
     {
         var session = await Start();
 
         var response = await _client.PutAsJsonAsync(
-            PlaybackContract.ReportObservation.Route,
-            Observation(session, appliedRevision: session.Revision + 1)
+            PlaybackContract.UpdateIntent.Route,
+            new
+            {
+                sessionId = session.SessionId,
+                desiredState = "playing",
+                subtitleIndex = 1,
+                expectedRevision = session.Revision,
+            },
+            _json
         );
 
-        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await response.Content.ReadFromJsonAsync<PlaybackErrorResponse>())!.Error
-            .Should()
-            .Contain("current session revision");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var updated = await response.Content.ReadFromJsonAsync<PlaybackSessionResponse>(_json);
+        updated!.Revision.Should().Be(session.Revision + 1);
+        updated.Intent.SubtitleIndex.Should().Be(1);
     }
 
     [Fact]
-    public async Task Intent_StoppedWithSeekAndObservationImpossibleValuesReturnBadRequest()
+    public async Task Intent_WithStaleExpectedRevision_ReturnsConflictWithoutChangingSession()
     {
-        var session = await Start(10);
-        var stoppedSeek = await _client.PutAsJsonAsync(
+        var session = await Start();
+        await _client.PutAsJsonAsync(
             PlaybackContract.UpdateIntent.Route,
-            new UpdatePlaybackIntentRequest(session.SessionId, PlaybackDesiredStateDto.Stopped, null, 20)
-        );
-        var wrongPath = await _client.PutAsJsonAsync(
-            PlaybackContract.ReportObservation.Route,
-            Observation(session) with { RelativePath = "Films/other.mp4" }
-        );
-        var futureSeek = await _client.PutAsJsonAsync(
-            PlaybackContract.ReportObservation.Route,
-            Observation(session, appliedSeekId: 2)
-        );
-        var inconsistentError = await _client.PutAsJsonAsync(
-            PlaybackContract.ReportObservation.Route,
-            Observation(session) with { ErrorCode = "decoder", ErrorMessage = "Failed" }
+            new { sessionId = session.SessionId, desiredState = "paused" },
+            _json
         );
 
-        stoppedSeek.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        wrongPath.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        futureSeek.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        inconsistentError.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var response = await _client.PutAsJsonAsync(
+            PlaybackContract.UpdateIntent.Route,
+            new
+            {
+                sessionId = session.SessionId,
+                desiredState = "playing",
+                subtitleIndex = 1,
+                expectedRevision = session.Revision,
+            },
+            _json
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadFromJsonAsync<ErrorResponse>(_json))!
+            .Code.Should()
+            .Be("revision_conflict");
+        var current = await _client.GetFromJsonAsync<PlaybackSessionEnvelope>(
+            PlaybackContract.Get.Route,
+            _json
+        );
+        current!.Session!.Revision.Should().Be(2);
+        current.Session.Intent.SubtitleIndex.Should().BeNull();
+        current.Session.Intent.DesiredState.Should().Be(PlaybackDesiredStateDto.Paused);
     }
 
     private async Task<PlaybackSessionResponse> Start(double position = 0)
     {
         var response = await _client.PostAsJsonAsync(
             PlaybackContract.Start.Route,
-            new StartPlaybackSessionRequest("Films/movie.mp4", position, null)
+            new StartPlaybackSessionRequest("Films/movie.mp4", position, null),
+            _json
         );
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        return (await response.Content.ReadFromJsonAsync<PlaybackSessionResponse>())!;
+        return (await response.Content.ReadFromJsonAsync<PlaybackSessionResponse>(_json))!;
     }
 
     private static ReportPlaybackObservationRequest Observation(

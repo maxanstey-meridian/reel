@@ -1,15 +1,12 @@
-import { resolve } from "node:path";
-import { defineConfig } from "vitest/config";
+import { defineVitestConfig } from "@nuxt/test-utils/config";
 
-export default defineConfig({
-  resolve: {
-    alias: {
-      "~": resolve(__dirname, "app"),
-      "~~": resolve(__dirname),
-    },
-  },
+export default defineVitestConfig({
   test: {
-    globals: false,
-    exclude: ["app/tests/**", "e2e/**", "node_modules/**"],
+    environment: "nuxt",
+    exclude: ["e2e/**", "node_modules/**"],
+    setupFiles: ["tests/support/setup.ts"],
+    unstubGlobals: true,
+    // Node's own experimental localStorage would otherwise shadow the DOM one.
+    poolOptions: { forks: { execArgv: ["--no-experimental-webstorage"] } },
   },
 });

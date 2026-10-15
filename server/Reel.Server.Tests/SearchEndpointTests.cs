@@ -5,32 +5,28 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Reel.Server.Tests;
 
-public sealed class SearchEndpointTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
+public sealed class SearchEndpointTests : IAsyncLifetime
 {
-    private readonly string _mediaRoot = Path.Combine(Path.GetTempPath(), $"reel-search-endpoint-{Guid.NewGuid():N}");
+    private readonly TempMediaRoot _media = new();
+    private readonly WebApplicationFactory<Program> _factory;
     private readonly HttpClient _client;
 
-    public SearchEndpointTests(WebApplicationFactory<Program> factory)
+    public SearchEndpointTests()
     {
-        Directory.CreateDirectory(_mediaRoot);
-        File.WriteAllBytes(Path.Combine(_mediaRoot, "action-hero.mp4"), new byte[10]);
-        File.WriteAllBytes(Path.Combine(_mediaRoot, "comedy-show.mp4"), new byte[10]);
-
-        var configured = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Reel:MediaRoot", _mediaRoot);
-            builder.UseSetting("Reel:SecretKey", "REEL-TEST");
-            builder.UseSetting("Reel:Port", "8080");
-        });
-        _client = configured.CreateClient();
-        _client.DefaultRequestHeaders.Add("X-Secret-Key", "REEL-TEST");
+        _media.Write("action-hero.mp4");
+        _media.Write("comedy-show.mp4");
+        _factory = _media.CreateFactory();
+        _client = _factory.CreateAuthenticatedClient();
     }
 
-    public void Dispose()
+    public Task InitializeAsync() => _factory.WaitForStartupIndexAsync();
+
+    public Task DisposeAsync()
     {
         _client.Dispose();
-        if (Directory.Exists(_mediaRoot))
-            Directory.Delete(_mediaRoot, true);
+        _factory.Dispose();
+        _media.Dispose();
+        return Task.CompletedTask;
     }
 
     [Fact]

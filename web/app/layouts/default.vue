@@ -1,53 +1,65 @@
 <script setup lang="ts">
 import MiniPlayer from "~~/app/features/playback/components/MiniPlayer.vue";
-import { providePlayback } from "~~/app/features/playback/playback-context";
+import { providePlayback } from "~~/app/features/playback/ports/playback";
 import { usePlaybackSession } from "~~/app/features/playback/usePlaybackSession";
-import { navItems } from "~~/app/utils/navItems";
+import { ServerUnreachableError } from "~~/app/lib/api";
+import { provideFavourites } from "~~/app/ports/favourites";
+import { provideTags } from "~~/app/ports/tags";
 
+const { session, pending, error } = providePlayback(usePlaybackSession());
+provideFavourites(useFavourites());
+provideTags(useTags());
+// A lost pairing never shows here: the API sends the phone back to the connect page instead.
+const connectionProblem = computed(() => {
+  if (!error.value) {
+    return null;
+  }
+  if (error.value instanceof ServerUnreachableError) {
+    return {
+      title: "Can't reach Reel — retrying",
+      description: "Check the Studio is awake and this phone is on the home Wi-Fi.",
+    };
+  }
+  return { title: "Reel had a problem — retrying", description: error.value.message };
+});
 const route = useRoute();
-const router = useRouter();
-const { isConnected } = useConnection();
-if (!isConnected.value) {
-  await navigateTo("/connect", { replace: true });
-}
-const playback = isConnected.value ? providePlayback(usePlaybackSession()) : null;
-const session = computed(() => playback?.session.value ?? null);
-const pending = computed(() => playback?.pending.value ?? false);
-
+const navItems = [
+  { path: "/continue-watching", label: "Continue", icon: "i-lucide-play-circle" },
+  { path: "/library", label: "Library", icon: "i-lucide-film" },
+  { path: "/search", label: "Search", icon: "i-lucide-search" },
+  { path: "/favourites", label: "Favourites", icon: "i-lucide-heart" },
+  { path: "/settings", label: "Settings", icon: "i-lucide-settings" },
+];
 const isActive = (path: string) => route.path.startsWith(path);
 </script>
 
 <template>
-  <div v-if="playback" class="flex min-h-0 flex-1 flex-col bg-neutral-950 text-white">
-    <header class="shrink-0">
-      <div class="mx-auto w-full max-w-md flex justify-end px-4 pt-3">
-        <NuxtLink
-          to="/settings"
-          class="transition-colors"
-          :class="route.path === '/settings' ? 'text-white' : 'text-neutral-500 hover:text-white'"
-          data-testid="settings-link"
-          aria-label="Settings"
-        >
-          <UIcon name="i-lucide-settings" class="size-5" />
-        </NuxtLink>
-      </div>
-    </header>
-
-    <main class="flex-1 overflow-y-auto">
-      <div class="mx-auto w-full max-w-md p-4">
-        <slot />
-      </div>
+  <div
+    class="flex flex-1 flex-col bg-neutral-950 text-white pb-[calc(65px+env(safe-area-inset-bottom))]"
+  >
+    <main class="mx-auto w-full max-w-md flex-1 p-4">
+      <UAlert
+        v-if="connectionProblem"
+        class="mb-4"
+        color="warning"
+        variant="soft"
+        icon="i-lucide-wifi-off"
+        :title="connectionProblem.title"
+        :description="connectionProblem.description"
+      />
+      <slot />
     </main>
 
     <MiniPlayer
       v-if="session"
+      class="sticky bottom-[calc(65px+env(safe-area-inset-bottom))]"
       :session="session"
       :pending="pending"
-      @open="router.push('/now-playing')"
+      @open="navigateTo('/now-playing')"
     />
 
     <nav
-      class="shrink-0 border-t border-neutral-800 flex pb-[env(safe-area-inset-bottom)]"
+      class="fixed inset-x-0 bottom-0 z-50 border-t border-neutral-800 bg-neutral-950 flex pb-[env(safe-area-inset-bottom)]"
       data-testid="bottom-nav"
     >
       <NuxtLink

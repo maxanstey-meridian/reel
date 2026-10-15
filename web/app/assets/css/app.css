@@ -12,24 +12,18 @@
   letter-spacing: -0.025em;
 }
 
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* One card layout for browsing pages, including folder and episode grids. */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.media-grid > * {
+  width: 100%;
+  min-width: 0;
 }
 
-.content-canvas {
-  border-radius: 0.5rem;
-  border: 1px solid var(--ui-color-neutral-200);
-  background: var(--ui-bg);
-  padding: 1.5rem;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }

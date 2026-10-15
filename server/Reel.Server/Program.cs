@@ -1,72 +1,83 @@
-using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Reel.Server.Application;
-using Reel.Server.Application.Ports;
-using Reel.Server.Endpoints;
-using Reel.Server.Infrastructure.Configuration;
-using Reel.Server.Infrastructure.Ffmpeg;
-using Reel.Server.Infrastructure.FileSystem;
-using Reel.Server.Infrastructure.Persistence;
-using Makaretu.Dns;
-using Reel.Server.Middleware;
+using Microsoft.Extensions.Options;
+using Reel.Server;
+using Reel.Server.Library;
+using Reel.Server.Media;
+using Reel.Server.Pairing;
+using Reel.Server.Playback;
+using Reel.Server.Storage;
+using Reel.Server.Web;
+using Rivet;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var reelConfig =
-    builder.Configuration.GetSection("Reel").Get<ReelConfig>()
-    ?? throw new InvalidOperationException("Reel config section is missing from appsettings.json.");
+builder
+    .Services.AddOptions<ReelOptions>()
+    .BindConfiguration(ReelOptions.Section)
+    .ValidateDataAnnotations()
+    .Validate(
+        options => options.Compression == "off" || options.TranscodeHeight is not null,
+        "Reel:Compression must be \"off\" or an even video height such as \"720p\"."
+    )
+    .ValidateOnStart();
 
-if (string.IsNullOrWhiteSpace(reelConfig.MediaRoot))
-    throw new InvalidOperationException("Reel:MediaRoot is required in appsettings.json.");
-if (string.IsNullOrWhiteSpace(reelConfig.SecretKey))
-    throw new InvalidOperationException("Reel:SecretKey is required in appsettings.json.");
-if (reelConfig.Port <= 0)
-    throw new InvalidOperationException("Reel:Port must be a positive integer in appsettings.json.");
-
-builder.Services.AddSingleton(reelConfig);
-builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton<MediaPathResolver>();
+builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PlaybackSessionService>();
-builder.Services.AddSingleton<ILibraryScanner, FileSystemScanner>();
+builder.Services.AddSingleton<NextEpisodeService>();
+builder.Services.AddSingleton<FileSystemScanner>();
 builder.Services.AddSingleton<LibraryIndexReconciler>();
-builder.Services.AddSingleton<IProgressStore, SqliteProgressStore>();
-builder.Services.AddSingleton<IFavouritesStore, SqliteFavouritesStore>();
-builder.Services.AddSingleton<IMediaStore, SqliteMediaStore>();
-builder.Services.AddSingleton<IFileStreamer, FileSystemStreamer>();
-builder.Services.AddSingleton<ISubtitleDiscovery, FfprobeSubtitleDiscovery>();
-builder.Services.AddSingleton<ISubtitleExtractor, FfmpegSubtitleExtractor>();
-builder.Services.AddSingleton<ITrickplayGenerator, FfmpegTrickplayGenerator>();
-builder.Services.AddCors();
-builder.Services.AddExceptionHandler<DomainExceptionHandler>();
-builder.Services.AddProblemDetails();
+builder.Services.AddHostedService<StartupLibraryIndex>();
+builder.Services.AddHostedService<MdnsAdvertiser>();
+builder.Services.AddSingleton<SqliteMediaStore>();
+builder.Services.AddSingleton<SqliteProgressStore>();
+builder.Services.AddSingleton<SqliteFavouritesStore>();
+builder.Services.AddSingleton<FfprobeSubtitleDiscovery>();
+builder.Services.AddSingleton<FfmpegSubtitleExtractor>();
+builder.Services.AddSingleton<FfmpegTrickplayGenerator>();
+builder.Services.AddSingleton<FfmpegThumbnailGenerator>();
 
+// Undeclared failures: a Rivet contract violation keeps Rivet's envelope; anything else becomes a ProblemDetails 500.
+// Both carry the code and message every declared ErrorResponse has, and both are logged.
+builder.Services.AddExceptionHandler<RivetContractViolationHandler>();
+builder.Services.AddProblemDetails(options =>
+    options.CustomizeProblemDetails = context =>
+    {
+        var problem = context.ProblemDetails;
+        problem.Extensions["code"] = problem.Status >= 500 ? "server_error" : "invalid_request";
+        problem.Extensions["message"] = problem.Detail ?? problem.Title;
+    }
+);
+builder.Services.Configure<ExceptionHandlerOptions>(options =>
+    options.SuppressDiagnosticsCallback = _ => false
+);
+
+// Development otherwise throws on unreadable requests instead of answering 400 as production does.
+builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
 builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-});
+    options.SerializerOptions.Converters.Add(
+        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false)
+    )
+);
 
 var app = builder.Build();
 
-app.Services.GetRequiredService<DatabaseService>();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-}
+await app.Services.GetRequiredService<DatabaseService>().MigrateAsync();
 
 app.UseExceptionHandler();
 app.UseMiddleware<PrivateNetworkMiddleware>();
 app.UseMiddleware<SecretKeyMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.MapHealthEndpoints();
 app.MapConnectEndpoints();
 app.MapPairEndpoints();
 app.MapLibraryEndpoints();
+app.MapTagEndpoints();
+app.MapThumbnailEndpoints();
 app.MapStreamEndpoints();
 app.MapProgressEndpoints();
 app.MapFavouritesEndpoints();
@@ -74,43 +85,12 @@ app.MapSearchEndpoints();
 app.MapSubtitleEndpoints();
 app.MapTrickplayEndpoints();
 app.MapPlaybackSessionEndpoints();
+app.MapWebAppEndpoints();
 
-await app.Services.GetRequiredService<LibraryIndexReconciler>().ReconcileAsync(CancellationToken.None);
-
+var reel = app.Services.GetRequiredService<IOptions<ReelOptions>>().Value;
 app.Urls.Clear();
-app.Urls.Add($"http://0.0.0.0:{reelConfig.Port}");
+app.Urls.Add($"http://0.0.0.0:{reel.Port}");
 
-var localIp = GetLocalIpAddress() ?? "unknown (check network connection)";
-
-// Advertise via mDNS so TV app can auto-discover
-var mdns = new ServiceDiscovery();
-var serviceProfile = new ServiceProfile("Reel", "_reel._tcp", (ushort)reelConfig.Port);
-serviceProfile.AddProperty("key", reelConfig.SecretKey);
-serviceProfile.AddProperty("version", "1");
-mdns.Advertise(serviceProfile);
-app.Lifetime.ApplicationStopping.Register(() => mdns.Dispose());
-
-Console.WriteLine();
-Console.WriteLine("  Reel is running");
-Console.WriteLine($"  Address:    http://{localIp}:{reelConfig.Port}");
-Console.WriteLine($"  Secret key: {reelConfig.SecretKey}");
-Console.WriteLine();
-
-app.Run();
-
-static string? GetLocalIpAddress()
-{
-    return NetworkInterface
-        .GetAllNetworkInterfaces()
-        .Where(n =>
-            n.OperationalStatus == OperationalStatus.Up
-            && n.NetworkInterfaceType != NetworkInterfaceType.Loopback
-            && n.NetworkInterfaceType != NetworkInterfaceType.Tunnel
-        )
-        .SelectMany(n => n.GetIPProperties().UnicastAddresses)
-        .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a.Address))
-        .Select(a => a.Address.ToString())
-        .FirstOrDefault();
-}
+await app.RunAsync();
 
 public partial class Program { }

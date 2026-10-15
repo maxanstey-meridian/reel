@@ -2,169 +2,168 @@ package com.max.reel.data
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.put
+import io.ktor.client.request.parameter
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
+import io.ktor.http.URLBuilder
+import io.ktor.http.URLProtocol
+import io.ktor.http.appendPathSegments
 import io.ktor.http.contentType
-import io.ktor.http.encodeURLParameter
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-@Serializable
-private data class ConnectRequestBody(val key: String)
+private const val KEY_HEADER = "X-Secret-Key"
 
-@Serializable
-private data class ConnectResponseBody(
-    val status: String,
-    @SerialName("serverName") val serverName: String? = null,
-)
-
-sealed interface ConnectResult {
-    data class Success(val serverName: String) : ConnectResult
-    data object Unauthorized : ConnectResult
-    data class NetworkError(val message: String) : ConnectResult
-}
-
-class ApiClient(
-    private val prefs: PreferencesManager,
-    private val client: HttpClient = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true; coerceInputValues = true })
-        }
-        engine {
-            connectTimeout = 5_000
-            socketTimeout = 10_000
-        }
-        expectSuccess = false
-    },
-) : ReelApi {
-
-    private val baseUrl: String
-        get() = "http://${prefs.serverIp}:${prefs.serverPort}"
-
-    suspend fun connect(ip: String, port: String, key: String): ConnectResult {
-        return try {
-            val response = client.post("http://$ip:$port/api/connect") {
-                contentType(ContentType.Application.Json)
-                setBody(ConnectRequestBody(key))
+class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = Android.create()) {
+    private val client =
+        HttpClient(engine) {
+            install(HttpTimeout) { requestTimeoutMillis = 5_000 }
+            install(ContentNegotiation) {
+                json(
+                    Json {
+                        ignoreUnknownKeys = true
+                        coerceInputValues = true
+                    },
+                )
             }
-            when (response.status.value) {
-                in 200..299 -> {
-                    val body = response.body<ConnectResponseBody>()
-                    ConnectResult.Success(body.serverName ?: "")
-                }
-                401 -> ConnectResult.Unauthorized
-                else -> ConnectResult.NetworkError("Unexpected status: ${response.status.value}")
+            defaultRequest { contentType(ContentType.Application.Json) }
+            expectSuccess = false
+        }
+
+    suspend fun connect(server: DiscoveredServer): ApiResult<ConnectResponse> = request(pairedKey = null) {
+        client.request {
+            method = HttpMethod.Post
+            url { at(server.host, server.port, "api/connect") }
+            setBody(ConnectRequest(server.key))
+        }
+    }
+
+    suspend fun nextEpisode(path: String): ApiResult<NextEpisodeResponse> = paired("api/library/next") {
+        parameter("path", path)
+    }
+
+    suspend fun startPlayback(path: String): ApiResult<PlaybackSessionResponse> = paired("api/playback/session") {
+        method = HttpMethod.Post
+        setBody(StartPlaybackRequest(path))
+    }
+
+    suspend fun getPlaybackSession(): ApiResult<PlaybackSessionEnvelope> = paired("api/playback/session")
+
+    suspend fun updatePlaybackIntent(body: UpdatePlaybackIntentRequest): ApiResult<PlaybackSessionResponse> =
+        paired("api/playback/session/intent") {
+            method = HttpMethod.Put
+            setBody(body)
+        }
+
+    suspend fun reportObservation(body: ReportPlaybackObservationRequest): ApiResult<Unit> =
+        paired("api/playback/session/observation") {
+            method = HttpMethod.Put
+            setBody(body)
+        }
+
+    suspend fun updateProgress(path: String, positionSeconds: Double, durationSeconds: Double): ApiResult<Unit> =
+        paired("api/progress") {
+            method = HttpMethod.Post
+            setBody(ProgressRequest(path, positionSeconds, durationSeconds))
+        }
+
+    suspend fun fetchSubtitles(path: String): ApiResult<List<SubtitleTrack>> = paired("api/files/subtitles") {
+        parameter("path", path)
+    }
+
+    suspend fun streamInfo(path: String): ApiResult<StreamInfo> = paired("api/files/stream/info") {
+        parameter("path", path)
+    }
+
+    fun pairUrl(server: PairedServer): String = url(server, "pair", "key" to server.key)
+
+    // With a height the stream is a transcode starting at `start` that cannot range-seek; without, the file itself.
+    fun streamUrl(server: PairedServer, path: String, height: Int?, start: Double): String = if (height == null) {
+        url(server, "api/files/stream", "path" to path)
+    } else {
+        url(
+            server,
+            "api/files/stream",
+            "path" to path,
+            "height" to "$height",
+            "start" to "$start",
+        )
+    }
+
+    fun subtitleUrl(server: PairedServer, path: String, index: Int, start: Double): String = url(
+        server,
+        "api/files/subtitles/content",
+        "path" to path,
+        "index" to "$index",
+        "start" to "$start",
+    )
+
+    fun mediaHeaders(server: PairedServer): Map<String, String> = mapOf(KEY_HEADER to server.key)
+
+    private fun url(server: PairedServer, route: String, vararg query: Pair<String, String>): String = URLBuilder()
+        .apply {
+            at(server.host, server.port, route)
+            query.forEach { (name, value) -> parameters.append(name, value) }
+        }.buildString()
+
+    // IPv6 literals need brackets in a URL authority.
+    private fun URLBuilder.at(host: String, port: Int, route: String) {
+        protocol = URLProtocol.HTTP
+        this.host = if (':' in host) "[$host]" else host
+        this.port = port
+        appendPathSegments(route)
+    }
+
+    private suspend inline fun <reified T> paired(
+        route: String,
+        crossinline configure: HttpRequestBuilder.() -> Unit = {},
+    ): ApiResult<T> {
+        val server = pairing.server.value ?: return ApiResult.Failure("Not paired")
+        return request(pairedKey = server.key) {
+            client.request {
+                url { at(server.host, server.port, route) }
+                header(KEY_HEADER, server.key)
+                configure()
             }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            ConnectResult.NetworkError(e.message ?: "Unknown error")
         }
     }
 
-    override suspend fun getPlaybackSession(): ApiResult<PlaybackSessionEnvelope> = request {
-        client.get("$baseUrl/api/playback/session") { authenticate() }
-    }
-
-    override suspend fun updatePlaybackIntent(
-        request: UpdatePlaybackIntentRequest,
-    ): ApiResult<PlaybackSessionResponse> = request {
-        client.put("$baseUrl/api/playback/session/intent") {
-            authenticate()
-            contentType(ContentType.Application.Json)
-            setBody(request)
-        }
-    }
-
-    override suspend fun reportObservation(
-        request: ReportPlaybackObservationRequest,
-    ): ApiResult<PlaybackSessionResponse> = request {
-        client.put("$baseUrl/api/playback/session/observation") {
-            authenticate()
-            contentType(ContentType.Application.Json)
-            setBody(request)
-        }
-    }
-
-    override suspend fun updateProgress(
-        path: String,
-        positionSeconds: Double,
-        durationSeconds: Double,
-    ): ApiResult<Unit> {
-        return try {
-            val response = client.post("$baseUrl/api/progress") {
-                authenticate()
-                contentType(ContentType.Application.Json)
-                setBody(ProgressRequestBody(path, positionSeconds, durationSeconds))
-            }
-            if (response.status.value in 200..299) ApiResult.Success(Unit)
-            else ApiResult.Failure("Unexpected status: ${response.status.value}", response.status.value)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            ApiResult.Failure(e.message ?: "Network error")
-        }
-    }
-
-    override suspend fun fetchSubtitles(path: String): ApiResult<List<SubtitleTrack>> {
-        return try {
-            val response = client.get("$baseUrl/api/files/subtitles?path=${path.encodeURLParameter()}") {
-                authenticate()
-            }
-            if (response.status.value == 200) ApiResult.Success(response.body())
-            else ApiResult.Failure("Unexpected status: ${response.status.value}", response.status.value)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            ApiResult.Failure(e.message ?: "Network error")
-        }
-    }
-
-    override fun streamUrl(path: String): String =
-        "$baseUrl/api/files/stream?path=${path.encodeURLParameter()}"
-
-    override fun subtitleContentUrl(path: String, index: Int, format: String): String {
-        return "$baseUrl/api/files/subtitles/content?path=${path.encodeURLParameter()}&index=$index&format=$format"
-    }
-
-    fun close() {
-        client.close()
-    }
-
-    private fun io.ktor.client.request.HttpRequestBuilder.authenticate() {
-        header("X-Secret-Key", prefs.secretKey)
-    }
-
+    // Only 401 means the key is wrong, and it unpairs only if the TV still holds that key;
+    // 403 is the server's private-network check and must not cost the pairing.
     private suspend inline fun <reified T> request(
-        crossinline block: suspend () -> HttpResponse,
+        pairedKey: String?,
+        crossinline send: suspend () -> HttpResponse,
     ): ApiResult<T> = try {
-        val response = block()
-        if (response.status.value !in 200..299) {
-            val message = runCatching { response.body<PlaybackErrorResponse>().error }
-                .getOrElse { "Unexpected status: ${response.status.value}" }
-            ApiResult.Failure(message, response.status.value)
-        } else {
+        val response = send()
+        val status = response.status.value
+        if (status in 200..299) {
             ApiResult.Success(response.body())
+        } else {
+            if (status == 401 && pairedKey != null && pairing.server.value?.key == pairedKey) {
+                pairing.forget()
+            }
+            val fallback =
+                when (status) {
+                    403 -> "The server only accepts devices on its own network"
+                    else -> "Unexpected status: $status"
+                }
+            val body = runCatching { response.body<ErrorResponse>() }.getOrNull()
+            ApiResult.Failure(body?.message ?: fallback, status)
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
-        if (e is CancellationException) throw e
         ApiResult.Failure(e.message ?: "Network error")
     }
 }
-
-@Serializable
-private data class PlaybackErrorResponse(val error: String)
-
-@Serializable
-private data class ProgressRequestBody(
-    val relativePath: String,
-    val positionSeconds: Double,
-    val durationSeconds: Double,
-)

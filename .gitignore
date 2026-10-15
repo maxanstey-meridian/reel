@@ -4,3 +4,7 @@
 .orchrc.json
 .kotlin
 .idea
+
+dist/
+server/.claude/
+__pycache__/
