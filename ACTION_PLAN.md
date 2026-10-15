@@ -7,7 +7,7 @@ Implemented 2026-09-08. Source and built APK are in this workspace.
   TV seeking/screen-awake handling, library rescan, connection status, next episode,
   combined static UI/API publishing, Studio login-service installer and docs.
 - Verified on a local scratch copy (the workspace is an SMB share): `task check`
-  passes — 258 server tests, 65 web tests, 42 TV tests, web typecheck/lint/build.
+  passes — 260 server tests, 80 web tests, 61 TV tests, web typecheck/lint/build.
   Android debug APK builds. Every API route then had contract coverage; generated
   OpenAPI/types verify. Tag and thumbnail routes were added to the contract later;
   `task ci` (`web:rivet:verify`) is the current check. Static publishing succeeds.
