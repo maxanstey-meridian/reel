@@ -73,7 +73,7 @@ test.describe("Server-backed browser playback contract", () => {
     await page.getByText("Browser E2E Fixture", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Browser E2E Fixture" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await page.getByRole("button", { name: "Play on TV", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Now Playing" })).toBeVisible();
     const nowPlaying = page.locator("main");
     await expect(nowPlaying.getByText("TV disconnected", { exact: true })).toBeVisible();
@@ -82,14 +82,14 @@ test.describe("Server-backed browser playback contract", () => {
     expect(session.intent.relativePath).toBe(fixturePath);
     expect(session.intent.desiredState).toBe("playing");
     await reportObservation(request, session, "playing");
-    await expect(nowPlaying.getByText("playing", { exact: true })).toBeVisible();
+    await expect(nowPlaying.getByText("Playing on the TV", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Pause playback" }).click();
-    await expect(page.getByText("Waiting for TV to apply control…")).toBeVisible();
+    await expect(nowPlaying.getByText("Waiting for the TV…", { exact: true })).toBeVisible();
     await expect.poll(async () => (await getSession(request)).intent.desiredState).toBe("paused");
     session = await getSession(request);
     await reportObservation(request, session, "paused");
-    await expect(nowPlaying.getByText("paused", { exact: true })).toBeVisible();
+    await expect(nowPlaying.getByText("Paused", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Forward 10 seconds" }).click();
     await expect
@@ -125,12 +125,12 @@ test.describe("Server-backed browser playback contract", () => {
     await expect(page.getByRole("button", { name: "Stop playback" })).toBeEnabled();
 
     await page.getByRole("button", { name: "Stop playback" }).click();
-    await expect(page.getByText("Waiting for TV to apply control…")).toBeVisible();
+    await expect(nowPlaying.getByText("Waiting for the TV…", { exact: true })).toBeVisible();
     await expect.poll(async () => (await getSession(request)).intent.desiredState).toBe("stopped");
     session = await getSession(request);
     await reportObservation(request, session, "idle");
-    await expect(nowPlaying.getByText("idle", { exact: true })).toBeVisible();
-    await expect(nowPlaying.getByText("playing", { exact: true })).not.toBeVisible();
+    await expect(nowPlaying.getByText("Stopped", { exact: true })).toBeVisible();
+    await expect(nowPlaying.getByText("Playing on the TV", { exact: true })).not.toBeVisible();
   });
 });
 
@@ -156,7 +156,7 @@ test("saved progress offers resume after reload and pull-to-refresh reloads the 
   expect((await reload).ok()).toBe(true);
   await page.goto(`/detail/${encodeURIComponent(fixturePath)}`);
   await page.reload();
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Play on TV", exact: true }).click();
   await page.getByRole("button", { name: /Resume/ }).click();
   await expect
     .poll(async () => (await getSession(request)).intent.pendingSeek?.positionSeconds)

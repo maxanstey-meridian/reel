@@ -164,6 +164,29 @@ describe("usePlaybackSession", () => {
     expect(current!().session.value).toEqual(paused);
   });
 
+  it("does not let a slow control answer overwrite a later revision a poll already showed", async () => {
+    await mountWithSession(activeSession);
+    const command = deferred<object>();
+    answerCommands(INTENT, command.promise);
+    const later = {
+      ...activeSession,
+      revision: 3,
+      intent: { ...activeSession.intent, desiredState: "playing" },
+    };
+
+    const result = current!().updateIntent("paused");
+    answerPolls({ session: later });
+    await vi.advanceTimersByTimeAsync(1_000);
+    command.resolve({
+      ...activeSession,
+      revision: 2,
+      intent: { ...activeSession.intent, desiredState: "paused" },
+    });
+    await result;
+
+    expect(current!().session.value).toEqual(later);
+  });
+
   it("accepts a poll carrying a newer TV observation for the same revision", async () => {
     await mountWithSession(activeSession);
     const observed = { ...activeSession, observation: observation("playing") };

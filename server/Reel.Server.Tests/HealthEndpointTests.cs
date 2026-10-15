@@ -1,7 +1,8 @@
 using System.Net;
-using System.Text.Json;
+using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Common;
 
 namespace Reel.Server.Tests;
 
@@ -39,8 +40,8 @@ public sealed class HealthEndpointTests : IDisposable
         var response = await client.GetAsync("/api/health");
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        body.RootElement.GetProperty("status").GetString().Should().Be("unavailable");
-        body.RootElement.GetProperty("reason").GetString().Should().NotBeNullOrWhiteSpace();
+        (await response.Content.ReadFromJsonAsync<ErrorResponse>())
+            .Should()
+            .Be(new ErrorResponse("unavailable", "Media folder is not available."));
     }
 }

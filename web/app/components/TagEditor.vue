@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import type { FileNode } from "~~/app/lib/api";
 import { injectTags } from "~~/app/ports/tags";
 
-const props = defineProps<{ path: string }>();
-const { forPath, loaded, save } = injectTags();
-const tags = computed(() => forPath(props.path));
+const props = defineProps<{ path: string; type: FileNode["type"] }>();
+const { forPath, loaded, error: loadError, save } = injectTags();
+const tags = computed(() => forPath(props.path, props.type));
 const adding = ref(false);
 const draft = ref("");
 const busy = ref(false);
@@ -67,5 +68,6 @@ const update = async (values: string[]) => {
       </UButton>
     </form>
     <p v-if="error" role="alert" class="text-xs text-red-400">{{ error }}</p>
+    <p v-else-if="loadError" class="text-xs text-amber-400">Tags couldn't load</p>
   </div>
 </template>

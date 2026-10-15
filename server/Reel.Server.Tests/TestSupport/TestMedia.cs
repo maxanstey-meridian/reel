@@ -17,7 +17,12 @@ internal static class TestMedia
             path,
         ]);
 
-    public static void CreateVideoWithSubtitle(string path, string subtitleText) =>
+    /// <summary>Video with one SRT track; tags such as "language=eng" are set on that track.</summary>
+    public static void CreateVideoWithSubtitle(
+        string path,
+        string subtitleText,
+        params string[] subtitleTags
+    ) =>
         Ffmpeg(
             // csharpier-ignore
             [
@@ -37,6 +42,7 @@ internal static class TestMedia
                 "mpeg4",
                 "-c:s",
                 "srt",
+                .. subtitleTags.SelectMany(tag => new[] { "-metadata:s:s:0", tag }),
                 path,
             ],
             $"1\n00:00:00,500 --> 00:00:01,500\n{subtitleText}\n"

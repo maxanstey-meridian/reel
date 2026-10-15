@@ -1,8 +1,10 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Reel.Server.Common;
 using Reel.Server.Media;
 
 namespace Reel.Server.Tests;
@@ -16,6 +18,7 @@ public sealed class TrickplayEndpointTests : IDisposable
     public TrickplayEndpointTests()
     {
         _media.Write("Films/movie.mp4", new byte[100]);
+        _media.Write("Music/song.mp3", new byte[100]);
         _factory = _media.CreateFactory();
         _client = _factory.CreateAuthenticatedClient();
     }
@@ -31,10 +34,25 @@ public sealed class TrickplayEndpointTests : IDisposable
     [InlineData("/api/files/trickplay?path=../../etc/passwd")]
     [InlineData("/api/files/trickplay?path=Films/nonexistent.mp4")]
     [InlineData("/api/files/trickplay/sprite?path=../../etc/passwd")]
-    [InlineData("/api/files/trickplay/sprite?path=Films/movie.mp4&sheet=0")]
-    public async Task UnplayableOrUngeneratable_Returns404(string url)
+    public async Task Unplayable_Returns404(string url)
     {
         (await _client.GetAsync(url)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // The mp4 is not a real video, so ffmpeg cannot preview it; audio has nothing to preview.
+    [Theory]
+    [InlineData("/api/files/trickplay?path=Films/movie.mp4")]
+    [InlineData("/api/files/trickplay/sprite?path=Films/movie.mp4&sheet=0")]
+    [InlineData("/api/files/trickplay?path=Music/song.mp3")]
+    [InlineData("/api/files/trickplay/sprite?path=Music/song.mp3&sheet=0")]
+    public async Task Ungeneratable_Returns404Unavailable(string url)
+    {
+        var response = await _client.GetAsync(url);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await response.Content.ReadFromJsonAsync<ErrorResponse>())!
+            .Code.Should()
+            .Be("trickplay_unavailable");
     }
 
     [Theory]

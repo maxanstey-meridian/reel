@@ -4,7 +4,9 @@ using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using Reel.Server.Contracts.Reel;
+using Reel.Server.Media;
 
 namespace Reel.Server.Tests;
 
@@ -95,8 +97,9 @@ public sealed class StreamEndpointTests : IDisposable
             .Be(HttpStatusCode.NotFound);
     }
 
+    // The source is 36 pixels tall, so asking for 240 must not upscale it.
     [Fact]
-    public async Task WithHeight_TranscodesVideoToFragmentedMp4()
+    public async Task WithHeight_TranscodesVideoToFragmentedMp4NoTallerThanTheSource()
     {
         TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
         using var client = _direct.CreateAuthenticatedClient();
@@ -109,6 +112,14 @@ public sealed class StreamEndpointTests : IDisposable
         response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
         var body = await response.Content.ReadAsByteArrayAsync();
         Encoding.ASCII.GetString(body, 4, 4).Should().Be("ftyp");
+        var output = _media.Write("transcoded.mp4", body);
+        var probe = await Ffmpeg.ProbeAsync(
+            output,
+            "v:0",
+            NullLogger.Instance,
+            CancellationToken.None
+        );
+        probe!.Streams!.Single().Height.Should().Be(36);
     }
 
     // Transcoding maps the first video stream, so audio used to come back as an empty 200.

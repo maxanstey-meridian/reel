@@ -8,7 +8,7 @@ import { deferred, fakeServer } from "../support/fakeServer";
 // The default layout provides tags in the app; this stands in for it.
 const WithTags = defineComponent(() => {
   provideTags(useTags());
-  return () => h(TagEditor, { path: "a.mkv" });
+  return () => h(TagEditor, { path: "a.mkv", type: "file" });
 });
 
 describe("TagEditor", () => {
@@ -26,14 +26,14 @@ describe("TagEditor", () => {
     ).toBeUndefined();
   });
 
-  it("stays read-only when the saved tags can't be loaded", async () => {
+  it("says so and stays read-only when the saved tags can't be loaded", async () => {
     fakeServer({
       "GET /api/tags": () =>
         Response.json({ code: "unavailable", message: "Down" }, { status: 503 }),
     });
     const editor = await mountSuspended(WithTags);
 
-    await vi.waitFor(() => expect(editor.text()).toContain("#media"));
+    await vi.waitFor(() => expect(editor.text()).toContain("Tags couldn't load"));
     await flushPromises();
     expect(
       editor.get("button[aria-label='Delete tag media']").attributes("disabled"),

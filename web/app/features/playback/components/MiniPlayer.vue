@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { PlaybackSession } from "~~/app/lib/api";
+import { describeTvState } from "../logic/playback";
 
 const props = defineProps<{ session: PlaybackSession; pending: boolean }>();
 defineEmits<{ open: [] }>();
 
-const state = computed(() => props.session.observation?.state ?? "Waiting for TV");
+const status = computed(() => describeTvState(props.session, props.pending));
 </script>
 
 <template>
@@ -21,10 +22,10 @@ const state = computed(() => props.session.observation?.state ?? "Waiting for TV
     <span class="min-w-0 flex-1">
       <span class="block truncate text-sm font-medium">{{ session.intent.title }}</span>
       <span
-        class="block text-xs capitalize"
+        class="block text-xs"
         :class="session.tvConnected ? 'text-neutral-400' : 'text-amber-400'"
       >
-        {{ session.tvConnected ? state : "TV disconnected" }}{{ pending ? " · Pending" : "" }}
+        {{ status }}
       </span>
     </span>
     <UIcon name="i-lucide-chevron-up" class="size-5 text-neutral-500" />

@@ -1,18 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
   clampPosition,
+  continueWatching,
+  describeTvState,
+  formatDuration,
   formatPlaybackTime,
   hasIncompleteProgress,
   isPlaybackPending,
   progressFraction,
+  type TvState,
 } from "~~/app/features/playback/logic/playback";
-import type { PlaybackSession } from "~~/app/lib/api";
+import type { FileNode, PlaybackSession } from "~~/app/lib/api";
+
+type SeekRequest = NonNullable<PlaybackSession["intent"]["pendingSeek"]>;
 
 const session = (
   appliedRevision: number,
-  appliedSeekId: number | null = null,
-  observationState: NonNullable<PlaybackSession["observation"]>["state"] = "paused",
+  observationState: TvState = "paused",
   desiredState: PlaybackSession["intent"]["desiredState"] = "paused",
+  pendingSeek: SeekRequest | null = null,
 ): PlaybackSession => ({
   sessionId: "6767fab3-64de-47de-ae53-b0e2981646c0",
   revision: 3,
@@ -23,12 +29,12 @@ const session = (
     relativePath: "Films/Test.mp4",
     title: "Test",
     desiredState,
-    pendingSeek: { seekId: 7, positionSeconds: 42, introducedRevision: 3 },
+    pendingSeek,
   },
   observation: {
     observationSequence: 1,
     appliedRevision,
-    appliedSeekId,
+    appliedSeekId: 6,
     state: observationState,
     relativePath: "Films/Test.mp4",
     positionSeconds: 42,
@@ -59,23 +65,66 @@ describe("playback logic", () => {
   });
 
   it("keeps accepted revisions and seeks pending until TV observation applies them", () => {
-    expect(isPlaybackPending(session(2, 6))).toBe(true);
-    expect(isPlaybackPending(session(3, 6))).toBe(true);
-    expect(isPlaybackPending(session(3, 7))).toBe(false);
+    const seek = { seekId: 7, positionSeconds: 42, introducedRevision: 3 };
+    expect(isPlaybackPending(session(2))).toBe(true);
+    // The server holds a seek until the TV reports applying it, then clears it.
+    expect(isPlaybackPending(session(3, "paused", "paused", seek))).toBe(true);
+    expect(isPlaybackPending(session(3))).toBe(false);
   });
 
   it("requires the observed stable state to match the desired state", () => {
-    expect(isPlaybackPending(session(3, 7, "playing", "playing"))).toBe(false);
-    expect(isPlaybackPending(session(3, 7, "paused", "playing"))).toBe(true);
-    expect(isPlaybackPending(session(3, 7, "paused", "paused"))).toBe(false);
-    expect(isPlaybackPending(session(3, 7, "idle", "stopped"))).toBe(false);
-    expect(isPlaybackPending(session(3, 7, "playing", "stopped"))).toBe(true);
+    expect(isPlaybackPending(session(3, "playing", "playing"))).toBe(false);
+    expect(isPlaybackPending(session(3, "paused", "playing"))).toBe(true);
+    expect(isPlaybackPending(session(3, "paused", "paused"))).toBe(false);
+    expect(isPlaybackPending(session(3, "idle", "stopped"))).toBe(false);
+    expect(isPlaybackPending(session(3, "playing", "stopped"))).toBe(true);
+  });
+
+  it("describes what the TV reported in words, and waits while a control is pending", () => {
+    expect(describeTvState(session(3, "playing", "playing"), false)).toBe("Playing on the TV");
+    expect(describeTvState(session(3, "idle", "stopped"), false)).toBe("Stopped");
+    expect(describeTvState(session(3, "error", "playing"), false)).toBe("Couldn't play on the TV");
+    expect(describeTvState(session(3, "playing", "paused"), true)).toBe("Waiting for the TV…");
+    expect(describeTvState({ tvConnected: true, observation: null }, false)).toBe(
+      "Waiting for the TV…",
+    );
+    expect(describeTvState({ ...session(3), tvConnected: false }, false)).toBe("TV disconnected");
+  });
+
+  it("formats a running time in hours and minutes", () => {
+    expect(formatDuration(59)).toBe("0m");
+    expect(formatDuration(25 * 60)).toBe("25m");
+    expect(formatDuration(2 * 3600 + 5 * 60)).toBe("2h 5m");
+  });
+
+  it("continues unfinished files, by path when the library doesn't have them", () => {
+    const tree: FileNode = {
+      name: "",
+      type: "directory",
+      relativePath: "",
+      children: [{ name: "a.mkv", type: "file", relativePath: "Films/a.mkv", parsedTitle: "A" }],
+    };
+    const entry = (relativePath: string, positionSeconds: number) => ({
+      relativePath,
+      positionSeconds,
+      durationSeconds: 100,
+    });
+
+    const items = continueWatching(
+      [entry("Films/a.mkv", 50), entry("Films/done.mkv", 99), entry("Moved/b.mkv", 25)],
+      tree,
+    );
+
+    expect(items).toEqual([
+      { node: expect.objectContaining({ parsedTitle: "A" }), progress: 0.5 },
+      { node: { name: "b.mkv", type: "file", relativePath: "Moved/b.mkv" }, progress: 0.25 },
+    ]);
   });
 
   it("renders applied transitional and terminal TV outcomes instead of calling them pending", () => {
-    expect(isPlaybackPending(session(3, 7, "loading", "playing"))).toBe(false);
-    expect(isPlaybackPending(session(3, 7, "buffering", "playing"))).toBe(false);
-    expect(isPlaybackPending(session(3, 7, "error", "playing"))).toBe(false);
-    expect(isPlaybackPending(session(3, 7, "ended", "playing"))).toBe(false);
+    expect(isPlaybackPending(session(3, "loading", "playing"))).toBe(false);
+    expect(isPlaybackPending(session(3, "buffering", "playing"))).toBe(false);
+    expect(isPlaybackPending(session(3, "error", "playing"))).toBe(false);
+    expect(isPlaybackPending(session(3, "ended", "playing"))).toBe(false);
   });
 });

@@ -55,7 +55,7 @@ fun ReadyScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Waiting for a playback session",
+                text = "Pick something to watch on your phone",
                 fontSize = 18.sp,
                 color = ReelColors.textSecondary,
             )

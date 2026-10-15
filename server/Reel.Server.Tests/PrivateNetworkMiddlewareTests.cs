@@ -52,4 +52,21 @@ public sealed class PrivateNetworkMiddlewareTests
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
     }
+
+    [Fact]
+    public async Task UnknownPeerAddress_ReturnsForbidden()
+    {
+        var called = false;
+        var middleware = new PrivateNetworkMiddleware(_ =>
+        {
+            called = true;
+            return Task.CompletedTask;
+        });
+        var context = new DefaultHttpContext();
+
+        await middleware.InvokeAsync(context);
+
+        called.Should().BeFalse();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+    }
 }

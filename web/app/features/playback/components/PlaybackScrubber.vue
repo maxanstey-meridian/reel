@@ -69,7 +69,7 @@ const cancel = (): void => {
     />
     <div class="flex justify-between text-xs tabular-nums text-neutral-500">
       <span>{{ formatPlaybackTime(displayedPosition) }}</span>
-      <span>−{{ formatPlaybackTime(Math.max(0, duration - displayedPosition)) }} remaining</span>
+      <span>{{ formatPlaybackTime(Math.max(0, duration - displayedPosition)) }} remaining</span>
     </div>
   </div>
 </template>

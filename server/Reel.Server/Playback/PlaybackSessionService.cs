@@ -33,7 +33,6 @@ public sealed class PlaybackSessionService(
     private static readonly TimeSpan NonterminalExpiry = TimeSpan.FromMinutes(30);
 
     private readonly Lock _lock = new();
-    private long _lastSeekId;
     private Session? _session;
 
     public PlaybackSessionOutcome Start(StartPlaybackSessionRequest request)
@@ -71,13 +70,13 @@ public sealed class PlaybackSessionService(
                 request.SubtitleIndex,
                 pendingSeek
             ),
-            null
+            null,
+            pendingSeek?.SeekId ?? 0
         );
 
         lock (_lock)
         {
             _session = session;
-            _lastSeekId = pendingSeek?.SeekId ?? 0;
             return Success(session);
         }
     }
@@ -126,6 +125,7 @@ public sealed class PlaybackSessionService(
             }
 
             var pendingSeek = _session.Intent.PendingSeek;
+            var lastSeekId = _session.LastSeekId;
             if (request.SeekPositionSeconds is { } requestedSeek)
             {
                 var duration = _session.Observation?.DurationSeconds;
@@ -133,7 +133,7 @@ public sealed class PlaybackSessionService(
                     ? Math.Min(requestedSeek, duration.Value)
                     : requestedSeek;
                 pendingSeek = new SeekRequestResponse(
-                    ++_lastSeekId,
+                    ++lastSeekId,
                     position,
                     _session.Revision + 1
                 );
@@ -142,6 +142,7 @@ public sealed class PlaybackSessionService(
             _session = _session with
             {
                 Revision = _session.Revision + 1,
+                LastSeekId = lastSeekId,
                 UpdatedAtUtc = now,
                 Intent = _session.Intent with
                 {
@@ -217,7 +218,10 @@ public sealed class PlaybackSessionService(
                 return Conflict("Applied revision cannot regress.");
             }
 
-            if (request.AppliedSeekId is { } acknowledgedSeekId && acknowledgedSeekId > _lastSeekId)
+            if (
+                request.AppliedSeekId is { } acknowledgedSeekId
+                && acknowledgedSeekId > _session.LastSeekId
+            )
             {
                 return Invalid("Applied seek ID cannot exceed the latest allocated seek ID.");
             }
@@ -362,6 +366,7 @@ public sealed class PlaybackSessionService(
         DateTimeOffset CreatedAtUtc,
         DateTimeOffset UpdatedAtUtc,
         PlaybackIntentResponse Intent,
-        PlaybackObservationResponse? Observation
+        PlaybackObservationResponse? Observation,
+        long LastSeekId
     );
 }

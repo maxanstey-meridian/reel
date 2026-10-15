@@ -1,4 +1,6 @@
+using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -26,12 +28,15 @@ internal static class ReelTestHost
             builder.UseSetting("Reel:MediaRoot", mediaRoot);
             builder.UseSetting("Reel:SecretKey", secretKey);
             builder.UseSetting("Reel:Port", "8080");
-            // Tests must never advertise themselves to TVs on the network.
+            builder.UseSetting("Reel:WebUrl", "http://127.0.0.1:3000");
             builder.ConfigureTestServices(services =>
+            {
+                // Tests must never advertise themselves to TVs on the network.
                 services.Remove(
                     services.Single(service => service.ImplementationType == typeof(MdnsAdvertiser))
-                )
-            );
+                );
+                services.AddSingleton<IStartupFilter, LoopbackPeer>();
+            });
             configure?.Invoke(builder);
         });
 
@@ -52,5 +57,22 @@ internal static class ReelTestHost
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Secret-Key", SecretKey);
         return client;
+    }
+
+    // The test server has no network peer, which PrivateNetworkMiddleware refuses; act as a client on this machine.
+    private sealed class LoopbackPeer : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
+            app =>
+            {
+                app.Use(
+                    (context, nextMiddleware) =>
+                    {
+                        context.Connection.RemoteIpAddress ??= IPAddress.Loopback;
+                        return nextMiddleware(context);
+                    }
+                );
+                next(app);
+            };
     }
 }

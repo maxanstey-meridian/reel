@@ -12,7 +12,7 @@ export const useRescan = (reload: () => Promise<void>) => {
     } catch (caught) {
       toast.add({
         title: "Couldn't look for new files",
-        description: (caught as Error).message,
+        description: caught instanceof Error ? caught.message : "The scan didn't finish.",
         color: "error",
       });
     } finally {

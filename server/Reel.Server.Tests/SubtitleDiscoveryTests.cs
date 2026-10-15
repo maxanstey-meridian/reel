@@ -36,9 +36,9 @@ public sealed class SubtitleDiscoveryTests : IDisposable
         tracks
             .Should()
             .Equal(
-                new Subtitle(0, "en", "en", "ass", "Films/movie.en.ass"),
-                new Subtitle(1, "fr", "fr", "vtt", "Films/movie.fr.vtt"),
-                new Subtitle(2, "movie.srt", "", "srt", "Films/movie.srt")
+                new Subtitle(0, "External", "en", "ass", "Films/movie.en.ass"),
+                new Subtitle(1, "External", "fr", "vtt", "Films/movie.fr.vtt"),
+                new Subtitle(2, "External", "", "srt", "Films/movie.srt")
             );
     }
 
@@ -54,8 +54,29 @@ public sealed class SubtitleDiscoveryTests : IDisposable
         tracks
             .Should()
             .Equal(
-                new Subtitle(0, "", "", "subrip", null),
-                new Subtitle(1, "real.srt", "", "srt", "Films/real.srt")
+                new Subtitle(0, "Track 1", "", "subrip", null),
+                new Subtitle(1, "External", "", "srt", "Films/real.srt")
             );
+    }
+
+    [Theory]
+    [InlineData("Commentary", "eng", "Commentary")]
+    [InlineData(null, "eng", "eng")]
+    public async Task EmbeddedTrackLabel_IsItsTitleElseItsLanguage(
+        string? title,
+        string language,
+        string label
+    )
+    {
+        var movie = _media.Write("Films/tagged.mkv");
+        TestMedia.CreateVideoWithSubtitle(
+            movie,
+            "Embedded",
+            [$"language={language}", .. title is null ? Array.Empty<string>() : [$"title={title}"]]
+        );
+
+        var tracks = await _discovery.DiscoverAsync(movie, CancellationToken.None);
+
+        tracks.Should().ContainSingle().Which.Label.Should().Be(label);
     }
 }

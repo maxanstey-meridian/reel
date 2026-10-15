@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { countFilesRecursive, mediaLink } from "~~/app/features/library/logic/library";
+import {
+  countFilesRecursive,
+  formatFileSize,
+  mediaLink,
+} from "~~/app/features/library/logic/library";
 import type { FileNode } from "~~/app/lib/api";
 import { injectFavourites } from "~~/app/ports/favourites";
 import { injectTags } from "~~/app/ports/tags";
@@ -16,19 +20,6 @@ const favourited = computed(() => isFavourite(props.node.relativePath));
 const fileCount = computed(() =>
   props.node.type === "directory" ? countFilesRecursive(props.node) : null,
 );
-
-const formatSize = (bytes: number): string => {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(0)} KB`;
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-};
 </script>
 
 <template>
@@ -48,15 +39,17 @@ const formatSize = (bytes: number): string => {
         <div class="h-full bg-green-500" :style="{ width: `${Math.min(progress * 100, 100)}%` }" />
       </div>
 
-      <button
+      <UButton
         v-if="node.type === 'file'"
+        icon="i-lucide-heart"
+        variant="ghost"
+        size="lg"
+        :color="favourited ? 'error' : 'neutral'"
         :aria-label="favourited ? 'Remove from favourites' : 'Add to favourites'"
-        class="absolute top-1 right-1 inline-flex size-9 items-center justify-center rounded-full transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
-        :class="favourited ? 'text-red-500' : 'text-neutral-400 hover:text-red-400'"
+        :ui="{ leadingIcon: favourited ? 'fill-current' : '' }"
+        class="absolute top-1 right-1 rounded-full"
         @click.prevent.stop="toggle(node.relativePath)"
-      >
-        <UIcon name="i-lucide-heart" class="size-5" :class="favourited ? 'fill-current' : ''" />
-      </button>
+      />
     </div>
 
     <div class="p-2 flex flex-1 flex-col gap-1 min-h-[72px]">
@@ -71,7 +64,7 @@ const formatSize = (bytes: number): string => {
       </span>
 
       <div class="flex flex-wrap gap-1 text-[10px] text-neutral-400">
-        <span v-for="tag in tagsForPath(node.relativePath)" :key="tag">#{{ tag }}</span>
+        <span v-for="tag in tagsForPath(node.relativePath, node.type)" :key="tag">#{{ tag }}</span>
       </div>
       <div class="flex flex-wrap items-center gap-1 mt-auto">
         <UBadge
@@ -83,7 +76,7 @@ const formatSize = (bytes: number): string => {
           {{ node.extension }}
         </UBadge>
         <span v-if="node.sizeBytes && node.type === 'file'" class="text-[10px] text-neutral-500">
-          {{ formatSize(node.sizeBytes) }}
+          {{ formatFileSize(node.sizeBytes) }}
         </span>
       </div>
     </div>

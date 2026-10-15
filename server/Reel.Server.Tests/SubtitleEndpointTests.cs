@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Common;
 using Reel.Server.Contracts.Reel;
 
 namespace Reel.Server.Tests;
@@ -50,10 +51,17 @@ public sealed class SubtitleEndpointTests : IDisposable
         tracks
             .Should()
             .BeEquivalentTo([
-                new SubtitleTrack(0, "en", "en", "vtt", SubtitleSource.External, ImageBased: false),
+                new SubtitleTrack(
+                    0,
+                    "External",
+                    "en",
+                    "vtt",
+                    SubtitleSource.External,
+                    ImageBased: false
+                ),
                 new SubtitleTrack(
                     1,
-                    "movie.srt",
+                    "External",
                     "",
                     "srt",
                     SubtitleSource.External,
@@ -95,6 +103,20 @@ public sealed class SubtitleEndpointTests : IDisposable
         (await _client.GetAsync($"{url}&token={ReelTestHost.SecretKey}"))
             .StatusCode.Should()
             .Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ServeContent_UnconvertibleTrack_Returns404Unavailable()
+    {
+        _media.Write("Films/movie.zz.srt", []);
+        var track = (await ListAsync()).Single(t => t.Language == "zz");
+
+        var response = await ContentAsync($"path=Films/movie.mp4&index={track.Index}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await response.Content.ReadFromJsonAsync<ErrorResponse>())!
+            .Code.Should()
+            .Be("subtitle_unavailable");
     }
 
     [Theory]

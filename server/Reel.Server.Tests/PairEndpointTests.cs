@@ -11,27 +11,11 @@ public sealed class PairEndpointTests : IDisposable
     public void Dispose() => _media.Dispose();
 
     [Fact]
-    public async Task Pair_WithoutWebUrlReturnsServiceUnavailableWithoutRedirect()
-    {
-        using var factory = CreateFactory();
-        using var client = factory.CreateClient(
-            new WebApplicationFactoryClientOptions
-            {
-                BaseAddress = new Uri("http://192.168.1.20:8080"),
-                AllowAutoRedirect = false,
-            }
-        );
-
-        var response = await client.GetAsync("/pair?key=REEL-TEST");
-
-        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
-        response.Headers.Location.Should().BeNull();
-    }
-
-    [Fact]
     public async Task Pair_WithConfiguredUrlsDoesNotUseIncomingHost()
     {
-        using var factory = CreateFactory("https://reel.example/app/");
+        using var factory = _media.CreateFactory(builder =>
+            builder.UseSetting("Reel:WebUrl", "https://reel.example/app/")
+        );
         using var client = factory.CreateClient(
             new WebApplicationFactoryClientOptions
             {
@@ -52,7 +36,7 @@ public sealed class PairEndpointTests : IDisposable
     [Fact]
     public async Task Pair_WithInvalidKeyReturnsUnauthorized()
     {
-        using var factory = CreateFactory();
+        using var factory = _media.CreateFactory();
         using var client = factory.CreateClient(
             new WebApplicationFactoryClientOptions { AllowAutoRedirect = false }
         );
@@ -63,7 +47,4 @@ public sealed class PairEndpointTests : IDisposable
         response.Headers.Location.Should().BeNull();
         (await response.Content.ReadAsStringAsync()).Should().Contain("Scan the QR code");
     }
-
-    private WebApplicationFactory<Program> CreateFactory(string? webUrl = null) =>
-        _media.CreateFactory(builder => builder.UseSetting("Reel:WebUrl", webUrl ?? ""));
 }

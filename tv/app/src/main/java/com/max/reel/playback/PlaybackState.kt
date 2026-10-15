@@ -16,7 +16,8 @@ data class PlaybackUiState(
     val subtitleIndex: Int? = null,
     val error: PlaybackError? = null,
     val controlPending: Boolean = false,
-    val controlError: String? = null,
+    // Shown briefly over the player: a failed control or a subtitle that can't be shown.
+    val notice: String? = null,
     val seekDestinationSeconds: Double? = null,
     val nextEpisode: NextEpisodeResponse? = null,
 )

@@ -113,8 +113,8 @@ public sealed class SqliteMediaStore(DatabaseService db, TimeProvider time)
                 SELECT {Columns}
                 FROM media
                 WHERE (@tagsOnly = 0 AND (
-                    parsed_title LIKE '%' || @like || '%' ESCAPE '\' COLLATE NOCASE
-                    OR relative_path LIKE '%' || @like || '%' ESCAPE '\' COLLATE NOCASE))
+                    parsed_title LIKE '%' || @like || '%' ESCAPE '\'
+                    OR relative_path LIKE '%' || @like || '%' ESCAPE '\'))
                    OR EXISTS (
                        SELECT 1 FROM item_tags t, json_each(t.tags_json) tag
                        WHERE (t.relative_path = media.relative_path

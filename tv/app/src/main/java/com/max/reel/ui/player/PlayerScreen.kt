@@ -59,6 +59,7 @@ fun PlayerScreen(viewModel: PlaybackViewModel) {
     val ended = state.actualState == Ended
     var showFeedback by remember { mutableStateOf(false) }
     var showSeek by remember { mutableStateOf(false) }
+    var showNotice by remember { mutableStateOf(false) }
 
     // Paused stays awake too, so the Fire TV screensaver doesn't cover a paused video.
     val awake =
@@ -79,6 +80,11 @@ fun PlayerScreen(viewModel: PlaybackViewModel) {
         showSeek = state.seekDestinationSeconds != null
         delay(1_500)
         showSeek = false
+    }
+    LaunchedEffect(state.notice) {
+        showNotice = state.notice != null
+        delay(4_000)
+        showNotice = false
     }
     BackHandler { viewModel.stopFromTv() }
 
@@ -173,9 +179,9 @@ fun PlayerScreen(viewModel: PlaybackViewModel) {
         state.error?.let { error ->
             ErrorOverlay(message = error.message, onBack = viewModel::stopFromTv)
         }
-        state.controlError?.let { message ->
+        state.notice?.takeIf { showNotice }?.let { notice ->
             Text(
-                text = "Control failed: $message",
+                text = notice,
                 color = ReelColors.disconnected,
                 fontSize = 16.sp,
                 modifier =

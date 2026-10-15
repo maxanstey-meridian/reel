@@ -75,7 +75,7 @@ fun DisconnectedOverlay(visible: Boolean) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Check server connection",
+                    text = "Can't reach the Reel server",
                     fontSize = 16.sp,
                     color = ReelColors.textSecondary,
                 )

@@ -1,7 +1,7 @@
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { readBrowseCache } from "~~/app/lib/browse-cache";
-import { deferred, fakeServer } from "../support/fakeServer";
+import { deferred, fakeServer, unreachable } from "../support/fakeServer";
 
 const saved = { relativePath: "Films/a.mp4", addedAt: "2026-01-01T00:00:00Z" };
 
@@ -38,7 +38,7 @@ describe("useFavourites", () => {
   });
 
   it("does not save the empty list shown when loading fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Load failed")));
+    fakeServer({ "GET /api/favourites": unreachable });
     const { error } = useFavourites();
 
     await vi.waitFor(() => expect(error.value).toBeTruthy());

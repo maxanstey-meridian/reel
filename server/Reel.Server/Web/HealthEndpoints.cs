@@ -1,3 +1,4 @@
+using Reel.Server.Common;
 using Reel.Server.Contracts.Reel;
 using Reel.Server.Storage;
 using Rivet;
@@ -12,13 +13,13 @@ public static class HealthEndpoints
     {
         endpoints.MapGet(
             ReelContract.Health.Route,
-            async (DatabaseService database, MediaPathResolver paths) =>
+            async (DatabaseService database, MediaPathResolver paths, ILogger<Program> logger) =>
             {
-                var problem = await FindProblemAsync(database, paths);
+                var problem = await FindProblemAsync(database, paths, logger);
                 return problem is null
                     ? ReelContract.Health.Success(new HealthResponse("healthy")).ToResult()
                     : ReelContract
-                        .Health.Error(503, new HealthUnavailableResponse("unavailable", problem))
+                        .Health.Error(503, new ErrorResponse("unavailable", problem))
                         .ToResult();
             }
         );
@@ -29,7 +30,8 @@ public static class HealthEndpoints
     // Both checks can block indefinitely on a hung volume, so they run off the request thread.
     private static async Task<string?> FindProblemAsync(
         DatabaseService database,
-        MediaPathResolver paths
+        MediaPathResolver paths,
+        ILogger logger
     )
     {
         try
@@ -50,8 +52,9 @@ public static class HealthEndpoints
         {
             return "Media folder or database did not respond in time.";
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "Health check could not reach the database");
             return "Database is not available.";
         }
     }

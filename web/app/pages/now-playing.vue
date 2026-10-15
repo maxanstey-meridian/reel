@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import PlaybackScrubber from "~~/app/features/playback/components/PlaybackScrubber.vue";
-import { clampPosition } from "~~/app/features/playback/logic/playback";
+import { clampPosition, describeTvState } from "~~/app/features/playback/logic/playback";
 import { trickplayFrameAt, type TrickplayFrame } from "~~/app/features/playback/logic/trickplay";
 import { injectPlayback } from "~~/app/features/playback/ports/playback";
-import { client, trickplaySpriteUrl, unwrap } from "~~/app/lib/api";
+import { useNowPlayingDetails } from "~~/app/features/playback/useNowPlayingDetails";
+import { trickplaySpriteUrl } from "~~/app/lib/api";
 
 const router = useRouter();
 const playback = injectPlayback();
@@ -12,46 +13,13 @@ const path = computed(() => session.value?.intent.relativePath);
 const completedPath = computed(() => completed.value?.relativePath);
 const preview = ref<TrickplayFrame | null>(null);
 
-const { data: nextEpisode } = useAsyncData(
-  () => `next-episode:${completedPath.value}`,
-  async (_nuxtApp, { signal }) =>
-    completedPath.value
-      ? unwrap(
-          await client.GET("/api/library/next", {
-            params: { query: { path: completedPath.value } },
-            signal,
-          }),
-        )
-      : null,
-);
-const { data: subtitles, status: subtitlesStatus } = useAsyncData(
-  () => `subtitles:${path.value}`,
-  async (_nuxtApp, { signal }) =>
-    path.value
-      ? unwrap(
-          await client.GET("/api/files/subtitles", {
-            params: { query: { path: path.value } },
-            signal,
-          }),
-        )
-      : [],
-  { default: () => [] },
-);
-const { data: metadata, error: metadataError } = useAsyncData(
-  () => `trickplay:${path.value}`,
-  async (_nuxtApp, { signal }) =>
-    path.value
-      ? unwrap(
-          await client.GET("/api/files/trickplay", {
-            params: { query: { path: path.value } },
-            signal,
-          }),
-        )
-      : null,
+const { nextEpisode, subtitles, subtitlesStatus, trickplay, trickplayError } = useNowPlayingDetails(
+  path,
+  completedPath,
 );
 
 const observation = computed(() => session.value?.observation ?? null);
-const actualState = computed(() => observation.value?.state ?? "loading");
+const actualState = computed(() => observation.value?.state);
 const position = computed(() => observation.value?.positionSeconds ?? 0);
 const duration = computed(() => observation.value?.durationSeconds ?? 0);
 const requestedPosition = computed(
@@ -64,8 +32,8 @@ const spriteUrl = computed(() =>
 );
 
 const showPreview = (target: number): void => {
-  if (metadata.value) {
-    preview.value = trickplayFrameAt(target, duration.value, metadata.value);
+  if (trickplay.value) {
+    preview.value = trickplayFrameAt(target, duration.value, trickplay.value);
   }
 };
 
@@ -77,10 +45,31 @@ const seek = (target: number): void => {
 const skip = (seconds: number): void =>
   seek(clampPosition(requestedPosition.value + seconds, duration.value));
 
-const selectSubtitle = (event: Event): void => {
-  const value = Number((event.target as HTMLSelectElement).value);
-  void playback.updateIntent(desiredState.value, { subtitleIndex: value === -1 ? null : value });
-};
+const OFF = "off";
+const subtitleTrack = computed({
+  get: () => observation.value?.subtitleIndex ?? OFF,
+  set: (track: number | typeof OFF) =>
+    void playback.updateIntent(desiredState.value, {
+      subtitleIndex: track === OFF ? null : track,
+    }),
+});
+const subtitleChoices = computed(() => [
+  {
+    value: OFF,
+    label:
+      subtitlesStatus.value === "error"
+        ? "Could not load subtitles"
+        : subtitlesStatus.value !== "success"
+          ? "Loading subtitles…"
+          : subtitles.value.length === 0
+            ? "No subtitles available"
+            : "Off",
+  },
+  ...subtitles.value.map((track) => ({
+    value: track.index,
+    label: track.language ? `${track.label} (${track.language})` : track.label,
+  })),
+]);
 </script>
 
 <template>
@@ -129,23 +118,22 @@ const selectSubtitle = (event: Event): void => {
         <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 px-4 pb-4 pt-10">
           <h2 class="truncate text-lg font-semibold">{{ session.intent.title }}</h2>
           <p
-            class="text-sm capitalize"
+            aria-live="polite"
+            class="text-sm"
             :class="session.tvConnected ? 'text-neutral-300' : 'text-amber-400'"
           >
-            {{ session.tvConnected ? actualState : "TV disconnected" }}
+            {{ describeTvState(session, pending) }}
           </p>
         </div>
       </div>
 
-      <div aria-live="polite" class="min-h-5 text-center text-sm text-neutral-400">
-        <span v-if="pending">Waiting for TV to apply control…</span>
-        <span v-else-if="actualState === 'buffering'">Buffering on TV…</span>
-        <span v-else-if="actualState === 'loading'">Loading on TV…</span>
-        <span v-else-if="actualState === 'ended'">Playback ended</span>
-        <span v-else-if="actualState === 'error'" class="text-red-400">
-          {{ observation?.errorMessage || observation?.errorCode || "Playback failed on TV" }}
-        </span>
-      </div>
+      <p
+        v-if="session.tvConnected && actualState === 'error' && observation?.errorMessage"
+        role="alert"
+        class="text-center text-sm text-red-400"
+      >
+        {{ observation.errorMessage }}
+      </p>
 
       <UButton
         v-if="actualState === 'ended' && nextEpisode?.relativePath"
@@ -160,8 +148,8 @@ const selectSubtitle = (event: Event): void => {
         :duration="duration"
         :preview="preview"
         :sprite-url="spriteUrl"
-        :thumb-width="metadata?.thumbWidth ?? 160"
-        :thumb-height="metadata?.thumbHeight ?? 90"
+        :thumb-width="trickplay?.thumbWidth ?? 160"
+        :thumb-height="trickplay?.thumbHeight ?? 90"
         :disabled="!session.tvConnected || sending"
         @preview="showPreview"
         @commit="seek"
@@ -188,7 +176,7 @@ const selectSubtitle = (event: Event): void => {
           size="xl"
           class="rounded-full"
           :icon="wantsPlaying ? 'i-lucide-pause' : 'i-lucide-play'"
-          :aria-label="wantsPlaying ? 'Pause playback' : 'Play playback'"
+          :aria-label="wantsPlaying ? 'Pause playback' : 'Resume playback'"
           :loading="sending"
           @click="void playback.updateIntent(wantsPlaying ? 'paused' : 'playing')"
         />
@@ -200,31 +188,14 @@ const selectSubtitle = (event: Event): void => {
         >
       </div>
 
-      <div>
-        <label for="subtitle-track" class="mb-2 block text-sm font-medium">Subtitles</label>
-        <select
-          id="subtitle-track"
-          class="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
-          :value="observation?.subtitleIndex ?? -1"
+      <UFormField label="Subtitles">
+        <USelect
+          v-model="subtitleTrack"
+          :items="subtitleChoices"
           :disabled="sending || subtitlesStatus !== 'success' || subtitles.length === 0"
-          @change="selectSubtitle"
-        >
-          <option :value="-1">
-            {{
-              subtitlesStatus === "error"
-                ? "Could not load subtitles"
-                : subtitlesStatus !== "success"
-                  ? "Loading subtitles…"
-                  : subtitles.length === 0
-                    ? "No subtitles available"
-                    : "Off"
-            }}
-          </option>
-          <option v-for="track in subtitles" :key="track.index" :value="track.index">
-            {{ track.label }}{{ track.language ? ` (${track.language})` : "" }}
-          </option>
-        </select>
-      </div>
+          class="w-full"
+        />
+      </UFormField>
 
       <UAlert
         v-if="commandError"
@@ -233,7 +204,7 @@ const selectSubtitle = (event: Event): void => {
         title="Control not sent"
         :description="commandError"
       />
-      <p v-if="metadataError" class="text-sm text-amber-400">
+      <p v-if="trickplayError" class="text-sm text-amber-400">
         Preview images are unavailable. Seeking still works.
       </p>
     </template>

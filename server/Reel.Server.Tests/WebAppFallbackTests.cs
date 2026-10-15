@@ -1,7 +1,9 @@
 using System.Net;
+using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Reel.Server.Common;
 
 namespace Reel.Server.Tests;
 
@@ -50,5 +52,19 @@ public sealed class WebAppFallbackTests : IDisposable
         var response = await client.GetAsync("/_nuxt/missing.js");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData("/api/no-such-route")]
+    [InlineData("/api/library/no/such/route")]
+    public async Task UnknownApiRoute_Returns404JsonInsteadOfTheShell(string path)
+    {
+        using var client = _factory.CreateAuthenticatedClient();
+
+        var response = await client.GetAsync(path);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        (await response.Content.ReadFromJsonAsync<ErrorResponse>())!.Code.Should().Be("not_found");
     }
 }

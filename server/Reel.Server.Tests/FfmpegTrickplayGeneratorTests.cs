@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Reel.Server.Media;
 
 namespace Reel.Server.Tests;
@@ -8,11 +9,13 @@ namespace Reel.Server.Tests;
 public sealed class FfmpegTrickplayGeneratorTests : IDisposable
 {
     private readonly TempMediaRoot _media = new();
+    private readonly FakeTimeProvider _time = new();
     private readonly FfmpegTrickplayGenerator _generator;
 
     public FfmpegTrickplayGeneratorTests() =>
         _generator = new FfmpegTrickplayGenerator(
             _media.Paths,
+            _time,
             NullLogger<FfmpegTrickplayGenerator>.Instance
         );
 
@@ -86,13 +89,41 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         await request.CancelAsync();
 
         await abandoned.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (!File.Exists(metadataPath) && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(50);
-        }
+        // A patient caller joins the run the abandoned one started.
+        (await _generator.GetOrGenerateAsync(fullPath, CancellationToken.None))
+            .Should()
+            .NotBeNull();
 
         File.Exists(metadataPath).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetOrGenerateAsync_RunningOutOfTime_IsUnavailable()
+    {
+        var fullPath = _media.Write("Films/slow.mp4");
+        TestMedia.CreateVideo(fullPath, seconds: 5);
+
+        var generation = _generator.GetOrGenerateAsync(fullPath, CancellationToken.None);
+        _time.Advance(TimeSpan.FromMinutes(11));
+
+        (await generation).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetOrGenerateAsync_AfterAnInterruptedRun_KeepsFinishedSheets()
+    {
+        var fullPath = _media.Write("Films/resumed.mp4");
+        TestMedia.CreateVideo(fullPath, seconds: 5);
+        var first = (await _generator.GetOrGenerateAsync(fullPath, CancellationToken.None))!;
+        // Losing the metadata leaves the cache as a run cut short after its sheets were written.
+        File.Delete(_generator.MetadataPath(first.SpritePath));
+        var sprite = _generator.SpritePath(first, 0);
+        var written = File.GetLastWriteTimeUtc(sprite);
+
+        var resumed = await _generator.GetOrGenerateAsync(fullPath, CancellationToken.None);
+
+        resumed.Should().Be(first);
+        File.GetLastWriteTimeUtc(sprite).Should().Be(written);
     }
 
     [Theory]

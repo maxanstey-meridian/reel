@@ -195,4 +195,20 @@ class ApiClientTest {
         assertEquals(409, result.statusCode)
         assertEquals("Session is stale", result.message)
     }
+
+    @Test
+    fun `an undecodable success is an unexpected response, not a lost server`() = runTest {
+        val malformed = client { respondJson("<html>Not Reel</html>") }
+        val wrongType =
+            client {
+                respond("<html>Not Reel</html>", headers = headersOf(HttpHeaders.ContentType, "text/html"))
+            }
+
+        for (api in listOf(malformed, wrongType)) {
+            val result = api.getPlaybackSession() as ApiResult.Failure
+
+            assertEquals(200, result.statusCode)
+            assertEquals("Unexpected response from the server", result.message)
+        }
+    }
 }

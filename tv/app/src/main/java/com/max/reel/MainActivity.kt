@@ -16,7 +16,6 @@ import androidx.tv.material3.Surface
 import com.max.reel.data.ApiClient
 import com.max.reel.data.PairingStore
 import com.max.reel.data.discoverServers
-import com.max.reel.playback.PlaybackConnection
 import com.max.reel.playback.PlaybackViewModel
 import com.max.reel.ui.pairing.PairingScreen
 import com.max.reel.ui.player.PlayerScreen

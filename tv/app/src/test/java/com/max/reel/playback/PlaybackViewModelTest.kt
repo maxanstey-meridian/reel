@@ -1,12 +1,19 @@
 package com.max.reel.playback
 
+import android.os.Looper
 import androidx.media3.common.Player
 import com.max.reel.data.ApiClient
 import com.max.reel.data.DiscoveredServer
 import com.max.reel.data.PairedServer
 import com.max.reel.data.PairingStore
+import com.max.reel.data.PlaybackDesiredState
+import com.max.reel.data.PlaybackIntentResponse
 import com.max.reel.data.PlaybackObservationState
+import com.max.reel.data.PlaybackSessionResponse
+import com.max.reel.data.ProgressRequest
 import com.max.reel.data.ReportPlaybackObservationRequest
+import com.max.reel.data.SeekRequestResponse
+import com.max.reel.data.UpdatePlaybackIntentRequest
 import io.ktor.client.engine.HttpClientEngineBase
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -32,18 +39,23 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.IOException
+import java.time.Duration
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -56,7 +68,11 @@ class PlaybackViewModelTest {
     private var discovered: Flow<DiscoveredServer> = emptyFlow()
     private val json = Json { ignoreUnknownKeys = true }
     private val observations = mutableListOf<ReportPlaybackObservationRequest>()
+    private val progress = mutableListOf<ProgressRequest>()
+    private var session = session()
     private var sessionStatus = HttpStatusCode.OK
+    private var progressStatus = HttpStatusCode.OK
+    private var unreachablePath: String? = null
     private var streamInfoGate: CompletableDeferred<Unit>? = null
     private var observationGate: CompletableDeferred<Unit>? = null
     private lateinit var viewModel: PlaybackViewModel
@@ -73,17 +89,51 @@ class PlaybackViewModelTest {
         headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
     )
 
+    private fun session(
+        id: String = "s1",
+        revision: Long = 1,
+        path: String = "Films/movie.mp4",
+        desiredState: PlaybackDesiredState = PlaybackDesiredState.Playing,
+        seekSeconds: Double? = null,
+    ) = PlaybackSessionResponse(
+        id,
+        revision,
+        PlaybackIntentResponse(
+            relativePath = path,
+            title = "Movie",
+            desiredState = desiredState,
+            pendingSeek = seekSeconds?.let { SeekRequestResponse(revision, it, revision) },
+        ),
+    )
+
     private fun TestScope.startPolling() {
         pairing.save(paired)
         val mock =
             MockEngine { request ->
-                if (request.url.host == unreachableHost) throw IOException("Connection refused")
+                if (request.url.host == unreachableHost || request.url.encodedPath == unreachablePath) {
+                    throw IOException("Connection refused")
+                }
                 when (request.url.encodedPath) {
                     "/api/playback/session" -> {
-                        respondJson(
-                            """{"session":{"sessionId":"s1","revision":1,"intent":{"relativePath":"Films/movie.mp4","title":"Movie","desiredState":"playing"}}}""",
-                            sessionStatus,
-                        )
+                        respondJson("""{"session":${json.encodeToString(session)}}""", sessionStatus)
+                    }
+
+                    "/api/playback/session/intent" -> {
+                        val intent =
+                            json.decodeFromString<UpdatePlaybackIntentRequest>((request.body as TextContent).text)
+                        session =
+                            session(
+                                revision = session.revision + 1,
+                                path = session.intent.relativePath,
+                                desiredState = intent.desiredState,
+                                seekSeconds = intent.seekPositionSeconds,
+                            )
+                        respondJson(json.encodeToString(session))
+                    }
+
+                    "/api/progress" -> {
+                        progress += json.decodeFromString<ProgressRequest>((request.body as TextContent).text)
+                        respondJson("{}", progressStatus)
                     }
 
                     "/api/files/stream/info" -> {
@@ -192,8 +242,110 @@ class PlaybackViewModelTest {
         assertInterruptedLoadStaysStopped { it.pauseForBackground() }
     }
 
+    @Test
+    fun `the first observation of a new session carries that session's revision`() = runTest(dispatcher) {
+        session = session(revision = 3)
+        startPolling()
+        assertEquals(3L, observations.first().appliedRevision)
+
+        session = session(id = "s2", revision = 1, path = "Films/other.mp4")
+        advanceTimeBy(1_001)
+
+        val first = observations.first { it.sessionId == "s2" }
+        assertEquals(1L, first.appliedRevision)
+        assertEquals("Films/other.mp4", first.relativePath)
+    }
+
+    @Test
+    fun `an unreachable stream info loads nothing and is retried on the next poll`() = runTest(dispatcher) {
+        assertUnreachableLoadIsRetried("/api/files/stream/info")
+    }
+
+    @Test
+    fun `an unreachable subtitle list loads nothing and is retried on the next poll`() = runTest(dispatcher) {
+        assertUnreachableLoadIsRetried("/api/files/subtitles")
+    }
+
+    private fun TestScope.assertUnreachableLoadIsRetried(path: String) {
+        unreachablePath = path
+        startPolling()
+
+        assertNull(viewModel.state.value.relativePath)
+        assertEquals(0, viewModel.player.mediaItemCount)
+        assertTrue(observations.isEmpty())
+
+        unreachablePath = null
+        advanceTimeBy(1_001)
+
+        assertEquals("Films/movie.mp4", viewModel.state.value.relativePath)
+        assertEquals(1, viewModel.player.mediaItemCount)
+    }
+
+    @Test
+    fun `switching files saves the old file's position before the new one loads`() = runTest(dispatcher) {
+        session = session(seekSeconds = 30.0)
+        startPolling()
+
+        session = session(id = "s2", revision = 2, path = "Films/other.mp4")
+        advanceTimeBy(1_001)
+
+        assertEquals(ProgressRequest("Films/movie.mp4", 30.0, 60.0), progress.first())
+        assertEquals("Films/other.mp4", viewModel.state.value.relativePath)
+    }
+
+    @Test
+    fun `a backwards seek while paused saves the new position`() = runTest(dispatcher) {
+        session = session(desiredState = PlaybackDesiredState.Paused, seekSeconds = 30.0)
+        startPolling()
+
+        viewModel.skip(-10.0)
+        runCurrent()
+
+        assertEquals(ProgressRequest("Films/movie.mp4", 20.0, 60.0), progress.last())
+    }
+
+    @Test
+    fun `a failing progress save does not stop controls`() = runTest(dispatcher) {
+        progressStatus = HttpStatusCode.InternalServerError
+        session = session(desiredState = PlaybackDesiredState.Paused, seekSeconds = 30.0)
+        startPolling()
+        assertTrue(progress.isNotEmpty())
+
+        viewModel.togglePlayPause()
+        runCurrent()
+
+        assertTrue(viewModel.player.playWhenReady)
+        assertFalse(viewModel.state.value.controlPending)
+        assertNull(viewModel.state.value.notice)
+    }
+
+    @Test
+    fun `a phone play after a playback error prepares the file again`() = runTest(dispatcher) {
+        startPolling()
+        awaitPlayerError()
+        assertNotNull(viewModel.state.value.error)
+
+        session = session(revision = 2)
+        advanceTimeBy(1_001)
+
+        assertNull(viewModel.player.playerError)
+        assertNull(viewModel.state.value.error)
+    }
+
+    // Nothing listens on the paired port, so the stream fails once the player's clock lets it retry.
+    private fun awaitPlayerError() {
+        repeat(200) {
+            if (viewModel.player.playerError != null) return
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500))
+            Thread.sleep(5)
+        }
+        fail("The player never reported an error")
+    }
+
+    // The intent is unreachable so that only the interrupted load could still touch the player.
     private fun TestScope.assertInterruptedLoadStaysStopped(interrupt: (PlaybackViewModel) -> Unit) {
         streamInfoGate = CompletableDeferred()
+        unreachablePath = "/api/playback/session/intent"
         startPolling()
 
         interrupt(viewModel)

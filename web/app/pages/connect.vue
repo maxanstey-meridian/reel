@@ -15,7 +15,7 @@ const pair = async () => {
     await connect(code.value.trim());
     await navigateTo("/", { replace: true });
   } catch (caught) {
-    error.value = (caught as Error).message;
+    error.value = caught instanceof Error ? caught.message : "Couldn't pair with that code";
   } finally {
     loading.value = false;
   }

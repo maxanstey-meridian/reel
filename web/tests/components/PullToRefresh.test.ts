@@ -45,6 +45,19 @@ describe("PullToRefresh", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("doesn't refresh on a tap after the system cancelled a pull", async () => {
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    await mountSuspended(PullToRefresh, { props: { refresh } });
+
+    touch("touchstart", 100);
+    touch("touchmove", 170);
+    touch("touchcancel");
+    touch("touchstart", 100);
+    touch("touchend");
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("stops listening once unmounted", async () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     const wrapper = await mountSuspended(PullToRefresh, { props: { refresh } });

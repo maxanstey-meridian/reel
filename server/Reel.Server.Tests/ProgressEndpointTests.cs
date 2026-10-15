@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using Reel.Server.Contracts.Reel;
 
 namespace Reel.Server.Tests;
@@ -89,7 +92,11 @@ public sealed class ProgressEndpointTests : IDisposable
     [Fact]
     public async Task GetAll_ReturnsSortedByLastWatched()
     {
-        var client = _factory.CreateAuthenticatedClient();
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var factory = _media.CreateFactory(builder =>
+            builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(time))
+        );
+        using var client = factory.CreateAuthenticatedClient();
 
         await client.PostAsJsonAsync(
             "/api/progress",
@@ -101,8 +108,7 @@ public sealed class ProgressEndpointTests : IDisposable
             }
         );
 
-        // Small delay so timestamps differ
-        await Task.Delay(50);
+        time.Advance(TimeSpan.FromMinutes(1));
 
         await client.PostAsJsonAsync(
             "/api/progress",

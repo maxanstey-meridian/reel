@@ -43,6 +43,14 @@ public sealed class TagEndpointTests : IDisposable
         )
             .StatusCode.Should()
             .Be(HttpStatusCode.BadRequest);
+        var badTags = await client.PutAsJsonAsync(
+            "/api/tags",
+            new { path = "Shows", tags = new[] { "two words" } }
+        );
+        badTags.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await badTags.Content.ReadFromJsonAsync<ErrorResponse>())!
+            .Message.Should()
+            .Be("Use up to 30 tags, each up to 40 characters with no spaces.");
     }
 
     // Unreadable stored data is a server fault, not a bad request.

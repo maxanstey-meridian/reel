@@ -21,7 +21,8 @@ public sealed class ReelOptions
     public int Port { get; set; }
 
     /// <summary>The phone app's origin; pairing links redirect there.</summary>
-    public string? WebUrl { get; set; }
+    [Required, Url]
+    public string WebUrl { get; set; } = "";
 
     /// <summary>"off" streams files as they are; "&lt;height&gt;p" (e.g. "720p") live-transcodes video to that height.</summary>
     public string Compression { get; set; } = "off";

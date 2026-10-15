@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using Reel.Server.Contracts.Reel;
 
 namespace Reel.Server.Tests;
@@ -57,11 +60,17 @@ public sealed class FavouritesEndpointTests : IDisposable
     [Fact]
     public async Task GetAll_SortedNewestFirst()
     {
-        await _client.PostAsJsonAsync("/api/favourites", new { relativePath = "Films/older.mp4" });
-        await Task.Delay(50);
-        await _client.PostAsJsonAsync("/api/favourites", new { relativePath = "Films/newer.mp4" });
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var factory = _media.CreateFactory(builder =>
+            builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(time))
+        );
+        using var client = factory.CreateAuthenticatedClient();
 
-        (await GetAll())!
+        await client.PostAsJsonAsync("/api/favourites", new { relativePath = "Films/older.mp4" });
+        time.Advance(TimeSpan.FromMinutes(1));
+        await client.PostAsJsonAsync("/api/favourites", new { relativePath = "Films/newer.mp4" });
+
+        (await client.GetFromJsonAsync<Favourite[]>("/api/favourites", factory.JsonOptions()))!
             .Select(e => e.RelativePath)
             .Should()
             .Equal("Films/newer.mp4", "Films/older.mp4");

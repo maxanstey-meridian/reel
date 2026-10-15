@@ -1,6 +1,7 @@
 package com.max.reel.data
 
 import io.ktor.client.HttpClient
+import io.ktor.client.call.NoTransformationFoundException
 import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.android.Android
@@ -19,6 +20,7 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.URLProtocol
 import io.ktor.http.appendPathSegments
 import io.ktor.http.contentType
+import io.ktor.serialization.ContentConvertException
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
@@ -140,7 +142,8 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
     }
 
     // Only 401 means the key is wrong, and it unpairs only if the TV still holds that key;
-    // 403 is the server's private-network check and must not cost the pairing.
+    // 403 is the server's private-network check and must not cost the pairing. A success that
+    // can't be decoded keeps its status: something answered, so it is not a lost server.
     private suspend inline fun <reified T> request(
         pairedKey: String?,
         crossinline send: suspend () -> HttpResponse,
@@ -148,7 +151,12 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
         val response = send()
         val status = response.status.value
         if (status in 200..299) {
-            ApiResult.Success(response.body())
+            try {
+                ApiResult.Success(response.body())
+            } catch (e: Exception) {
+                if (e !is ContentConvertException && e !is NoTransformationFoundException) throw e
+                ApiResult.Failure("Unexpected response from the server", status)
+            }
         } else {
             if (status == 401 && pairedKey != null && pairing.server.value?.key == pairedKey) {
                 pairing.forget()

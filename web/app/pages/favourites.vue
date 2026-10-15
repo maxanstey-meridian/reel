@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { findNodeByPath } from "~~/app/features/library/logic/library";
-import type { FileNode } from "~~/app/lib/api";
+import { fileNodeAt } from "~~/app/features/library/logic/library";
 import { injectFavourites } from "~~/app/ports/favourites";
 
 const { favourites, loading, error, refresh } = injectFavourites();
@@ -9,16 +8,8 @@ const refreshAll = async () => {
   await Promise.all([refresh(), library.refresh()]);
 };
 
-// A favourite missing from the tree (library unavailable, or the file moved) still shows by path.
 const favouriteNodes = computed(() =>
-  favourites.value.map(
-    (fav): FileNode =>
-      findNodeByPath(library.tree.value, fav.relativePath) ?? {
-        name: fav.relativePath.split("/").pop() ?? fav.relativePath,
-        type: "file",
-        relativePath: fav.relativePath,
-      },
-  ),
+  favourites.value.map((fav) => fileNodeAt(library.tree.value, fav.relativePath)),
 );
 </script>
 

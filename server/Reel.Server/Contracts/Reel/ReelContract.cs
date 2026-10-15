@@ -17,7 +17,7 @@ public static class ReelContract
 
     public static readonly RouteDefinition<HealthResponse> Health = Define
         .Get<HealthResponse>(HealthRoute)
-        .Returns<HealthUnavailableResponse>(503);
+        .Returns<ErrorResponse>(503);
 
     public static readonly RouteDefinition<FileNode> Library = Define.Get<FileNode>("/api/library");
 
@@ -95,13 +95,11 @@ public static class ReelContract
         .File<SubtitleContentRequest>("/api/files/subtitles/content")
         .ContentType("text/vtt")
         .Returns<ErrorResponse>(404)
-        .Returns(500)
         .QueryAuth();
 
     public static readonly RouteDefinition<FileRequest, TrickplayMetadata> TrickplayInfo = Define
         .Get<FileRequest, TrickplayMetadata>("/api/files/trickplay")
-        .Returns<ErrorResponse>(404)
-        .Returns<ErrorResponse>(500);
+        .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<TrickplaySpriteRequest> TrickplaySprite = Define
         .File<TrickplaySpriteRequest>("/api/files/trickplay/sprite")
@@ -116,8 +114,6 @@ public sealed record ConnectRequest(string Key);
 public sealed record ConnectResponse(string ServerName);
 
 public sealed record HealthResponse(string Status);
-
-public sealed record HealthUnavailableResponse(string Status, string Reason);
 
 public sealed record FileRequest(string Path);
 

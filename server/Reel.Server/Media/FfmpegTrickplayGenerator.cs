@@ -5,6 +5,7 @@ namespace Reel.Server.Media;
 
 public sealed class FfmpegTrickplayGenerator(
     MediaPathResolver paths,
+    TimeProvider time,
     ILogger<FfmpegTrickplayGenerator> logger
 )
 {
@@ -50,8 +51,25 @@ public sealed class FfmpegTrickplayGenerator(
 
     private async Task<TrickplaySheets?> GenerateAsync(string fullPath, string spriteKey)
     {
-        using var timeout = new CancellationTokenSource(GenerationTimeout);
-        var ct = timeout.Token;
+        using var timeout = new CancellationTokenSource(GenerationTimeout, time);
+        try
+        {
+            return await GenerateAsync(fullPath, spriteKey, timeout.Token);
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            // Finished sheets stay cached, so the next request resumes where this one stopped.
+            logger.LogWarning("Trickplay generation for {Path} ran out of time", fullPath);
+            return null;
+        }
+    }
+
+    private async Task<TrickplaySheets?> GenerateAsync(
+        string fullPath,
+        string spriteKey,
+        CancellationToken ct
+    )
+    {
         var metadataPath = MetadataPath(spriteKey);
 
         // The metadata file is written last, so its presence means every sprite sheet exists.
@@ -72,6 +90,12 @@ public sealed class FfmpegTrickplayGenerator(
         var totalThumbs = CalculateTotalThumbs(duration.Value);
         for (var sheet = 0; sheet < CalculateSheetCount(totalThumbs); sheet++)
         {
+            // Sprites are moved into place only once complete, so an existing one is from an earlier, cut-short run.
+            if (File.Exists(SpritePath(spriteKey, sheet)))
+            {
+                continue;
+            }
+
             if (
                 !await Ffmpeg.TryWriteAsync(
                     SpritePath(spriteKey, sheet),
@@ -111,7 +135,8 @@ public sealed class FfmpegTrickplayGenerator(
     private string SpritePath(string spriteKey, int sheetIndex) =>
         Path.Combine(_cacheDirectory, $"{spriteKey}_{sheetIndex}.jpg");
 
-    // -ss before -i seeks by keyframe, which is fast and precise enough for 10-second tiles.
+    // -ss before -i skips straight to the keyframe before the sheet's start and decodes forward from there, so
+    // each sheet starts at its exact second without reading the rest of the file.
     // csharpier-ignore
     private static string[] SheetArguments(string fullPath, int sheet, int totalThumbs) =>
         [

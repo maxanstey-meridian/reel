@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { FileNode } from "~~/app/lib/api";
 import { readBrowseCache, writeBrowseCache } from "~~/app/lib/browse-cache";
-import { deferred, fakeServer } from "../support/fakeServer";
+import { deferred, fakeServer, unreachable } from "../support/fakeServer";
 
 const saved: FileNode = {
   name: "",
@@ -33,7 +33,7 @@ describe("useLibrary", () => {
   });
 
   it("keeps showing the saved library when the server is unreachable", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Load failed")));
+    fakeServer({ "GET /api/library": unreachable });
     writeBrowseCache("library", saved);
     const { tree, error } = useLibrary();
 

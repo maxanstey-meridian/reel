@@ -64,7 +64,7 @@ public static class StreamEndpoints
                     output =>
                         TranscodeAsync(
                             fullPath,
-                            StartSeconds(request.Start),
+                            Transcoding.StartSeconds(request.Start),
                             height,
                             output,
                             logger,
@@ -98,7 +98,7 @@ public static class StreamEndpoints
                     .Success(
                         new StreamInfoResponse(
                             duration,
-                            TranscodeHeight(options.CurrentValue, fullPath)
+                            Transcoding.Height(options.CurrentValue, fullPath)
                         )
                     )
                     .ToResult();
@@ -107,13 +107,6 @@ public static class StreamEndpoints
 
         return endpoints;
     }
-
-    /// <summary>The height to transcode this file to under the current settings; audio is always served as it is.</summary>
-    internal static int? TranscodeHeight(ReelOptions reel, string fullPath) =>
-        MediaPathResolver.IsAudio(fullPath) ? null : reel.TranscodeHeight;
-
-    internal static double StartSeconds(double? start) =>
-        start is > 0 and < double.PositiveInfinity ? start.Value : 0;
 
     private static async Task TranscodeAsync(
         string fullPath,
@@ -125,7 +118,8 @@ public static class StreamEndpoints
     )
     {
         var errors = new StringBuilder();
-        // Bitrates scale with height from 1200k/1500k/3000k at 480p.
+        // Smaller sources keep their own height rather than being upscaled. Bitrates scale with height from
+        // 1200k/1500k/3000k at 480p.
         // csharpier-ignore
         string[] arguments =
         [
@@ -133,7 +127,7 @@ public static class StreamEndpoints
             "-ss", start.ToString("0.###", CultureInfo.InvariantCulture),
             "-i", fullPath,
             "-map", "0:v:0", "-map", "0:a:0?",
-            "-vf", $"scale=-2:{height},format=yuv420p",
+            "-vf", $"scale=-2:'trunc(min(ih,{height})/2)*2',format=yuv420p",
             "-c:v", "h264_videotoolbox", "-b:v", $"{height * 5 / 2}k", "-maxrate", $"{height * 25 / 8}k", "-bufsize", $"{height * 25 / 4}k",
             "-c:a", "aac", "-ac", "2", "-b:a", "128k",
             "-sn", "-dn",

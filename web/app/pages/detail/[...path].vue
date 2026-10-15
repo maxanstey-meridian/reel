@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { findNodeByPath } from "~~/app/features/library/logic/library";
 import {
+  formatDuration,
   formatPlaybackTime,
   hasIncompleteProgress,
   progressFraction,
@@ -40,12 +41,6 @@ const play = (): void => {
     void requestPlay(0);
   }
 };
-
-const formatDuration = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-};
 </script>
 
 <template>
@@ -56,6 +51,7 @@ const formatDuration = (seconds: number): string => {
         color="neutral"
         size="sm"
         icon="i-lucide-arrow-left"
+        aria-label="Go back"
         @click="router.back()"
       />
       <h1 class="text-base font-semibold truncate flex-1">{{ displayTitle }}</h1>
@@ -67,7 +63,6 @@ const formatDuration = (seconds: number): string => {
     </div>
 
     <template v-else>
-      <TagEditor :key="relativePath" :path="relativePath" />
       <div class="h-56 flex items-center justify-center rounded bg-neutral-800/50 text-neutral-500">
         <MediaThumbnail :node="node" />
       </div>
@@ -106,9 +101,13 @@ const formatDuration = (seconds: number): string => {
             >Start Over</UButton
           >
         </template>
-        <UButton v-else block icon="i-lucide-play" :loading="sending" @click="play">Play</UButton>
+        <UButton v-else block icon="i-lucide-play" :loading="sending" @click="play"
+          >Play on TV</UButton
+        >
         <UAlert v-if="commandError" color="error" variant="soft" :description="commandError" />
       </div>
+
+      <TagEditor :key="relativePath" :path="relativePath" type="file" />
     </template>
   </div>
 </template>

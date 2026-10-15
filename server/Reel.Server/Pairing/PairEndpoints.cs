@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using Reel.Server.Common;
 using Reel.Server.Contracts.Reel;
 
 namespace Reel.Server.Pairing;
@@ -21,17 +20,6 @@ public static class PairEndpoints
                         "This Reel pairing link is out of date. Scan the QR code currently shown on your TV again.",
                         "text/plain; charset=utf-8",
                         statusCode: StatusCodes.Status401Unauthorized
-                    );
-                }
-
-                if (string.IsNullOrWhiteSpace(config.WebUrl))
-                {
-                    return Results.Json(
-                        new ErrorResponse(
-                            "pairing_not_configured",
-                            "Reel:WebUrl is required for pairing."
-                        ),
-                        statusCode: StatusCodes.Status503ServiceUnavailable
                     );
                 }
 

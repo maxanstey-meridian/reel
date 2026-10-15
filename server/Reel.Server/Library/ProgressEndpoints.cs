@@ -38,16 +38,16 @@ public static class ProgressEndpoints
                         .ToResult();
                 }
 
-                var fullPath = paths.ResolvePlayableFile(request.RelativePath);
-                if (fullPath is null)
+                var relativePath = await LibraryEntries.EnsureIndexedAsync(
+                    request.RelativePath,
+                    paths,
+                    mediaStore
+                );
+                if (relativePath is null)
                 {
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var relativePath = paths.ToRelativePath(fullPath);
-                await mediaStore.EnsureIndexedAsync(
-                    LibraryEntries.Index(relativePath, new FileInfo(fullPath).Length)
-                );
                 await store.UpdateAsync(
                     relativePath,
                     Math.Min(request.PositionSeconds, request.DurationSeconds),

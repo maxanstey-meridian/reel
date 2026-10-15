@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { findNodeByPath, libraryLink } from "~~/app/features/library/logic/library";
+import { injectTags } from "~~/app/ports/tags";
 
 const route = useRoute();
 const { tree, loading, error, refresh, rescan, rescanning } = useLibrary();
+const tags = injectTags();
+const refreshAll = async () => {
+  await Promise.all([refresh(), tags.refresh()]);
+};
 
 const segments = computed(() => [route.params.path ?? []].flat().filter(Boolean));
 const relativePath = computed(() => segments.value.join("/"));
@@ -15,7 +20,7 @@ const isNavigationLevel = computed(() => directories.value.length > 0 && files.v
 
 <template>
   <div class="space-y-4">
-    <PullToRefresh :refresh="refresh" />
+    <PullToRefresh :refresh="refreshAll" />
 
     <nav aria-label="Breadcrumbs" class="flex flex-wrap items-center gap-1 text-base font-semibold">
       <NuxtLink
@@ -34,7 +39,7 @@ const isNavigationLevel = computed(() => directories.value.length > 0 && files.v
       </template>
     </nav>
 
-    <TagEditor v-if="relativePath" :key="relativePath" :path="relativePath" />
+    <TagEditor v-if="relativePath" :key="relativePath" :path="relativePath" type="directory" />
 
     <UButton
       v-if="segments.length"

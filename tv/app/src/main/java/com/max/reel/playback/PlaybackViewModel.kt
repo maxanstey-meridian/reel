@@ -58,7 +58,7 @@ class PlaybackViewModel(
     private val stream =
         StreamPlayer(context, apiClient, onSubtitleUnavailable = {
             _state.update {
-                it.copy(subtitleIndex = null, controlError = "Subtitle track is unavailable")
+                it.copy(subtitleIndex = null, notice = SUBTITLES_UNAVAILABLE)
             }
             reportObservation()
         })
@@ -140,7 +140,7 @@ class PlaybackViewModel(
     fun playNext() {
         val path = _state.value.nextEpisode?.relativePath ?: return
         if (_state.value.controlPending) return
-        _state.update { it.copy(controlPending = true) }
+        _state.update { it.copy(controlPending = true, notice = null) }
         viewModelScope.launch {
             commandMutex.withLock {
                 val result = apiClient.startPlayback(path)
@@ -148,7 +148,7 @@ class PlaybackViewModel(
                 _state.update {
                     it.copy(
                         controlPending = false,
-                        controlError = (result as? ApiResult.Failure)?.message,
+                        notice = (result as? ApiResult.Failure)?.let(::controlFailed) ?: it.notice,
                     )
                 }
             }
@@ -158,13 +158,13 @@ class PlaybackViewModel(
     fun pauseForBackground() {
         loadJob?.cancel()
         player.pause()
+        reportProgress()
         if (_state.value.relativePath == null) return
         viewModelScope.launch {
             val accepted = submitLocalIntent(PlaybackDesiredState.Paused, authoritative = true)
             // An older command applied while we waited for the mutex may have resumed playback.
             player.pause()
             if (!accepted) needsReapply = true
-            reportProgress()
         }
     }
 
@@ -214,21 +214,26 @@ class PlaybackViewModel(
             return
         }
         applySession(session)
-        reportObservation()
     }
 
-    // `applied` only records what reached the player, so an interrupted load is decided again later.
+    // Every applied session is reported afterwards, even an unchanged one: that report is the TV's
+    // heartbeat, and it must carry the revision and seek just applied.
     private suspend fun applySession(session: PlaybackSessionResponse) {
         val decision = reconcile(session, applied, reapply = needsReapply)
         needsReapply = false
         if (session.sessionId != activeSession?.sessionId) observationSequence = 0
         activeSession = session
-        if (decision == ReconciliationDecision()) return
+        if (decision != ReconciliationDecision()) applyDecision(session, decision)
+        reportObservation()
+    }
 
+    // `applied` only records what reached the player, so an interrupted load is decided again later.
+    // A player stopped by an error stays stopped until it is prepared again.
+    private suspend fun applyDecision(session: PlaybackSessionResponse, decision: ReconciliationDecision) {
         val seek = decision.seekPositionSeconds
         if (decision.desiredState != PlaybackDesiredState.Stopped) {
             val rebuild =
-                decision.loadPath != null || decision.subtitleChanged ||
+                decision.loadPath != null || decision.subtitleChanged || stream.error != null ||
                     (seek != null && stream.timeline.transcoded)
             val start = seek ?: if (decision.loadPath != null) 0.0 else stream.positionSeconds
             if (rebuild && !loadMedia(session.intent, start)) return
@@ -302,7 +307,7 @@ class PlaybackViewModel(
         val request =
             localIntentRequest(session, desiredState, seekPositionSeconds)
                 .let { if (authoritative) it.copy(expectedRevision = null) else it }
-        _state.update { it.copy(controlPending = true, controlError = null) }
+        _state.update { it.copy(controlPending = true, notice = null) }
         val result = apiClient.updatePlaybackIntent(request)
         if (result is ApiResult.Success) applySession(result.value)
         val conflict = (result as? ApiResult.Failure)?.statusCode == 409
@@ -314,33 +319,36 @@ class PlaybackViewModel(
         _state.update {
             it.copy(
                 controlPending = false,
-                controlError = (result as? ApiResult.Failure)?.message?.takeUnless { conflict },
+                notice =
+                (result as? ApiResult.Failure)?.takeUnless { conflict }?.let(::controlFailed) ?: it.notice,
             )
         }
         result is ApiResult.Success
     }
 
     // Fetches before touching the player, so a stop or background during the fetch leaves it as it was.
+    // A file without info or subtitles plays as it is; an unreachable server is tried again next poll.
     private suspend fun loadMedia(intent: PlaybackIntentResponse, startSeconds: Double): Boolean {
         val path = intent.relativePath
-        val (info, tracks) =
+        val (infoResult, tracksResult) =
             try {
                 coroutineScope {
                     loadJob = coroutineContext.job
                     val info = async { apiClient.streamInfo(path) }
                     val tracks = async { apiClient.fetchSubtitles(path) }
-                    (info.await() as? ApiResult.Success)?.value to
-                        (tracks.await() as? ApiResult.Success)?.value.orEmpty()
+                    info.await() to tracks.await()
                 }
             } catch (e: CancellationException) {
                 currentCoroutineContext().ensureActive()
                 return false
             }
+        if (listOf(infoResult, tracksResult).any { it is ApiResult.Failure && it.statusCode == null }) return false
         val server = pairing.server.value ?: return false
+        val info = (infoResult as? ApiResult.Success)?.value
+        val tracks = (tracksResult as? ApiResult.Success)?.value.orEmpty()
 
         reportProgress()
         val track = tracks.firstOrNull { it.index == intent.subtitleIndex }
-        val missing = intent.subtitleIndex.takeIf { track == null }
         _state.update {
             it.copy(
                 relativePath = path,
@@ -349,11 +357,10 @@ class PlaybackViewModel(
                 actualState = Loading,
                 error = null,
                 nextEpisode = null,
-                controlError = missing?.let { "Subtitle track $it is unavailable" },
+                notice = SUBTITLES_UNAVAILABLE.takeIf { intent.subtitleIndex != null && track == null },
             )
         }
         stream.load(server, path, info, tracks, track, startSeconds)
-        reportObservation()
         return true
     }
 
@@ -385,8 +392,9 @@ class PlaybackViewModel(
         if (actual == Paused || actual == Ended) reportProgress()
     }
 
+    // Nothing is reported for a session until something of it has been applied.
     private fun reportObservation() {
-        val session = activeSession ?: return
+        val session = activeSession?.takeIf { it.sessionId == applied.sessionId } ?: return
         val snapshot = _state.value
         observationSequence =
             maxOf(observationSequence, session.observation?.observationSequence ?: 0) + 1
@@ -438,3 +446,7 @@ class PlaybackViewModel(
         }
     }
 }
+
+private const val SUBTITLES_UNAVAILABLE = "Subtitles aren't available for this file"
+
+private fun controlFailed(failure: ApiResult.Failure) = "Control failed: ${failure.message}"

@@ -110,7 +110,7 @@ def status():
             return 0
     except HTTPError as error:
         try:
-            reason = json.loads(error.read()).get("reason") or error.reason
+            reason = json.loads(error.read()).get("message") or error.reason
         except ValueError:
             reason = error.reason
         problem = f"unavailable ({reason})"

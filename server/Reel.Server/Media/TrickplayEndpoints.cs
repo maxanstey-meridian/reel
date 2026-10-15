@@ -25,17 +25,9 @@ public static class TrickplayEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var sheets = await generator.GetOrGenerateAsync(fullPath, ct);
+                var sheets = await GetSheetsAsync(generator, fullPath, ct);
                 return sheets is null
-                    ? endpoint
-                        .Error(
-                            500,
-                            new ErrorResponse(
-                                "trickplay_unavailable",
-                                "Trickplay previews could not be generated."
-                            )
-                        )
-                        .ToResult()
+                    ? endpoint.Error(404, EndpointErrors.TrickplayUnavailable).ToResult()
                     : endpoint
                         .Success(
                             new TrickplayMetadata(
@@ -67,11 +59,15 @@ public static class TrickplayEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var metadata = await generator.GetOrGenerateAsync(fullPath, ct);
+                var metadata = await GetSheetsAsync(generator, fullPath, ct);
+                if (metadata is null)
+                {
+                    return endpoint.Error(404, EndpointErrors.TrickplayUnavailable).ToResult();
+                }
+
                 var sheet = request.Sheet ?? 0;
                 return
-                    metadata is null
-                    || sheet < 0
+                    sheet < 0
                     || sheet >= FfmpegTrickplayGenerator.CalculateSheetCount(metadata.TotalThumbs)
                     ? endpoint
                         .Error(
@@ -85,4 +81,13 @@ public static class TrickplayEndpoints
 
         return endpoints;
     }
+
+    private static Task<TrickplaySheets?> GetSheetsAsync(
+        FfmpegTrickplayGenerator generator,
+        string fullPath,
+        CancellationToken ct
+    ) =>
+        MediaPathResolver.IsAudio(fullPath)
+            ? Task.FromResult<TrickplaySheets?>(null)
+            : generator.GetOrGenerateAsync(fullPath, ct);
 }

@@ -30,7 +30,8 @@ public sealed class PrivateNetworkMiddleware(RequestDelegate next)
             remote = remote.MapToIPv4();
         }
 
-        if (remote is null || AllowedNetworks.Any(network => network.Contains(remote)))
+        // A request without a peer address cannot be shown to come from the LAN, so it is refused.
+        if (remote is not null && AllowedNetworks.Any(network => network.Contains(remote)))
         {
             return next(context);
         }

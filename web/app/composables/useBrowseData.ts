@@ -10,7 +10,8 @@ export const useBrowseData = <T>(
     default: () => readBrowseCache<T>(name) ?? fallback(),
     dedupe: "defer",
   });
-  // Only data the server has confirmed is saved, never the stand-in shown before or after a load.
+  // Saved after a successful load, including local edits made since; never the stand-in shown
+  // before a load or after a failed one.
   watch(asyncData.data, (data) => {
     if (asyncData.status.value === "success") {
       writeBrowseCache(name, data);

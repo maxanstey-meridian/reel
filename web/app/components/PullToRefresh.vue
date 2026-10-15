@@ -11,6 +11,7 @@ useEventListener(
   document,
   "touchstart",
   (event: TouchEvent) => {
+    offset.value = 0;
     startY = refreshing.value || window.scrollY > 0 ? null : (event.touches[0]?.clientY ?? null);
   },
   { passive: true },
@@ -33,6 +34,12 @@ useEventListener(
   },
   { passive: false },
 );
+
+// The system can take over a touch (a scroll, a gesture, a call); that is never a pull.
+useEventListener(document, "touchcancel", () => {
+  startY = null;
+  offset.value = 0;
+});
 
 useEventListener(document, "touchend", async () => {
   const pulled = startY !== null && offset.value >= THRESHOLD;

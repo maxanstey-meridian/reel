@@ -31,8 +31,7 @@ public static partial class SubtitleEndpoints
 
                 // A transcoded stream carries no subtitle streams (-sn), and image-based tracks cannot become WebVTT.
                 var tracks = await discovery.DiscoverAsync(fullPath, ct);
-                var transcoded =
-                    StreamEndpoints.TranscodeHeight(options.CurrentValue, fullPath) is not null;
+                var transcoded = Transcoding.Height(options.CurrentValue, fullPath) is not null;
                 return endpoint
                     .Success([
                         .. tracks
@@ -91,12 +90,20 @@ public static partial class SubtitleEndpoints
                     );
                 if (vtt is null)
                 {
-                    return endpoint.Error(500).ToResult();
+                    return endpoint
+                        .Error(
+                            404,
+                            new ErrorResponse(
+                                "subtitle_unavailable",
+                                "Subtitle track could not be converted."
+                            )
+                        )
+                        .ToResult();
                 }
 
                 var content = await File.ReadAllTextAsync(vtt, ct);
                 return Results.Content(
-                    ShiftVtt(content, StreamEndpoints.StartSeconds(request.Start)),
+                    ShiftVtt(content, Transcoding.StartSeconds(request.Start)),
                     "text/vtt"
                 );
             }

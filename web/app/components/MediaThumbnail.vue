@@ -19,6 +19,12 @@ const source = computed(() => (props.node ? firstVideo(props.node) : null));
 const failed = ref(false);
 const loaded = ref(false);
 const url = computed(() => (source.value ? thumbnailUrl(source.value) : null));
+const icon = computed(() => {
+  if (props.node?.type === "directory") {
+    return "i-lucide-folder";
+  }
+  return props.node?.kind === "audio" ? "i-lucide-music" : "i-lucide-film";
+});
 watch(url, () => {
   failed.value = false;
   loaded.value = false;
@@ -26,11 +32,7 @@ watch(url, () => {
 </script>
 <template>
   <div class="relative flex h-full w-full items-center justify-center overflow-hidden">
-    <UIcon
-      v-if="!loaded"
-      :name="node?.type === 'directory' ? 'i-lucide-folder' : 'i-lucide-film'"
-      class="size-10"
-    />
+    <UIcon v-if="!loaded" :name="icon" class="size-10" />
     <img
       v-if="url && !failed"
       :key="url"

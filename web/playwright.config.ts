@@ -24,7 +24,7 @@ export default defineConfig({
 
   webServer: [
     {
-      command: `ASPNETCORE_ENVIRONMENT=${published ? "Production" : "Development"} Reel__MediaRoot=$PWD/e2e/fixtures/media Reel__SecretKey=REEL-E2E Reel__Port=${serverPort} Reel__ServerUrl=${serverUrl} Reel__WebUrl=${webUrl} ${published ? `dotnet "${published}/Reel.Server.dll" --contentRoot "${published}"` : "dotnet run --project ../server/Reel.Server/Reel.Server.csproj --no-launch-profile"}`,
+      command: `ASPNETCORE_ENVIRONMENT=${published ? "Production" : "Development"} Reel__MediaRoot=$PWD/e2e/fixtures/media Reel__SecretKey=REEL-E2E Reel__Port=${serverPort} Reel__WebUrl=${webUrl} ${published ? `dotnet "${published}/Reel.Server.dll" --contentRoot "${published}"` : "dotnet run --project ../server/Reel.Server/Reel.Server.csproj --no-launch-profile"}`,
       url: `${serverUrl}/api/health`,
       reuseExistingServer: false,
       timeout: 60_000,

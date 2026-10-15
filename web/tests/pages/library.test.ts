@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DefaultLayout from "~~/app/layouts/default.vue";
 import { pairingKey, type FileNode } from "~~/app/lib/api";
 import LibraryPage from "~~/app/pages/library/[...path].vue";
-import { fakeServer } from "../support/fakeServer";
+import { fakeServer, unreachable } from "../support/fakeServer";
 
 const file = (relativePath: string): FileNode => ({
   name: relativePath.split("/").pop()!,
@@ -40,10 +40,24 @@ const hrefs = async (route: string) => {
   return page.findAll("a").map((link) => link.attributes("href"));
 };
 
+let server = fakeServer();
+
+const pullDown = (): void => {
+  for (const [type, touches] of [
+    ["touchstart", [{ clientY: 100 }]],
+    ["touchmove", [{ clientY: 200 }]],
+    ["touchend", []],
+  ] as const) {
+    const event = new Event(type, { cancelable: true, bubbles: true });
+    Object.defineProperty(event, "touches", { value: touches });
+    document.body.dispatchEvent(event);
+  }
+};
+
 describe("library folders", () => {
   beforeEach(() => {
     pairingKey.value = "key";
-    fakeServer({
+    server = fakeServer({
       "GET /api/library": () => Response.json(tree),
       "GET /api/favourites": () => Response.json([]),
       "GET /api/tags": () => Response.json({}),
@@ -70,5 +84,28 @@ describe("library folders", () => {
         "/library/TV/Show/Season%201",
       ]),
     );
+  });
+});
+
+describe("folder tags", () => {
+  beforeEach(() => {
+    pairingKey.value = "key";
+    server = fakeServer({
+      "GET /api/library": () => Response.json(tree),
+      "GET /api/favourites": () => Response.json([]),
+      "GET /api/tags": unreachable,
+      "GET /api/playback/session": () => Response.json({ session: null }),
+    });
+  });
+
+  it("pulling down retries tags that couldn't load", async () => {
+    const page = await mountSuspended(InLayout, { route: "/library/TV" });
+    await vi.waitFor(() => expect(page.text()).toContain("Tags couldn't load"));
+    server.routes["GET /api/tags"] = () => Response.json({ TV: ["drama"] });
+
+    pullDown();
+
+    await vi.waitFor(() => expect(page.text()).toContain("#drama"));
+    expect(page.text()).not.toContain("Tags couldn't load");
   });
 });

@@ -15,7 +15,24 @@ describe("browse snapshots", () => {
     vi.useRealTimers();
   });
   it("ignores malformed saved data", () => {
-    localStorage.setItem("reel:browse:v1:library", "broken");
+    writeBrowseCache("library", { name: "saved" });
+    const key = Object.keys(localStorage).find((name) => name.endsWith(":library"))!;
+    for (const malformed of ["broken", "null", '{"data":{}}', '{"savedAt":"soon","data":{}}']) {
+      localStorage.setItem(key, malformed);
+      expect(readBrowseCache("library")).toBeNull();
+    }
+  });
+  it("starts afresh after a deploy, discarding the previous build's snapshots", () => {
+    const config = useRuntimeConfig().app;
+    const build = config.buildId;
+    writeBrowseCache("library", { name: "old build" });
+    try {
+      config.buildId = "next-build";
+      expect(readBrowseCache("library")).toBeNull();
+      writeBrowseCache("favourites", []);
+    } finally {
+      config.buildId = build;
+    }
     expect(readBrowseCache("library")).toBeNull();
   });
 });

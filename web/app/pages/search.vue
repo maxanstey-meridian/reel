@@ -59,16 +59,13 @@ const clearSearch = () => {
             @click="void (query = recent)"
           />
         </div>
-        <button
-          class="text-xs text-neutral-500 hover:text-neutral-400"
-          @click="recentSearches = []"
-        >
+        <UButton variant="link" color="neutral" size="xs" @click="recentSearches = []">
           Clear history
-        </button>
+        </UButton>
       </div>
       <div v-else class="flex flex-col items-center justify-center py-20 text-neutral-500">
         <UIcon name="i-lucide-search" class="size-16 mb-4 text-neutral-700" />
-        <p class="text-sm">Search by title</p>
+        <p class="text-sm">Search by title, folder or #tag</p>
       </div>
     </template>
     <div v-else-if="searching" class="flex justify-center py-12">

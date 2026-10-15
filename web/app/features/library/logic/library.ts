@@ -19,13 +19,34 @@ export const findNodeByPath = (root: FileNode | null, relativePath: string): Fil
   return null;
 };
 
+// A file missing from the tree (library unavailable, or the file moved) still shows by path.
+export const fileNodeAt = (root: FileNode | null, relativePath: string): FileNode =>
+  findNodeByPath(root, relativePath) ?? {
+    name: relativePath.split("/").pop() ?? relativePath,
+    type: "file",
+    relativePath,
+  };
+
+export const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+};
+
 export const libraryLink = (relativePath: string): string =>
   ["/library", ...relativePath.split("/").filter(Boolean).map(encodeURIComponent)].join("/");
 
 // A folder holding just one file, the usual "Movie (Year)/Movie.mkv" shape, opens that file directly.
 export const mediaLink = (node: FileNode): string => {
-  const target =
-    node.children?.length === 1 && node.children[0]!.type === "file" ? node.children[0]! : node;
+  const [only, ...others] = node.children ?? [];
+  const target = only?.type === "file" && others.length === 0 ? only : node;
   return target.type === "file"
     ? `/detail/${encodeURIComponent(target.relativePath)}`
     : libraryLink(target.relativePath);

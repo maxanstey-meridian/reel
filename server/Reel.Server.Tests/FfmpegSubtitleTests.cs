@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Reel.Server.Contracts.Reel;
 using Reel.Server.Media;
 
@@ -53,6 +54,7 @@ public sealed class FfmpegSubtitleTests : IDisposable
     {
         var extractor = new FfmpegSubtitleExtractor(
             _media.Paths,
+            TimeProvider.System,
             NullLogger<FfmpegSubtitleExtractor>.Instance
         );
         var cacheDirectory = _media.Paths.AppDataPath("subtitles");
@@ -62,11 +64,10 @@ public sealed class FfmpegSubtitleTests : IDisposable
         await request.CancelAsync();
 
         await abandoned.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (!CachedFiles().Any() && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(50);
-        }
+        // A patient caller joins the run the abandoned one started.
+        (await extractor.ExtractAsync(_fullPath, 0, CancellationToken.None))
+            .Should()
+            .NotBeNull();
 
         CachedFiles()
             .Should()
@@ -76,5 +77,21 @@ public sealed class FfmpegSubtitleTests : IDisposable
             Directory.Exists(cacheDirectory)
                 ? Directory.EnumerateFiles(cacheDirectory, "*.vtt")
                 : [];
+    }
+
+    [Fact]
+    public async Task Extraction_RunningOutOfTime_IsUnavailable()
+    {
+        var time = new FakeTimeProvider();
+        var extractor = new FfmpegSubtitleExtractor(
+            _media.Paths,
+            time,
+            NullLogger<FfmpegSubtitleExtractor>.Instance
+        );
+
+        var extraction = extractor.ExtractAsync(_fullPath, 0, CancellationToken.None);
+        time.Advance(TimeSpan.FromMinutes(11));
+
+        (await extraction).Should().BeNull();
     }
 }

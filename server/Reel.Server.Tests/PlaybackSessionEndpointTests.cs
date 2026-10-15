@@ -106,9 +106,14 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
             Observation(session with { SessionId = Guid.NewGuid() }),
             _json
         );
+        await _client.PutAsJsonAsync(
+            PlaybackContract.UpdateIntent.Route,
+            new { sessionId = session.SessionId, desiredState = "paused" },
+            _json
+        );
         var regressing = await _client.PutAsJsonAsync(
             PlaybackContract.ReportObservation.Route,
-            Observation(session, appliedRevision: 0),
+            Observation(session, sequence: 2, appliedRevision: 0),
             _json
         );
 
@@ -120,6 +125,9 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
         regressing.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await regressing.Content.ReadFromJsonAsync<ErrorResponse>(_json))!
+            .Message.Should()
+            .Be("Applied revision cannot regress.");
     }
 
     [Fact]
@@ -222,13 +230,14 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
 
     private static ReportPlaybackObservationRequest Observation(
         PlaybackSessionResponse session,
+        long sequence = 1,
         long appliedRevision = 1,
         long? appliedSeekId = null,
         double position = 10
     ) =>
         new(
             session.SessionId,
-            1,
+            sequence,
             appliedRevision,
             appliedSeekId,
             PlaybackObservationStateDto.Playing,

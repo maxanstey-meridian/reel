@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -17,15 +16,6 @@ public sealed class ServerIntegrationTests : IDisposable
     private readonly TempMediaRoot _media = new();
 
     public void Dispose() => _media.Dispose();
-
-    [Fact]
-    public async Task UnknownRoute_WithKey_Returns404()
-    {
-        using var factory = _media.CreateFactory();
-        using var client = factory.CreateAuthenticatedClient();
-
-        (await client.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
 
     [Fact]
     public void TestHost_DoesNotAdvertiseOverMdns()
@@ -62,6 +52,22 @@ public sealed class ServerIntegrationTests : IDisposable
         };
 
         act.Should().Throw<OptionsValidationException>().WithMessage(message);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("studio.local:8080")]
+    public void Startup_RejectsMissingOrInvalidWebUrl(string webUrl)
+    {
+        var act = () =>
+        {
+            using var factory = _media.CreateFactory(builder =>
+                builder.UseSetting("Reel:WebUrl", webUrl)
+            );
+            _ = factory.Services;
+        };
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*WebUrl*");
     }
 
     [Fact]

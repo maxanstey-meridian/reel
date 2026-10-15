@@ -32,6 +32,9 @@ export const neverAnswers = (request: Request): Promise<Response> =>
     request.signal.addEventListener("abort", () => reject(request.signal.reason));
   });
 
+/** Answers like a server that can't be reached: the browser's fetch rejects. */
+export const unreachable = (): Promise<Response> => Promise.reject(new TypeError("Load failed"));
+
 export const deferred = <T>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {

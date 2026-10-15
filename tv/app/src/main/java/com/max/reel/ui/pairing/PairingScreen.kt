@@ -94,7 +94,7 @@ class PairingModel(
                                 when (result.statusCode) {
                                     401 -> "Server found but key was rejected"
                                     403 -> "Server found but it only accepts devices on its own network"
-                                    else -> "Server found but can't connect"
+                                    else -> "Can't connect to the Reel server"
                                 }
                             it.copy(error = error, connecting = false)
                         }

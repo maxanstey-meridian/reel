@@ -52,7 +52,7 @@ export const useFavourites = () => {
       favourites.value = original ? [original, ...without(relativePath)] : without(relativePath);
       toast.add({
         title: "Could not update favourite",
-        description: (caught as Error).message,
+        description: caught instanceof Error ? caught.message : "The change wasn't saved.",
         color: "error",
       });
     } finally {

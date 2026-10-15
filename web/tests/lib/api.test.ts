@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client, pairingKey, ServerUnreachableError, thumbnailUrl, unwrap } from "~~/app/lib/api";
-import { fakeServer, neverAnswers } from "../support/fakeServer";
+import { fakeServer, neverAnswers, unreachable } from "../support/fakeServer";
 
 // happy-dom runs AbortSignal.timeout on its own clock, out of reach of vi.useFakeTimers.
 const useFakeClock = (): void => {
@@ -31,7 +31,7 @@ describe("api client", () => {
   });
 
   it("reports network failures as an unreachable server", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Load failed")));
+    fakeServer({ "GET /api/library": unreachable });
 
     await expect(client.GET("/api/library")).rejects.toBeInstanceOf(ServerUnreachableError);
   });

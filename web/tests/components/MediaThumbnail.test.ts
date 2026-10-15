@@ -24,6 +24,20 @@ describe("MediaThumbnail", () => {
     expect(await thumbnailOf(file("Song.flac", "audio"))).toBeNull();
   });
 
+  it("marks audio, video and folders with their own icon until a frame loads", async () => {
+    const iconOf = async (node: FileNode) =>
+      (await mountSuspended(MediaThumbnail, { props: { node } }))
+        .get(".iconify")
+        .classes()
+        .find((name) => name.startsWith("i-lucide:"));
+
+    expect(await iconOf(file("Song.flac", "audio"))).toBe("i-lucide:music");
+    expect(await iconOf(file("Film.mkv", "video"))).toBe("i-lucide:film");
+    expect(
+      await iconOf({ name: "Shows", type: "directory", relativePath: "Shows", children: [] }),
+    ).toBe("i-lucide:folder");
+  });
+
   it("shows a folder's first video", async () => {
     const folder: FileNode = {
       name: "Mixed",

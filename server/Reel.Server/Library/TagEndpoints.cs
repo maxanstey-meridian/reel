@@ -45,7 +45,7 @@ public static class TagEndpoints
                             400,
                             new ErrorResponse(
                                 "invalid_request",
-                                "Use up to 30 tags, each under 41 characters without spaces."
+                                "Use up to 30 tags, each up to 40 characters with no spaces."
                             )
                         )
                         .ToResult();

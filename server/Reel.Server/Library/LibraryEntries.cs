@@ -12,6 +12,27 @@ public static class LibraryEntries
         return new MediaRecord(relativePath, parsed.Title, parsed.Year, sizeBytes);
     }
 
+    /// <summary>
+    /// Canonical relative path of a playable library file, indexed first if it arrived after the last scan so
+    /// rows that reference it can be stored; null when the path names no playable library file.
+    /// </summary>
+    public static async Task<string?> EnsureIndexedAsync(
+        string? relativePath,
+        MediaPathResolver paths,
+        SqliteMediaStore mediaStore
+    )
+    {
+        var fullPath = paths.ResolvePlayableFile(relativePath);
+        if (fullPath is null)
+        {
+            return null;
+        }
+
+        var canonical = paths.ToRelativePath(fullPath);
+        await mediaStore.EnsureIndexedAsync(Index(canonical, new FileInfo(fullPath).Length));
+        return canonical;
+    }
+
     public static FileNode File(MediaRecord media) =>
         new(
             Path.GetFileName(media.RelativePath),

@@ -3,7 +3,13 @@ import { injectPlayback } from "~~/app/features/playback/ports/playback";
 
 const { disconnect } = useConnection();
 const { loading, error } = injectPlayback();
-const reachable = computed(() => !loading.value && !error.value);
+const status = computed(() =>
+  loading.value
+    ? { label: "Checking…", dot: "bg-neutral-500", text: "text-neutral-400" }
+    : error.value
+      ? { label: "Paired · can't reach the Studio", dot: "bg-red-500", text: "text-red-500" }
+      : { label: "Paired", dot: "bg-green-500", text: "text-green-500" },
+);
 
 const handleDisconnect = () => {
   disconnect();
@@ -21,10 +27,8 @@ const handleDisconnect = () => {
         <div class="space-y-2 text-sm">
           <div class="flex items-center gap-2">
             <span class="text-neutral-500">Status</span>
-            <span class="size-2 rounded-full" :class="reachable ? 'bg-green-500' : 'bg-red-500'" />
-            <span :class="reachable ? 'text-green-500' : 'text-red-500'">
-              {{ loading ? "Checking…" : error ? "Paired · server unavailable" : "Connected" }}
-            </span>
+            <span class="size-2 rounded-full" :class="status.dot" />
+            <span :class="status.text">{{ status.label }}</span>
           </div>
         </div>
 
@@ -35,8 +39,9 @@ const handleDisconnect = () => {
           icon="i-lucide-log-out"
           @click="handleDisconnect"
         >
-          Disconnect
+          Unpair this phone
         </UButton>
+        <p class="text-xs text-neutral-500">You'll need the code on the TV to pair again.</p>
       </div>
     </section>
   </div>

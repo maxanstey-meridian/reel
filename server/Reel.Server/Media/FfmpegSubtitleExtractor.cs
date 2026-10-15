@@ -4,6 +4,7 @@ namespace Reel.Server.Media;
 
 public sealed class FfmpegSubtitleExtractor(
     MediaPathResolver paths,
+    TimeProvider time,
     ILogger<FfmpegSubtitleExtractor> logger
 )
 {
@@ -28,9 +29,23 @@ public sealed class FfmpegSubtitleExtractor(
             return cached;
         }
 
-        using var timeout = new CancellationTokenSource(GenerationTimeout);
+        using var timeout = new CancellationTokenSource(GenerationTimeout, time);
         Directory.CreateDirectory(_cacheDirectory);
         var arguments = new[] { "-i", source, "-map", $"0:s:{stream}", "-f", "webvtt" };
-        return await Ffmpeg.TryWriteAsync(cached, arguments, logger, timeout.Token) ? cached : null;
+        try
+        {
+            return await Ffmpeg.TryWriteAsync(cached, arguments, logger, timeout.Token)
+                ? cached
+                : null;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            logger.LogWarning(
+                "Subtitle extraction from {Source} stream {Stream} ran out of time",
+                source,
+                stream
+            );
+            return null;
+        }
     }
 }

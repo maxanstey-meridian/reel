@@ -3,10 +3,13 @@ import { client, unwrap, type PlaybackDesiredState, type PlaybackSession } from 
 import { isPlaybackPending } from "./logic/playback";
 import type { CompletedPlayback, Playback } from "./ports/playback";
 
+const isOlderRevision = (next: PlaybackSession, current: PlaybackSession | null): boolean =>
+  !!current && next.sessionId === current.sessionId && next.revision < current.revision;
+
 // A poll that was in flight while a control landed may describe the older session;
 // keep it only when it is the same session at the same or a later revision.
 const isStalePoll = (next: PlaybackSession | null, current: PlaybackSession | null): boolean =>
-  !next || !current || next.sessionId !== current.sessionId || next.revision < current.revision;
+  !next || !current || next.sessionId !== current.sessionId || isOlderRevision(next, current);
 
 export const usePlaybackSession = () => {
   const session = ref<PlaybackSession | null>(null);
@@ -31,7 +34,7 @@ export const usePlaybackSession = () => {
       session.value = next;
       error.value = null;
     } catch (caught) {
-      error.value = caught as Error;
+      error.value = caught instanceof Error ? caught : new Error("Couldn't check what's playing");
     } finally {
       loading.value = false;
     }
@@ -54,10 +57,14 @@ export const usePlaybackSession = () => {
     sending.value = true;
     commandError.value = null;
     try {
-      session.value = await command();
+      const accepted = await command();
+      // A poll that answered meanwhile may already show a later revision of this session.
+      if (!isOlderRevision(accepted, session.value)) {
+        session.value = accepted;
+      }
       return true;
     } catch (caught) {
-      commandError.value = (caught as Error).message;
+      commandError.value = caught instanceof Error ? caught.message : "The control wasn't sent";
       return false;
     } finally {
       sending.value = false;

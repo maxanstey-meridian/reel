@@ -24,9 +24,9 @@ public sealed class SecretKeyMiddlewareTests : IDisposable
     {
         using var client = _factory.CreateAuthenticatedClient();
 
-        var response = await client.GetAsync("/api/some-protected-route");
+        var response = await client.GetAsync("/api/library");
 
-        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
