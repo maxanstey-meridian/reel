@@ -24,7 +24,13 @@ export const fileNodeAt = (root: FileNode | null, relativePath: string): FileNod
   findNodeByPath(root, relativePath) ?? {
     name: relativePath.split("/").pop() ?? relativePath,
     type: "file",
+    kind: null,
     relativePath,
+    extension: null,
+    sizeBytes: null,
+    children: null,
+    parsedTitle: null,
+    year: null,
   };
 
 export const formatFileSize = (bytes: number): string => {

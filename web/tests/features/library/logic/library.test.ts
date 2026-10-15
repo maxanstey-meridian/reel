@@ -5,28 +5,34 @@ import {
   mediaLink,
 } from "~~/app/features/library/logic/library";
 import type { FileNode } from "~~/app/lib/api";
+import { fileNode } from "../../../support/fixtures";
 
-const file = (name: string): FileNode => ({ name, type: "file", relativePath: name });
+const file = (name: string): FileNode => fileNode({ name, type: "file", relativePath: name });
 
 describe("countFilesRecursive", () => {
   it("counts files in nested folders", () => {
-    const node: FileNode = {
+    const node = fileNode({
       name: "Dir",
       type: "directory",
       relativePath: "Dir",
       children: [
         file("A.mp4"),
         file("B.mp4"),
-        { name: "Sub", type: "directory", relativePath: "Dir/Sub", children: [file("C.mp4")] },
+        fileNode({
+          name: "Sub",
+          type: "directory",
+          relativePath: "Dir/Sub",
+          children: [file("C.mp4")],
+        }),
       ],
-    };
+    });
     expect(countFilesRecursive(node)).toBe(3);
   });
 
   it("returns zero without children", () => {
-    expect(countFilesRecursive({ name: "Empty", type: "directory", relativePath: "Empty" })).toBe(
-      0,
-    );
+    expect(
+      countFilesRecursive(fileNode({ name: "Empty", type: "directory", relativePath: "Empty" })),
+    ).toBe(0);
   });
 });
 
@@ -41,12 +47,12 @@ describe("formatFileSize", () => {
 
 describe("mediaLink", () => {
   it("opens a folder holding one file at that file, and other folders as folders", () => {
-    const single: FileNode = {
+    const single = fileNode({
       name: "Film",
       type: "directory",
       relativePath: "Film",
       children: [file("Film/Film.mkv")],
-    };
+    });
     const pair: FileNode = { ...single, children: [file("Film/a.mkv"), file("Film/b.mkv")] };
 
     expect(mediaLink(single)).toBe(`/detail/${encodeURIComponent("Film/Film.mkv")}`);

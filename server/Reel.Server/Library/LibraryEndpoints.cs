@@ -11,7 +11,7 @@ public static class LibraryEndpoints
     public static IEndpointRouteBuilder MapLibraryEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.Library.Route,
+            ReelContract.LibraryRoute,
             async (SqliteMediaStore mediaStore, MediaPathResolver paths) =>
             {
                 var rootName = Path.GetFileName(Path.TrimEndingDirectorySeparator(paths.MediaRoot));
@@ -21,7 +21,7 @@ public static class LibraryEndpoints
         );
 
         endpoints.MapPost(
-            ReelContract.LibraryRescan.Route,
+            ReelContract.LibraryRescanRoute,
             async (LibraryIndexReconciler reconciler, CancellationToken ct) =>
             {
                 switch (await reconciler.ReconcileAsync(ct))
@@ -39,7 +39,7 @@ public static class LibraryEndpoints
         );
 
         endpoints.MapGet(
-            ReelContract.NextEpisode.Route,
+            ReelContract.NextEpisodeRoute,
             ([AsParameters] FileRequest request, NextEpisodeService next) =>
                 ReelContract.NextEpisode.Bind(request).Success(next.Find(request.Path)).ToResult()
         );

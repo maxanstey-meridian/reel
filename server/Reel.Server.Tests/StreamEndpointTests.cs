@@ -20,6 +20,7 @@ public sealed class StreamEndpointTests : IDisposable
         _media.Write("Films/test.mp4", "fake-mp4-content"u8.ToArray());
         _media.Write("Films/movie.mkv", "fake-mkv-content"u8.ToArray());
         _media.Write("song.mp3", "fake-mp3-content"u8.ToArray());
+        _media.Write("track.ogg", "fake-ogg-content"u8.ToArray());
         _direct = _media.CreateFactory();
     }
 
@@ -36,6 +37,7 @@ public sealed class StreamEndpointTests : IDisposable
     [InlineData("Films/test.mp4&start=30", "video/mp4", "fake-mp4-content")]
     [InlineData("Films/movie.mkv", "video/x-matroska", "fake-mkv-content")]
     [InlineData("song.mp3", "audio/mpeg", "fake-mp3-content")]
+    [InlineData("track.ogg", "audio/ogg", "fake-ogg-content")]
     public async Task DirectMode_ServesTheFileWithItsContentTypeIgnoringStart(
         string query,
         string type,

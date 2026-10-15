@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Reel.Server.Common;
 using Rivet;
 
@@ -10,6 +11,19 @@ public static class ReelContract
     public const string HealthRoute = "/api/health";
     public const string PairRoute = "/pair";
     public const string TagsRoute = "/api/tags";
+    public const string LibraryRoute = "/api/library";
+    public const string NextEpisodeRoute = "/api/library/next";
+    public const string LibraryRescanRoute = "/api/library/rescan";
+    public const string ProgressRoute = "/api/progress";
+    public const string FavouritesRoute = "/api/favourites";
+    public const string StreamRoute = "/api/files/stream";
+    public const string StreamInfoRoute = "/api/files/stream/info";
+    public const string ThumbnailRoute = "/api/files/thumbnail";
+    public const string SearchRoute = "/api/search";
+    public const string SubtitlesRoute = "/api/files/subtitles";
+    public const string SubtitlesContentRoute = "/api/files/subtitles/content";
+    public const string TrickplayRoute = "/api/files/trickplay";
+    public const string TrickplaySpriteRoute = "/api/files/trickplay/sprite";
 
     public static readonly RouteDefinition<ConnectRequest, ConnectResponse> Connect = Define
         .Post<ConnectRequest, ConnectResponse>(ConnectRoute)
@@ -19,14 +33,14 @@ public static class ReelContract
         .Get<HealthResponse>(HealthRoute)
         .Returns<ErrorResponse>(503);
 
-    public static readonly RouteDefinition<FileNode> Library = Define.Get<FileNode>("/api/library");
+    public static readonly RouteDefinition<FileNode> Library = Define.Get<FileNode>(LibraryRoute);
 
     public static readonly RouteDefinition<FileRequest, NextEpisodeResponse> NextEpisode =
-        Define.Get<FileRequest, NextEpisodeResponse>("/api/library/next");
+        Define.Get<FileRequest, NextEpisodeResponse>(NextEpisodeRoute);
 
     // Refused when the scan looks like an unreadable or missing volume rather than a real library change.
     public static readonly RouteDefinition<LibraryRescanResponse> LibraryRescan = Define
-        .Post<LibraryRescanResponse>("/api/library/rescan")
+        .Post<LibraryRescanResponse>(LibraryRescanRoute)
         .Status(200)
         .Returns<ErrorResponse>(503);
 
@@ -39,45 +53,47 @@ public static class ReelContract
         .Returns<ErrorResponse>(400);
 
     public static readonly InputRouteDefinition<ProgressRequest> ProgressUpdate = Define
-        .Post("/api/progress")
+        .Post(ProgressRoute)
         .Accepts<ProgressRequest>()
         .Status(200)
         .Returns<ErrorResponse>(400)
         .Returns<ErrorResponse>(404);
 
     public static readonly RouteDefinition<WatchProgress[]> ProgressAll =
-        Define.Get<WatchProgress[]>("/api/progress");
+        Define.Get<WatchProgress[]>(ProgressRoute);
 
     public static readonly InputRouteDefinition<FavouriteRequest> FavouritesAdd = Define
-        .Post("/api/favourites")
+        .Post(FavouritesRoute)
         .Accepts<FavouriteRequest>()
         .Status(200)
         .Returns<ErrorResponse>(404);
 
     public static readonly RouteDefinition<Favourite[]> FavouritesAll = Define.Get<Favourite[]>(
-        "/api/favourites"
+        FavouritesRoute
     );
 
     public static readonly InputRouteDefinition<FileRequest> FavouritesRemove = Define
-        .Delete("/api/favourites")
+        .Delete(FavouritesRoute)
         .Accepts<FileRequest>()
         .Status(200);
 
     // Ranged file bytes, or with Height a live MP4 transcode of video starting at Start seconds. StreamInfo picks
     // Height from Reel:Compression once per load, so a settings edit never changes a stream mid-playback.
     public static readonly FileRouteDefinition<StreamRequest> Stream = Define
-        .File<StreamRequest>("/api/files/stream")
+        .File<StreamRequest>(StreamRoute)
+        .ProducesFile("video/*")
+        .ResponseBinaryContent(200, "audio/*")
         .Returns<ErrorResponse>(400)
         .Returns<ErrorResponse>(404)
         .QueryAuth();
 
     public static readonly RouteDefinition<FileRequest, StreamInfoResponse> StreamInfo = Define
-        .Get<FileRequest, StreamInfoResponse>("/api/files/stream/info")
+        .Get<FileRequest, StreamInfoResponse>(StreamInfoRoute)
         .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<FileRequest> Thumbnail = Define
-        .File<FileRequest>("/api/files/thumbnail")
-        .ContentType("image/jpeg")
+        .File<FileRequest>(ThumbnailRoute)
+        .ProducesFile("image/jpeg")
         .Returns<ErrorResponse>(400)
         .Returns<ErrorResponse>(404)
         .QueryAuth();
@@ -85,25 +101,25 @@ public static class ReelContract
     public static readonly RouteDefinition<SearchRequest, FileNode[]> Search = Define.Get<
         SearchRequest,
         FileNode[]
-    >("/api/search");
+    >(SearchRoute);
 
     public static readonly RouteDefinition<FileRequest, SubtitleTrack[]> SubtitlesList = Define
-        .Get<FileRequest, SubtitleTrack[]>("/api/files/subtitles")
+        .Get<FileRequest, SubtitleTrack[]>(SubtitlesRoute)
         .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<SubtitleContentRequest> SubtitlesContent = Define
-        .File<SubtitleContentRequest>("/api/files/subtitles/content")
-        .ContentType("text/vtt")
+        .File<SubtitleContentRequest>(SubtitlesContentRoute)
+        .ProducesFile("text/vtt")
         .Returns<ErrorResponse>(404)
         .QueryAuth();
 
     public static readonly RouteDefinition<FileRequest, TrickplayMetadata> TrickplayInfo = Define
-        .Get<FileRequest, TrickplayMetadata>("/api/files/trickplay")
+        .Get<FileRequest, TrickplayMetadata>(TrickplayRoute)
         .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<TrickplaySpriteRequest> TrickplaySprite = Define
-        .File<TrickplaySpriteRequest>("/api/files/trickplay/sprite")
-        .ContentType("image/jpeg")
+        .File<TrickplaySpriteRequest>(TrickplaySpriteRoute)
+        .ProducesFile("image/jpeg")
         .Returns<ErrorResponse>(400)
         .Returns<ErrorResponse>(404)
         .QueryAuth();
@@ -143,6 +159,7 @@ public sealed record LibraryRescanResponse(int MediaCount);
 
 public sealed record NextEpisodeResponse(string? RelativePath, string? Title);
 
+[JsonConverter(typeof(RivetCamelCaseEnumConverter<SubtitleSource>))]
 public enum SubtitleSource
 {
     Embedded,

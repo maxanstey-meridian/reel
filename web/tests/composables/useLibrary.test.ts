@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import type { FileNode } from "~~/app/lib/api";
 import { readBrowseCache, writeBrowseCache } from "~~/app/lib/browse-cache";
 import { deferred, fakeServer, unreachable } from "../support/fakeServer";
+import { fileNode } from "../support/fixtures";
 
-const saved: FileNode = {
+const saved = fileNode({
   name: "",
   type: "directory",
   relativePath: "",
-  children: [{ name: "Old.mkv", type: "file", relativePath: "Old.mkv" }],
-};
-const fresh: FileNode = { name: "", type: "directory", relativePath: "", children: [] };
+  children: [fileNode({ name: "Old.mkv", type: "file", relativePath: "Old.mkv" })],
+});
+const fresh = fileNode({ name: "", type: "directory", relativePath: "", children: [] });
 
 const libraryServer = () =>
   fakeServer({

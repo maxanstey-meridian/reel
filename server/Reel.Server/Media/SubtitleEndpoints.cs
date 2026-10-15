@@ -14,7 +14,7 @@ public static partial class SubtitleEndpoints
     public static IEndpointRouteBuilder MapSubtitleEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.SubtitlesList.Route,
+            ReelContract.SubtitlesRoute,
             async (
                 [AsParameters] FileRequest request,
                 FfprobeSubtitleDiscovery discovery,
@@ -53,7 +53,7 @@ public static partial class SubtitleEndpoints
         );
 
         endpoints.MapGet(
-            ReelContract.SubtitlesContent.Route,
+            ReelContract.SubtitlesContentRoute,
             async (
                 [AsParameters] SubtitleContentRequest request,
                 FfprobeSubtitleDiscovery discovery,

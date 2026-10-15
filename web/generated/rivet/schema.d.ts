@@ -327,8 +327,8 @@ export interface components {
             title: string;
             desiredState: components["schemas"]["PlaybackDesiredStateDto"];
             /** Format: int32 */
-            subtitleIndex?: number | null;
-            pendingSeek?: components["schemas"]["SeekRequestResponse"] | null;
+            subtitleIndex: number | null;
+            pendingSeek: components["schemas"]["SeekRequestResponse"] | null;
         };
         PlaybackObservationResponse: {
             /** Format: int64 */
@@ -336,17 +336,17 @@ export interface components {
             /** Format: int64 */
             appliedRevision: number;
             /** Format: int64 */
-            appliedSeekId?: number | null;
+            appliedSeekId: number | null;
             state: components["schemas"]["PlaybackObservationStateDto"];
-            relativePath?: string | null;
+            relativePath: string | null;
             /** Format: double */
             positionSeconds: number;
             /** Format: double */
             durationSeconds: number;
             /** Format: int32 */
-            subtitleIndex?: number | null;
-            errorCode?: string | null;
-            errorMessage?: string | null;
+            subtitleIndex: number | null;
+            errorCode: string | null;
+            errorMessage: string | null;
             /** Format: date-time */
             updatedAtUtc: string;
         };
@@ -356,7 +356,7 @@ export interface components {
             /** Format: int64 */
             revision: number;
             intent: components["schemas"]["PlaybackIntentResponse"];
-            observation?: components["schemas"]["PlaybackObservationResponse"] | null;
+            observation: components["schemas"]["PlaybackObservationResponse"] | null;
             tvConnected: boolean;
         };
         StartPlaybackSessionRequest: {
@@ -367,7 +367,7 @@ export interface components {
             subtitleIndex?: number | null;
         };
         PlaybackSessionEnvelope: {
-            session?: components["schemas"]["PlaybackSessionResponse"] | null;
+            session: components["schemas"]["PlaybackSessionResponse"] | null;
         };
         UpdatePlaybackIntentRequest: {
             /** Format: uuid */
@@ -412,19 +412,19 @@ export interface components {
         FileNode: {
             name: string;
             type: components["schemas"]["FileNodeType"];
-            kind?: components["schemas"]["MediaKind"] | null;
+            kind: components["schemas"]["MediaKind"] | null;
             relativePath: string;
-            extension?: string | null;
+            extension: string | null;
             /** Format: int64 */
-            sizeBytes?: number | null;
-            children?: components["schemas"]["FileNode"][] | null;
-            parsedTitle?: string | null;
+            sizeBytes: number | null;
+            children: components["schemas"]["FileNode"][] | null;
+            parsedTitle: string | null;
             /** Format: int32 */
-            year?: number | null;
+            year: number | null;
         };
         NextEpisodeResponse: {
-            relativePath?: string | null;
-            title?: string | null;
+            relativePath: string | null;
+            title: string | null;
         };
         LibraryRescanResponse: {
             /** Format: int32 */
@@ -460,9 +460,9 @@ export interface components {
         };
         StreamInfoResponse: {
             /** Format: double */
-            durationSeconds?: number | null;
+            durationSeconds: number | null;
             /** Format: int32 */
-            transcodeHeight?: number | null;
+            transcodeHeight: number | null;
         };
         SubtitleTrack: {
             /** Format: int32 */
@@ -1000,7 +1000,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/octet-stream": string;
+                    "video/*": string;
+                    "audio/*": string;
                 };
             };
             /** @description Bad Request */

@@ -56,6 +56,9 @@ builder.Services.Configure<ExceptionHandlerOptions>(options =>
 
 // Development otherwise throws on unreadable requests instead of answering 400 as production does.
 builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = false);
+
+// Options converters win over the enums' type-level Rivet converters, which only tell the spec they are camelCase
+// strings; this one keeps integer values rejected.
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(
         new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false)

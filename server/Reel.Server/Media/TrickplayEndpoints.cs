@@ -16,7 +16,7 @@ public static class TrickplayEndpoints
     public static IEndpointRouteBuilder MapTrickplayEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.TrickplayInfo.Route,
+            ReelContract.TrickplayRoute,
             async (
                 [AsParameters] FileRequest request,
                 FfmpegTrickplayGenerator generator,
@@ -50,7 +50,7 @@ public static class TrickplayEndpoints
         );
 
         endpoints.MapGet(
-            ReelContract.TrickplaySprite.Route,
+            ReelContract.TrickplaySpriteRoute,
             async (
                 [AsParameters] TrickplaySpriteRequest request,
                 FfmpegTrickplayGenerator generator,

@@ -10,7 +10,8 @@ import {
   progressFraction,
   type TvState,
 } from "~~/app/features/playback/logic/playback";
-import type { FileNode, PlaybackSession } from "~~/app/lib/api";
+import type { PlaybackSession } from "~~/app/lib/api";
+import { fileNode, intent, observation } from "../../../support/fixtures";
 
 type SeekRequest = NonNullable<PlaybackSession["intent"]["pendingSeek"]>;
 
@@ -23,13 +24,8 @@ const session = (
   sessionId: "6767fab3-64de-47de-ae53-b0e2981646c0",
   revision: 3,
   tvConnected: true,
-  intent: {
-    relativePath: "Films/Test.mp4",
-    title: "Test",
-    desiredState,
-    pendingSeek,
-  },
-  observation: {
+  intent: intent({ relativePath: "Films/Test.mp4", title: "Test", desiredState, pendingSeek }),
+  observation: observation({
     observationSequence: 1,
     appliedRevision,
     appliedSeekId: 6,
@@ -38,7 +34,7 @@ const session = (
     positionSeconds: 42,
     durationSeconds: 100,
     updatedAtUtc: "2026-08-11T00:00:00Z",
-  },
+  }),
 });
 
 describe("playback logic", () => {
@@ -96,12 +92,14 @@ describe("playback logic", () => {
   });
 
   it("continues unfinished files, by path when the library doesn't have them", () => {
-    const tree: FileNode = {
+    const tree = fileNode({
       name: "",
       type: "directory",
       relativePath: "",
-      children: [{ name: "a.mkv", type: "file", relativePath: "Films/a.mkv", parsedTitle: "A" }],
-    };
+      children: [
+        fileNode({ name: "a.mkv", type: "file", relativePath: "Films/a.mkv", parsedTitle: "A" }),
+      ],
+    });
     const entry = (relativePath: string, positionSeconds: number) => ({
       relativePath,
       positionSeconds,
@@ -115,7 +113,10 @@ describe("playback logic", () => {
 
     expect(items).toEqual([
       { node: expect.objectContaining({ parsedTitle: "A" }), progress: 0.5 },
-      { node: { name: "b.mkv", type: "file", relativePath: "Moved/b.mkv" }, progress: 0.25 },
+      {
+        node: fileNode({ name: "b.mkv", type: "file", relativePath: "Moved/b.mkv" }),
+        progress: 0.25,
+      },
     ]);
   });
 

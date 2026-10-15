@@ -1,32 +1,35 @@
+using System.Text.Json.Serialization;
+using Rivet;
+
 namespace Reel.Server.Contracts.Playback;
 
 public sealed record StartPlaybackSessionRequest(
     string RelativePath,
     double StartPositionSeconds,
-    int? SubtitleIndex
+    [property: RivetOptional] int? SubtitleIndex
 );
 
 // ExpectedRevision lets a client apply a change only to the session state it last saw.
 public sealed record UpdatePlaybackIntentRequest(
     Guid SessionId,
     PlaybackDesiredStateDto DesiredState,
-    int? SubtitleIndex,
-    double? SeekPositionSeconds,
-    long? ExpectedRevision = null
+    [property: RivetOptional] int? SubtitleIndex,
+    [property: RivetOptional] double? SeekPositionSeconds,
+    [property: RivetOptional] long? ExpectedRevision = null
 );
 
 public sealed record ReportPlaybackObservationRequest(
     Guid SessionId,
     long ObservationSequence,
     long AppliedRevision,
-    long? AppliedSeekId,
+    [property: RivetOptional] long? AppliedSeekId,
     PlaybackObservationStateDto State,
-    string? RelativePath,
+    [property: RivetOptional] string? RelativePath,
     double PositionSeconds,
     double DurationSeconds,
-    int? SubtitleIndex,
-    string? ErrorCode,
-    string? ErrorMessage
+    [property: RivetOptional] int? SubtitleIndex,
+    [property: RivetOptional] string? ErrorCode,
+    [property: RivetOptional] string? ErrorMessage
 );
 
 public sealed record PlaybackSessionEnvelope(PlaybackSessionResponse? Session);
@@ -64,6 +67,7 @@ public sealed record PlaybackObservationResponse(
     DateTimeOffset UpdatedAtUtc
 );
 
+[JsonConverter(typeof(RivetCamelCaseEnumConverter<PlaybackDesiredStateDto>))]
 public enum PlaybackDesiredStateDto
 {
     Playing,
@@ -71,6 +75,7 @@ public enum PlaybackDesiredStateDto
     Stopped,
 }
 
+[JsonConverter(typeof(RivetCamelCaseEnumConverter<PlaybackObservationStateDto>))]
 public enum PlaybackObservationStateDto
 {
     Idle,

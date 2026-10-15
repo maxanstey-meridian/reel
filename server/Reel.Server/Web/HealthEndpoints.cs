@@ -12,7 +12,7 @@ public static class HealthEndpoints
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.Health.Route,
+            ReelContract.HealthRoute,
             async (DatabaseService database, MediaPathResolver paths, ILogger<Program> logger) =>
             {
                 var problem = await FindProblemAsync(database, paths, logger);

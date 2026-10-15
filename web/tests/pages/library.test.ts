@@ -4,18 +4,12 @@ import DefaultLayout from "~~/app/layouts/default.vue";
 import { pairingKey, type FileNode } from "~~/app/lib/api";
 import LibraryPage from "~~/app/pages/library/[...path].vue";
 import { fakeServer, unreachable } from "../support/fakeServer";
+import { fileNode } from "../support/fixtures";
 
-const file = (relativePath: string): FileNode => ({
-  name: relativePath.split("/").pop()!,
-  type: "file",
-  relativePath,
-});
-const folder = (relativePath: string, children: FileNode[]): FileNode => ({
-  name: relativePath.split("/").pop()!,
-  type: "directory",
-  relativePath,
-  children,
-});
+const file = (relativePath: string): FileNode =>
+  fileNode({ name: relativePath.split("/").pop()!, type: "file", relativePath });
+const folder = (relativePath: string, children: FileNode[]): FileNode =>
+  fileNode({ name: relativePath.split("/").pop()!, type: "directory", relativePath, children });
 
 const tree = folder("", [
   folder("TV", [

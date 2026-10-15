@@ -3,6 +3,7 @@ import { createApp, h } from "vue";
 import { usePlaybackSession } from "~~/app/features/playback/usePlaybackSession";
 import type { PlaybackSession } from "~~/app/lib/api";
 import { deferred, fakeServer } from "../../support/fakeServer";
+import { intent } from "../../support/fixtures";
 
 const json = (body: object) => () => Response.json(body);
 const pending = (promise: Promise<object>) => () => promise.then((body) => Response.json(body));
@@ -11,7 +12,7 @@ const activeSession: PlaybackSession = {
   sessionId: "6767fab3-64de-47de-ae53-b0e2981646c0",
   revision: 1,
   tvConnected: true,
-  intent: { relativePath: "Films/Test.mp4", title: "Test", desiredState: "playing" },
+  intent: intent({ relativePath: "Films/Test.mp4", title: "Test", desiredState: "playing" }),
   observation: null,
 };
 

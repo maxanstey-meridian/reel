@@ -11,7 +11,7 @@ public static class FavouritesEndpoints
     public static IEndpointRouteBuilder MapFavouritesEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(
-            ReelContract.FavouritesAdd.Route,
+            ReelContract.FavouritesRoute,
             async (
                 [FromBody] FavouriteRequest request,
                 SqliteFavouritesStore store,
@@ -36,7 +36,7 @@ public static class FavouritesEndpoints
         );
 
         endpoints.MapDelete(
-            ReelContract.FavouritesRemove.Route,
+            ReelContract.FavouritesRoute,
             async ([AsParameters] FileRequest request, SqliteFavouritesStore store) =>
             {
                 var endpoint = ReelContract.FavouritesRemove.Bind(request);
@@ -50,7 +50,7 @@ public static class FavouritesEndpoints
         );
 
         endpoints.MapGet(
-            ReelContract.FavouritesAll.Route,
+            ReelContract.FavouritesRoute,
             async (SqliteFavouritesStore store) =>
                 ReelContract.FavouritesAll.Success(await store.GetAllAsync()).ToResult()
         );

@@ -12,15 +12,21 @@ namespace Reel.Server.Media;
 
 public static class StreamEndpoints
 {
+    // Covers every playable extension; .ogg is audio here, not ASP.NET's video/ogg.
     private static readonly FileExtensionContentTypeProvider ContentTypes = new()
     {
-        Mappings = { [".mkv"] = "video/x-matroska", [".flac"] = "audio/flac" },
+        Mappings =
+        {
+            [".mkv"] = "video/x-matroska",
+            [".flac"] = "audio/flac",
+            [".ogg"] = "audio/ogg",
+        },
     };
 
     public static IEndpointRouteBuilder MapStreamEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.Stream.Route,
+            ReelContract.StreamRoute,
             (
                 [AsParameters] StreamRequest request,
                 MediaPathResolver paths,
@@ -37,13 +43,11 @@ public static class StreamEndpoints
 
                 if (request.Height is not { } height || MediaPathResolver.IsAudio(fullPath))
                 {
-                    return Results.File(
-                        fullPath,
-                        ContentTypes.TryGetContentType(fullPath, out var contentType)
-                            ? contentType
-                            : "application/octet-stream",
-                        enableRangeProcessing: true
-                    );
+                    // Rivet rejects a missing or out-of-contract type, so an unmapped extension fails loudly.
+                    ContentTypes.TryGetContentType(fullPath, out var contentType);
+                    return endpoint
+                        .File(fullPath, enableRangeProcessing: true, contentType: contentType)
+                        .ToResult();
                 }
 
                 if (!ReelOptions.IsTranscodeHeight(height))
@@ -59,7 +63,8 @@ public static class StreamEndpoints
                         .ToResult();
                 }
 
-                // The transcode has no byte ranges; the TV seeks by reloading with ?start=<seconds>.
+                // The transcode has no byte ranges; the TV seeks by reloading with ?start=<seconds>. It stays a plain
+                // result because Rivet's File(...) takes a finished stream, not ffmpeg writing into the response.
                 return Results.Stream(
                     output =>
                         TranscodeAsync(
@@ -76,7 +81,7 @@ public static class StreamEndpoints
         );
 
         endpoints.MapGet(
-            ReelContract.StreamInfo.Route,
+            ReelContract.StreamInfoRoute,
             async (
                 [AsParameters] FileRequest request,
                 MediaPathResolver paths,

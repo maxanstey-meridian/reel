@@ -11,7 +11,7 @@ public static class ProgressEndpoints
     public static IEndpointRouteBuilder MapProgressEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(
-            ReelContract.ProgressUpdate.Route,
+            ReelContract.ProgressRoute,
             async (
                 [FromBody] ProgressRequest request,
                 SqliteProgressStore store,
@@ -58,7 +58,7 @@ public static class ProgressEndpoints
         );
 
         endpoints.MapGet(
-            ReelContract.ProgressAll.Route,
+            ReelContract.ProgressRoute,
             async (SqliteProgressStore store) =>
                 ReelContract.ProgressAll.Success(await store.GetAllAsync()).ToResult()
         );

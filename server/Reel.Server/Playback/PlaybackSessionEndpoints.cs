@@ -14,7 +14,7 @@ public static class PlaybackSessionEndpoints
     )
     {
         endpoints.MapPost(
-            PlaybackContract.Start.Route,
+            PlaybackContract.SessionRoute,
             ([FromBody] StartPlaybackSessionRequest request, PlaybackSessionService service) =>
             {
                 var endpoint = PlaybackContract.Start.Bind(request);
@@ -30,7 +30,7 @@ public static class PlaybackSessionEndpoints
         );
 
         endpoints.MapGet(
-            PlaybackContract.Get.Route,
+            PlaybackContract.SessionRoute,
             (PlaybackSessionService service) =>
             {
                 var envelope = new PlaybackSessionEnvelope(service.GetCurrent());
@@ -39,7 +39,7 @@ public static class PlaybackSessionEndpoints
         );
 
         endpoints.MapPut(
-            PlaybackContract.UpdateIntent.Route,
+            PlaybackContract.IntentRoute,
             ([FromBody] UpdatePlaybackIntentRequest request, PlaybackSessionService service) =>
             {
                 var endpoint = PlaybackContract.UpdateIntent.Bind(request);
@@ -55,7 +55,7 @@ public static class PlaybackSessionEndpoints
         );
 
         endpoints.MapPut(
-            PlaybackContract.ReportObservation.Route,
+            PlaybackContract.ObservationRoute,
             ([FromBody] ReportPlaybackObservationRequest request, PlaybackSessionService service) =>
             {
                 var endpoint = PlaybackContract.ReportObservation.Bind(request);

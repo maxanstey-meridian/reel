@@ -10,7 +10,7 @@ public static class ThumbnailEndpoints
     public static IEndpointRouteBuilder MapThumbnailEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.Thumbnail.Route,
+            ReelContract.ThumbnailRoute,
             async (
                 [AsParameters] FileRequest request,
                 MediaPathResolver paths,

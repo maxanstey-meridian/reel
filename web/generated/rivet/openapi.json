@@ -633,7 +633,13 @@
           "200": {
             "description": "Success",
             "content": {
-              "application/octet-stream": {
+              "video/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/*": {
                 "schema": {
                   "type": "string",
                   "format": "binary"
@@ -1117,7 +1123,9 @@
         "required": [
           "relativePath",
           "title",
-          "desiredState"
+          "desiredState",
+          "subtitleIndex",
+          "pendingSeek"
         ]
       },
       "PlaybackObservationResponse": {
@@ -1183,9 +1191,14 @@
         "required": [
           "observationSequence",
           "appliedRevision",
+          "appliedSeekId",
           "state",
+          "relativePath",
           "positionSeconds",
           "durationSeconds",
+          "subtitleIndex",
+          "errorCode",
+          "errorMessage",
           "updatedAtUtc"
         ]
       },
@@ -1221,6 +1234,7 @@
           "sessionId",
           "revision",
           "intent",
+          "observation",
           "tvConnected"
         ]
       },
@@ -1260,7 +1274,10 @@
               }
             ]
           }
-        }
+        },
+        "required": [
+          "session"
+        ]
       },
       "UpdatePlaybackIntentRequest": {
         "type": "object",
@@ -1461,7 +1478,13 @@
         "required": [
           "name",
           "type",
-          "relativePath"
+          "kind",
+          "relativePath",
+          "extension",
+          "sizeBytes",
+          "children",
+          "parsedTitle",
+          "year"
         ]
       },
       "NextEpisodeResponse": {
@@ -1479,7 +1502,11 @@
               "null"
             ]
           }
-        }
+        },
+        "required": [
+          "relativePath",
+          "title"
+        ]
       },
       "LibraryRescanResponse": {
         "type": "object",
@@ -1602,7 +1629,11 @@
             ],
             "format": "int32"
           }
-        }
+        },
+        "required": [
+          "durationSeconds",
+          "transcodeHeight"
+        ]
       },
       "SubtitleTrack": {
         "type": "object",
@@ -1679,7 +1710,8 @@
           "playing",
           "paused",
           "stopped"
-        ]
+        ],
+        "x-rivet-enum-naming-policy": "camelCase"
       },
       "PlaybackObservationStateDto": {
         "type": "string",
@@ -1691,28 +1723,32 @@
           "paused",
           "ended",
           "error"
-        ]
+        ],
+        "x-rivet-enum-naming-policy": "camelCase"
       },
       "FileNodeType": {
         "type": "string",
         "enum": [
           "file",
           "directory"
-        ]
+        ],
+        "x-rivet-enum-naming-policy": "camelCase"
       },
       "MediaKind": {
         "type": "string",
         "enum": [
           "video",
           "audio"
-        ]
+        ],
+        "x-rivet-enum-naming-policy": "camelCase"
       },
       "SubtitleSource": {
         "type": "string",
         "enum": [
           "embedded",
           "external"
-        ]
+        ],
+        "x-rivet-enum-naming-policy": "camelCase"
       }
     }
   }

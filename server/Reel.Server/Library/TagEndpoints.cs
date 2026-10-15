@@ -11,13 +11,13 @@ public static class TagEndpoints
     public static IEndpointRouteBuilder MapTagEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-            ReelContract.Tags.Route,
+            ReelContract.TagsRoute,
             async (SqliteMediaStore mediaStore) =>
                 ReelContract.Tags.Success(await mediaStore.GetTagsAsync()).ToResult()
         );
 
         endpoints.MapPut(
-            ReelContract.TagsUpdate.Route,
+            ReelContract.TagsRoute,
             async ([FromBody] TagUpdateRequest request, SqliteMediaStore mediaStore) =>
             {
                 var endpoint = ReelContract.TagsUpdate.Bind(request);

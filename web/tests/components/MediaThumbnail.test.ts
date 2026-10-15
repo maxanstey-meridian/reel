@@ -2,13 +2,10 @@ import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it } from "vitest";
 import MediaThumbnail from "~~/app/components/MediaThumbnail.vue";
 import type { FileNode } from "~~/app/lib/api";
+import { fileNode } from "../support/fixtures";
 
-const file = (relativePath: string, kind: "video" | "audio"): FileNode => ({
-  name: relativePath,
-  type: "file",
-  kind,
-  relativePath,
-});
+const file = (relativePath: string, kind: "video" | "audio"): FileNode =>
+  fileNode({ name: relativePath, type: "file", kind, relativePath });
 
 const thumbnailOf = async (node: FileNode) => {
   const thumbnail = await mountSuspended(MediaThumbnail, { props: { node } });
@@ -34,17 +31,19 @@ describe("MediaThumbnail", () => {
     expect(await iconOf(file("Song.flac", "audio"))).toBe("i-lucide:music");
     expect(await iconOf(file("Film.mkv", "video"))).toBe("i-lucide:film");
     expect(
-      await iconOf({ name: "Shows", type: "directory", relativePath: "Shows", children: [] }),
+      await iconOf(
+        fileNode({ name: "Shows", type: "directory", relativePath: "Shows", children: [] }),
+      ),
     ).toBe("i-lucide:folder");
   });
 
   it("shows a folder's first video", async () => {
-    const folder: FileNode = {
+    const folder = fileNode({
       name: "Mixed",
       type: "directory",
       relativePath: "Mixed",
       children: [file("Mixed/Theme.mp3", "audio"), file("Mixed/Episode.mp4", "video")],
-    };
+    });
 
     expect(await thumbnailOf(folder)).toBe("Mixed/Episode.mp4");
   });

@@ -8,6 +8,13 @@
         "csharpier"
       ],
       "rollForward": false
+    },
+    "dotnet-rivet": {
+      "version": "0.46.0",
+      "commands": [
+        "dotnet-rivet"
+      ],
+      "rollForward": false
     }
   }
 }

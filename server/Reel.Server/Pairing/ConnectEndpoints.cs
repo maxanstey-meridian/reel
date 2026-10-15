@@ -11,7 +11,7 @@ public static class ConnectEndpoints
     public static IEndpointRouteBuilder MapConnectEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost(
-            ReelContract.Connect.Route,
+            ReelContract.ConnectRoute,
             ([FromBody] ConnectRequest request, IOptions<ReelOptions> options) =>
             {
                 var endpoint = ReelContract.Connect.Bind(request);
