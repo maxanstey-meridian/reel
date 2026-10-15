@@ -18,6 +18,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,12 +62,15 @@ fun PlayerScreen(viewModel: PlaybackViewModel) {
     var showSeek by remember { mutableStateOf(false) }
     var showNotice by remember { mutableStateOf(false) }
 
-    // Paused stays awake too, so the Fire TV screensaver doesn't cover a paused video.
-    val awake =
-        when (state.actualState) {
-            Playing, Paused, Loading, Buffering -> true
-            else -> false
+    // A short pause stays awake so the Fire TV screensaver doesn't cover the video; a long one
+    // lets the screen sleep until playback resumes.
+    val awake by produceState(false, state.actualState) {
+        value = state.actualState in listOf(Playing, Paused, Loading, Buffering)
+        if (state.actualState == Paused) {
+            delay(PAUSED_AWAKE_MS)
+            value = false
         }
+    }
     DisposableEffect(awake) {
         view.keepScreenOn = awake
         onDispose { view.keepScreenOn = false }
@@ -192,7 +196,10 @@ fun PlayerScreen(viewModel: PlaybackViewModel) {
                     .padding(horizontal = 20.dp, vertical = 10.dp),
             )
         }
-        DisconnectedOverlay(visible = state.connection == PlaybackConnection.Disconnected)
+        DisconnectedOverlay(
+            visible = state.connection == PlaybackConnection.Disconnected,
+            error = state.connectionError,
+        )
     }
 
     // Overlay buttons take focus; when they disappear focus must return to the key-handling box.
@@ -255,3 +262,5 @@ internal fun formatTimestamp(milliseconds: Long): String {
         "%d:%02d".format(minutes, remainder)
     }
 }
+
+private const val PAUSED_AWAKE_MS = 20 * 60 * 1_000L

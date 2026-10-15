@@ -1077,16 +1077,11 @@
           "positionSeconds": {
             "type": "number",
             "format": "double"
-          },
-          "introducedRevision": {
-            "type": "integer",
-            "format": "int64"
           }
         },
         "required": [
           "seekId",
-          "positionSeconds",
-          "introducedRevision"
+          "positionSeconds"
         ]
       },
       "PlaybackIntentResponse": {
@@ -1205,16 +1200,6 @@
             "type": "integer",
             "format": "int64"
           },
-          "createdAtUtc": {
-            "type": "string",
-            "format": "date-time",
-            "x-rivet-csharp-type": "DateTimeOffset"
-          },
-          "updatedAtUtc": {
-            "type": "string",
-            "format": "date-time",
-            "x-rivet-csharp-type": "DateTimeOffset"
-          },
           "intent": {
             "$ref": "#/components/schemas/PlaybackIntentResponse"
           },
@@ -1235,8 +1220,6 @@
         "required": [
           "sessionId",
           "revision",
-          "createdAtUtc",
-          "updatedAtUtc",
           "intent",
           "tvConnected"
         ]
@@ -1606,7 +1589,10 @@
         "type": "object",
         "properties": {
           "durationSeconds": {
-            "type": "number",
+            "type": [
+              "number",
+              "null"
+            ],
             "format": "double"
           },
           "transcodeHeight": {
@@ -1616,10 +1602,7 @@
             ],
             "format": "int32"
           }
-        },
-        "required": [
-          "durationSeconds"
-        ]
+        }
       },
       "SubtitleTrack": {
         "type": "object",

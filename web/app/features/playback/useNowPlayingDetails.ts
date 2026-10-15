@@ -5,6 +5,8 @@ import { client, unwrap } from "~~/app/lib/api";
 export const useNowPlayingDetails = (
   playingPath: MaybeRefOrGetter<string | undefined>,
   finishedPath: MaybeRefOrGetter<string | undefined>,
+  // Audio has no frames to preview.
+  previewable: MaybeRefOrGetter<boolean>,
 ) => {
   const { data: nextEpisode } = useAsyncData(
     () => `next-episode:${toValue(finishedPath)}`,
@@ -26,10 +28,10 @@ export const useNowPlayingDetails = (
     { default: () => [] },
   );
   const { data: trickplay, error: trickplayError } = useAsyncData(
-    () => `trickplay:${toValue(playingPath)}`,
+    () => `trickplay:${toValue(playingPath)}:${toValue(previewable)}`,
     async (_nuxtApp, { signal }) => {
       const path = toValue(playingPath);
-      return path
+      return path && toValue(previewable)
         ? unwrap(await client.GET("/api/files/trickplay", { params: { query: { path } }, signal }))
         : null;
     },

@@ -92,8 +92,9 @@ public static class StreamEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var duration =
-                    (await Ffmpeg.ProbeAsync(fullPath, "v:0", logger, ct))?.Format?.Duration ?? 0;
+                var duration = (await Ffmpeg.ProbeAsync(fullPath, "v:0", logger, ct))
+                    ?.Format
+                    ?.Duration;
                 return endpoint
                     .Success(
                         new StreamInfoResponse(

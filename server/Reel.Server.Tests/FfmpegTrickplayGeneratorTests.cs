@@ -86,13 +86,12 @@ public sealed class FfmpegTrickplayGeneratorTests : IDisposable
         using var request = new CancellationTokenSource();
 
         var abandoned = _generator.GetOrGenerateAsync(fullPath, request.Token);
+        // Joins the run the abandoned caller started, so a cancelled run would fail it.
+        var patient = _generator.GetOrGenerateAsync(fullPath, CancellationToken.None);
         await request.CancelAsync();
 
         await abandoned.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
-        // A patient caller joins the run the abandoned one started.
-        (await _generator.GetOrGenerateAsync(fullPath, CancellationToken.None))
-            .Should()
-            .NotBeNull();
+        (await patient).Should().NotBeNull();
 
         File.Exists(metadataPath).Should().BeTrue();
     }

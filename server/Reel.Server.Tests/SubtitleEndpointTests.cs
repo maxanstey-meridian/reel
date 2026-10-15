@@ -53,7 +53,7 @@ public sealed class SubtitleEndpointTests : IDisposable
             .BeEquivalentTo([
                 new SubtitleTrack(
                     0,
-                    "External",
+                    "External VTT",
                     "en",
                     "vtt",
                     SubtitleSource.External,
@@ -61,7 +61,7 @@ public sealed class SubtitleEndpointTests : IDisposable
                 ),
                 new SubtitleTrack(
                     1,
-                    "External",
+                    "External SRT",
                     "",
                     "srt",
                     SubtitleSource.External,

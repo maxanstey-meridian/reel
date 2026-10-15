@@ -90,7 +90,7 @@ debug builds run noticeably slower on Fire TV. Enable ADB debugging on the TV fi
 ## Development
 
 `task dev` starts the .NET API (:8080) and Nuxt dev server (:3000). Supply real
-`Reel__MediaRoot`, `Reel__SecretKey` and `Reel__WebUrl` (all required) as environment
+`Reel__MediaRoot`, `Reel__SecretKey` and `Reel__WebUrl` (all required; `Reel__Port` defaults to 8080) as environment
 values or in the git-ignored `server/Reel.Server/appsettings.Development.json`. `task publish` builds the combined app
 into `dist/`. `task check` runs server, web and TV checks; `task ci` additionally
 verifies generated contracts and runs browser journeys. To test the combined build,

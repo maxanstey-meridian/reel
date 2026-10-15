@@ -28,6 +28,7 @@ import io.ktor.util.InternalAPI
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -65,17 +66,21 @@ class PlaybackViewModelTest {
     private val pairing = PairingStore(app)
     private val paired = PairedServer("127.0.0.1", 9, "key", "Test")
     private var unreachableHost: String? = null
+    private var foreignHost: String? = null
     private var discovered: Flow<DiscoveredServer> = emptyFlow()
     private val json = Json { ignoreUnknownKeys = true }
     private val observations = mutableListOf<ReportPlaybackObservationRequest>()
     private val progress = mutableListOf<ProgressRequest>()
+    private val intents = mutableListOf<UpdatePlaybackIntentRequest>()
     private var session = session()
     private var sessionStatus = HttpStatusCode.OK
     private var progressStatus = HttpStatusCode.OK
     private var unreachablePath: String? = null
     private var streamInfoGate: CompletableDeferred<Unit>? = null
+    private var intentGate: CompletableDeferred<Unit>? = null
     private var observationGate: CompletableDeferred<Unit>? = null
     private lateinit var viewModel: PlaybackViewModel
+    private lateinit var pollJob: Job
 
     @After
     fun tearDown() {
@@ -94,6 +99,7 @@ class PlaybackViewModelTest {
         revision: Long = 1,
         path: String = "Films/movie.mp4",
         desiredState: PlaybackDesiredState = PlaybackDesiredState.Playing,
+        subtitleIndex: Int? = null,
         seekSeconds: Double? = null,
     ) = PlaybackSessionResponse(
         id,
@@ -102,7 +108,8 @@ class PlaybackViewModelTest {
             relativePath = path,
             title = "Movie",
             desiredState = desiredState,
-            pendingSeek = seekSeconds?.let { SeekRequestResponse(revision, it, revision) },
+            subtitleIndex = subtitleIndex,
+            pendingSeek = seekSeconds?.let { SeekRequestResponse(revision, it) },
         ),
     )
 
@@ -113,6 +120,13 @@ class PlaybackViewModelTest {
                 if (request.url.host == unreachableHost || request.url.encodedPath == unreachablePath) {
                     throw IOException("Connection refused")
                 }
+                if (request.url.host == foreignHost) {
+                    return@MockEngine respond(
+                        "<html></html>",
+                        HttpStatusCode.OK,
+                        headersOf(HttpHeaders.ContentType, ContentType.Text.Html.toString()),
+                    )
+                }
                 when (request.url.encodedPath) {
                     "/api/playback/session" -> {
                         respondJson("""{"session":${json.encodeToString(session)}}""", sessionStatus)
@@ -121,11 +135,15 @@ class PlaybackViewModelTest {
                     "/api/playback/session/intent" -> {
                         val intent =
                             json.decodeFromString<UpdatePlaybackIntentRequest>((request.body as TextContent).text)
+                        intents += intent
+                        intentGate?.await()
                         session =
                             session(
+                                id = session.sessionId,
                                 revision = session.revision + 1,
                                 path = session.intent.relativePath,
                                 desiredState = intent.desiredState,
+                                subtitleIndex = intent.subtitleIndex,
                                 seekSeconds = intent.seekPositionSeconds,
                             )
                         respondJson(json.encodeToString(session))
@@ -167,8 +185,18 @@ class PlaybackViewModelTest {
             ) {
                 discovered
             }
-        backgroundScope.launch { viewModel.poll() }
+        resume()
+    }
+
+    // MainActivity polls only while started.
+    private fun TestScope.resume() {
+        pollJob = backgroundScope.launch { viewModel.poll() }
         runCurrent()
+    }
+
+    private fun background() {
+        viewModel.pauseForBackground()
+        pollJob.cancel()
     }
 
     @Test
@@ -279,6 +307,104 @@ class PlaybackViewModelTest {
 
         assertEquals("Films/movie.mp4", viewModel.state.value.relativePath)
         assertEquals(1, viewModel.player.mediaItemCount)
+        assertEquals(60.0, observations.last().durationSeconds, 0.0)
+    }
+
+    @Test
+    fun `stream info that stays unreachable plays the file without it`() = runTest(dispatcher) {
+        unreachablePath = "/api/files/stream/info"
+        startPolling()
+        assertEquals(0, viewModel.player.mediaItemCount)
+
+        advanceTimeBy(1_001)
+
+        assertEquals("Films/movie.mp4", viewModel.state.value.relativePath)
+        assertEquals(1, viewModel.player.mediaItemCount)
+        assertEquals(0.0, observations.last().durationSeconds, 0.0)
+    }
+
+    @Test
+    fun `a reapply whose reload fails is tried again on the next poll`() = runTest(dispatcher) {
+        startPolling()
+        awaitPlayerError()
+        unreachablePath = "/api/playback/session/intent"
+        background()
+        runCurrent()
+
+        unreachablePath = "/api/files/stream/info"
+        resume()
+        assertNotNull(viewModel.state.value.error)
+
+        unreachablePath = null
+        advanceTimeBy(1_001)
+
+        assertNull(viewModel.player.playerError)
+        assertNull(viewModel.state.value.error)
+    }
+
+    @Test
+    fun `backgrounding saves progress before the server answers the pause`() = runTest(dispatcher) {
+        session = session(seekSeconds = 30.0)
+        startPolling()
+        progress.clear()
+        intentGate = CompletableDeferred()
+
+        viewModel.pauseForBackground()
+        runCurrent()
+
+        assertEquals(PlaybackDesiredState.Paused, intents.single().desiredState)
+        assertEquals(listOf(ProgressRequest("Films/movie.mp4", 30.0, 60.0)), progress)
+        intentGate!!.complete(Unit)
+        runCurrent()
+    }
+
+    @Test
+    fun `skips pressed while one is in flight add up`() = runTest(dispatcher) {
+        session = session(desiredState = PlaybackDesiredState.Paused, seekSeconds = 10.0)
+        startPolling()
+        intentGate = CompletableDeferred()
+
+        repeat(3) {
+            viewModel.skip(10.0)
+            runCurrent()
+        }
+        intentGate!!.complete(Unit)
+        runCurrent()
+
+        assertEquals(listOf(20.0, 30.0, 40.0), intents.map { it.seekPositionSeconds })
+        assertEquals(40.0, viewModel.state.value.seekDestinationSeconds)
+    }
+
+    @Test
+    fun `a session first seen in the background loads only once the app is back`() = runTest(dispatcher) {
+        startPolling()
+        streamInfoGate = CompletableDeferred()
+        session = session(id = "s2", path = "Films/other.mp4")
+        advanceTimeBy(1_001)
+
+        background()
+        streamInfoGate!!.complete(Unit)
+        runCurrent()
+
+        assertEquals(PlaybackDesiredState.Paused, session.intent.desiredState)
+        assertEquals("Films/movie.mp4", viewModel.state.value.relativePath)
+
+        resume()
+
+        assertEquals("Films/other.mp4", viewModel.state.value.relativePath)
+        assertFalse(viewModel.player.playWhenReady)
+    }
+
+    @Test
+    fun `something else answering on the old address is treated as a moved server`() = runTest(dispatcher) {
+        startPolling()
+        discovered = flowOf(DiscoveredServer("10.0.0.9", 8081, "key"))
+        foreignHost = "127.0.0.1"
+
+        advanceTimeBy(1_000 + 1_000 + 2_000 + 1)
+
+        assertEquals(paired.copy(host = "10.0.0.9", port = 8081), pairing.server.value)
+        assertEquals(PlaybackConnection.Connected, viewModel.state.value.connection)
     }
 
     @Test
@@ -333,6 +459,7 @@ class PlaybackViewModelTest {
     }
 
     // Nothing listens on the paired port, so the stream fails once the player's clock lets it retry.
+    // That depends on the host: something listening on loopback port 9 would keep this from failing.
     private fun awaitPlayerError() {
         repeat(200) {
             if (viewModel.player.playerError != null) return
@@ -342,10 +469,8 @@ class PlaybackViewModelTest {
         fail("The player never reported an error")
     }
 
-    // The intent is unreachable so that only the interrupted load could still touch the player.
     private fun TestScope.assertInterruptedLoadStaysStopped(interrupt: (PlaybackViewModel) -> Unit) {
         streamInfoGate = CompletableDeferred()
-        unreachablePath = "/api/playback/session/intent"
         startPolling()
 
         interrupt(viewModel)

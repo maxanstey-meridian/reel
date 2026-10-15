@@ -20,9 +20,9 @@ public sealed class SqliteMediaStoreSearchTests : IDisposable
     }
 
     [Theory]
-    [InlineData("comedy")]
+    [InlineData("#comedy")]
     [InlineData("#COMEDY")]
-    public async Task SearchMatchesFileAndFolderTags(string query)
+    public async Task TagSearchMatchesFileAndFolderTags(string query)
     {
         await _store.ReconcileAsync(
             [
@@ -41,6 +41,19 @@ public sealed class SqliteMediaStoreSearchTests : IDisposable
             .Select(item => item.RelativePath)
             .Should()
             .BeEquivalentTo("Shows/Season/a.mkv", "Films/b.mp4");
+    }
+
+    [Fact]
+    public async Task PlainSearch_MatchesTitlesAndPathsButNotTags()
+    {
+        await _store.ReconcileAsync(
+            [new MediaRecord("Films/a.mp4", "A", null, null)],
+            DateTime.UtcNow
+        );
+        Tag("""INSERT INTO item_tags VALUES ('Films/a.mp4', '["comedy"]');""");
+
+        (await _store.SearchAsync("comedy")).Should().BeEmpty();
+        (await _store.SearchAsync("films")).Should().ContainSingle();
     }
 
     [Fact]
@@ -75,7 +88,7 @@ public sealed class SqliteMediaStoreSearchTests : IDisposable
     }
 
     [Fact]
-    public async Task TagSearch_MatchesMediaPseudoTagByPrefix()
+    public async Task TagSearch_MatchesMediaPseudoTagLikeAnyOtherTag()
     {
         await _store.ReconcileAsync(
             [
@@ -85,7 +98,7 @@ public sealed class SqliteMediaStoreSearchTests : IDisposable
             DateTime.UtcNow
         );
 
-        var results = await _store.SearchAsync("#med");
+        var results = await _store.SearchAsync("#edi");
 
         results
             .Select(item => item.RelativePath)

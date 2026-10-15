@@ -11,7 +11,6 @@ useEventListener(
   document,
   "touchstart",
   (event: TouchEvent) => {
-    offset.value = 0;
     startY = refreshing.value || window.scrollY > 0 ? null : (event.touches[0]?.clientY ?? null);
   },
   { passive: true },

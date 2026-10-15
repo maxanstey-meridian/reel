@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { PlaybackSession } from "~~/app/lib/api";
-import { describeTvState } from "../logic/playback";
+import { describeTvState, isTvLost } from "../logic/playback";
 
 const props = defineProps<{ session: PlaybackSession; pending: boolean }>();
 defineEmits<{ open: [] }>();
@@ -23,7 +23,7 @@ const status = computed(() => describeTvState(props.session, props.pending));
       <span class="block truncate text-sm font-medium">{{ session.intent.title }}</span>
       <span
         class="block text-xs"
-        :class="session.tvConnected ? 'text-neutral-400' : 'text-amber-400'"
+        :class="isTvLost(session) ? 'text-amber-400' : 'text-neutral-400'"
       >
         {{ status }}
       </span>

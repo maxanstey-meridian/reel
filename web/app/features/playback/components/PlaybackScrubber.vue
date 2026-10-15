@@ -18,8 +18,11 @@ const emit = defineEmits<{ preview: [position: number]; commit: [position: numbe
 const dragPosition = ref<number | null>(null);
 const displayedPosition = computed(() => dragPosition.value ?? props.position);
 
+// The handlers are bound to the range input itself, so currentTarget is always that input.
 const readPosition = (event: Event): number =>
-  clampPosition(Number((event.target as HTMLInputElement).value), props.duration);
+  event.currentTarget instanceof HTMLInputElement
+    ? clampPosition(Number(event.currentTarget.value), props.duration)
+    : props.position;
 
 const onInput = (event: Event): void => {
   dragPosition.value = readPosition(event);

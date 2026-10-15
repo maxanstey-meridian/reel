@@ -32,10 +32,9 @@ public sealed class PlaybackSessionServiceTests : IDisposable
 
         second.SessionId.Should().NotBe(first.SessionId);
         second.Revision.Should().Be(1);
-        second.CreatedAtUtc.Should().Be(_time.GetUtcNow());
         second.Intent.DesiredState.Should().Be(PlaybackDesiredStateDto.Playing);
         second.Intent.SubtitleIndex.Should().Be(2);
-        second.Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 12.5, 1));
+        second.Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 12.5));
         second.Observation.Should().BeNull();
         _service.GetCurrent().Should().Be(second);
     }
@@ -65,7 +64,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
         result.Session().Revision.Should().Be(2);
         result.Session().Intent.DesiredState.Should().Be(PlaybackDesiredStateDto.Paused);
         result.Session().Intent.SubtitleIndex.Should().Be(3);
-        result.Session().Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 10, 1));
+        result.Session().Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 10));
     }
 
     [Fact]
@@ -73,12 +72,12 @@ public sealed class PlaybackSessionServiceTests : IDisposable
     {
         var session = Start(10);
         var collapsed = UpdateIntent(session.SessionId, seek: 20).Session();
-        collapsed.Intent.PendingSeek.Should().Be(new SeekRequestResponse(2, 20, 2));
+        collapsed.Intent.PendingSeek.Should().Be(new SeekRequestResponse(2, 20));
 
         Observe(collapsed, appliedSeekId: 2).Session().Intent.PendingSeek.Should().BeNull();
         var next = UpdateIntent(session.SessionId, seek: 30).Session();
 
-        next.Intent.PendingSeek.Should().Be(new SeekRequestResponse(3, 30, 3));
+        next.Intent.PendingSeek.Should().Be(new SeekRequestResponse(3, 30));
     }
 
     [Fact]
@@ -193,18 +192,6 @@ public sealed class PlaybackSessionServiceTests : IDisposable
     }
 
     [Fact]
-    public void Observation_DoesNotAcknowledgeSeekBeforeItsIntroducedRevision()
-    {
-        var session = Start();
-        var revised = UpdateIntent(session.SessionId, seek: 20).Session();
-
-        var result = Observe(revised, appliedRevision: 1, appliedSeekId: 1);
-
-        result.Should().BeOfType<PlaybackSessionOutcome.Ok>();
-        result.Session().Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 20, 2));
-    }
-
-    [Fact]
     public void Observation_RejectsSeekAcknowledgementBeyondLatestAllocatedSeek()
     {
         var session = Start(10);
@@ -212,7 +199,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
         var result = Observe(session, appliedSeekId: 2);
 
         result.Error().Should().Be(PlaybackSessionError.InvalidRequest);
-        _service.GetCurrent()!.Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 10, 1));
+        _service.GetCurrent()!.Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 10));
     }
 
     [Theory]
@@ -374,6 +361,30 @@ public sealed class PlaybackSessionServiceTests : IDisposable
         Observe(session, state: observedState);
 
         _time.Advance(TimeSpan.FromSeconds(30));
+        _service.GetCurrent().Should().NotBeNull();
+        _time.Advance(TimeSpan.FromMilliseconds(1));
+        _service.GetCurrent().Should().BeNull();
+    }
+
+    [Fact]
+    public void StoppedSession_ExpiresThirtySecondsAfterTheTvStopsEvenWhileItKeepsReporting()
+    {
+        var session = Observe(Start()).Session();
+        session = UpdateIntent(session.SessionId, PlaybackDesiredStateDto.Stopped).Session();
+        Observe(session, state: PlaybackObservationStateDto.Idle, relativePath: null);
+
+        for (var second = 1; second <= 30; second++)
+        {
+            _time.Advance(TimeSpan.FromSeconds(1));
+            Observe(
+                    _service.GetCurrent()!,
+                    state: PlaybackObservationStateDto.Idle,
+                    relativePath: null
+                )
+                .Should()
+                .BeOfType<PlaybackSessionOutcome.Ok>();
+        }
+
         _service.GetCurrent().Should().NotBeNull();
         _time.Advance(TimeSpan.FromMilliseconds(1));
         _service.GetCurrent().Should().BeNull();

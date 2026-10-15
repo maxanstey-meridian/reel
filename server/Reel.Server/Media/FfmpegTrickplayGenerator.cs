@@ -24,6 +24,12 @@ public sealed class FfmpegTrickplayGenerator(
     /// <summary>Metadata whose sprites all exist, generating them if needed.</summary>
     public Task<TrickplaySheets?> GetOrGenerateAsync(string fullPath, CancellationToken ct)
     {
+        // Audio has no frames to preview.
+        if (MediaPathResolver.IsAudio(fullPath))
+        {
+            return Task.FromResult<TrickplaySheets?>(null);
+        }
+
         var spriteKey = SourceFingerprint.Key(fullPath);
         return _generations.RunAsync(spriteKey, () => GenerateAsync(fullPath, spriteKey), ct);
     }
@@ -54,7 +60,7 @@ public sealed class FfmpegTrickplayGenerator(
         using var timeout = new CancellationTokenSource(GenerationTimeout, time);
         try
         {
-            return await GenerateAsync(fullPath, spriteKey, timeout.Token);
+            return await WriteSheetsAsync(fullPath, spriteKey, timeout.Token);
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
@@ -64,7 +70,7 @@ public sealed class FfmpegTrickplayGenerator(
         }
     }
 
-    private async Task<TrickplaySheets?> GenerateAsync(
+    private async Task<TrickplaySheets?> WriteSheetsAsync(
         string fullPath,
         string spriteKey,
         CancellationToken ct

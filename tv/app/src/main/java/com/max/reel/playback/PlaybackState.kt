@@ -56,8 +56,7 @@ fun reconcile(
 
     val seek =
         session.intent.pendingSeek?.takeIf {
-            session.revision >= it.introducedRevision &&
-                (isNewSession || applied.seekId == null || it.seekId > applied.seekId)
+            isNewSession || applied.seekId == null || it.seekId > applied.seekId
         }
     return ReconciliationDecision(
         loadPath =

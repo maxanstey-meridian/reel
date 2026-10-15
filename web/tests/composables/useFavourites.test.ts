@@ -29,6 +29,8 @@ const loadFavourites = async () => {
   return favourites;
 };
 
+const build = useRuntimeConfig().app.buildId;
+
 describe("useFavourites", () => {
   it("loads favourites from the server", async () => {
     favouritesServer();
@@ -44,7 +46,7 @@ describe("useFavourites", () => {
     await vi.waitFor(() => expect(error.value).toBeTruthy());
     await flushPromises();
 
-    expect(readBrowseCache("favourites")).toBeNull();
+    expect(readBrowseCache(build, "favourites")).toBeNull();
   });
 
   it("adds and removes a favourite and saves the result", async () => {
@@ -57,7 +59,7 @@ describe("useFavourites", () => {
     await toggle("Films/a.mp4");
     expect(isFavourite("Films/a.mp4")).toBe(false);
     await vi.waitFor(() =>
-      expect(readBrowseCache("favourites")).toEqual([
+      expect(readBrowseCache(build, "favourites")).toEqual([
         expect.objectContaining({ relativePath: "Films/new.mp4" }),
       ]),
     );

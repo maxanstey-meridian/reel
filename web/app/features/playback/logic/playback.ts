@@ -56,23 +56,32 @@ const tvStateLabels: Record<TvState, string> = {
   error: "Couldn't play on the TV",
 };
 
+/** A TV that reported and then went quiet, as opposed to one that hasn't picked the session up yet. */
+export const isTvLost = (session: Pick<PlaybackSession, "tvConnected" | "observation">): boolean =>
+  !session.tvConnected && session.observation != null;
+
 /** What the TV last reported, once it has caught up with the latest control. */
 export const describeTvState = (
   session: Pick<PlaybackSession, "tvConnected" | "observation">,
   pending: boolean,
 ): string => {
-  if (!session.tvConnected) {
+  if (!session.observation) {
+    return "Waiting for the TV…";
+  }
+  if (isTvLost(session)) {
     return "TV disconnected";
   }
-  const state = session.observation?.state;
-  return pending || !state ? "Waiting for the TV…" : tvStateLabels[state];
+  return pending ? "Waiting for the TV…" : tvStateLabels[session.observation.state];
 };
 
 export const formatDuration = (seconds: number): string => {
   const safe = clampPosition(seconds, Number.POSITIVE_INFINITY);
   const hours = Math.floor(safe / 3600);
   const minutes = Math.floor((safe % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return minutes > 0 ? `${minutes}m` : "<1m";
 };
 
 type Progress = { positionSeconds: number; durationSeconds: number };

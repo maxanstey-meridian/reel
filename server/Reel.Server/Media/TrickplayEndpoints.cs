@@ -7,6 +7,12 @@ namespace Reel.Server.Media;
 
 public static class TrickplayEndpoints
 {
+    // Audio has no frames to preview, and ffmpeg may fail or run out of time on a file.
+    private static readonly ErrorResponse Unavailable = new(
+        "trickplay_unavailable",
+        "Trickplay previews are not available for this file."
+    );
+
     public static IEndpointRouteBuilder MapTrickplayEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
@@ -25,9 +31,9 @@ public static class TrickplayEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var sheets = await GetSheetsAsync(generator, fullPath, ct);
+                var sheets = await generator.GetOrGenerateAsync(fullPath, ct);
                 return sheets is null
-                    ? endpoint.Error(404, EndpointErrors.TrickplayUnavailable).ToResult()
+                    ? endpoint.Error(404, Unavailable).ToResult()
                     : endpoint
                         .Success(
                             new TrickplayMetadata(
@@ -59,10 +65,10 @@ public static class TrickplayEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var metadata = await GetSheetsAsync(generator, fullPath, ct);
+                var metadata = await generator.GetOrGenerateAsync(fullPath, ct);
                 if (metadata is null)
                 {
-                    return endpoint.Error(404, EndpointErrors.TrickplayUnavailable).ToResult();
+                    return endpoint.Error(404, Unavailable).ToResult();
                 }
 
                 var sheet = request.Sheet ?? 0;
@@ -81,13 +87,4 @@ public static class TrickplayEndpoints
 
         return endpoints;
     }
-
-    private static Task<TrickplaySheets?> GetSheetsAsync(
-        FfmpegTrickplayGenerator generator,
-        string fullPath,
-        CancellationToken ct
-    ) =>
-        MediaPathResolver.IsAudio(fullPath)
-            ? Task.FromResult<TrickplaySheets?>(null)
-            : generator.GetOrGenerateAsync(fullPath, ct);
 }

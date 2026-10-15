@@ -131,7 +131,8 @@ public sealed record TagUpdateRequest(string Path, string[] Tags);
 
 public sealed record StreamRequest(string Path, double? Start, int? Height);
 
-public sealed record StreamInfoResponse(double DurationSeconds, int? TranscodeHeight);
+// DurationSeconds is null when ffprobe can't tell.
+public sealed record StreamInfoResponse(double? DurationSeconds, int? TranscodeHeight);
 
 // Start shifts cues back to match a transcoded stream that began at that second.
 public sealed record SubtitleContentRequest(string Path, int Index, double? Start);

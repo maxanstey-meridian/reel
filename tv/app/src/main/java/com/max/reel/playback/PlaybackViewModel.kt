@@ -10,7 +10,6 @@ import com.max.reel.data.ApiResult
 import com.max.reel.data.DiscoveredServer
 import com.max.reel.data.PairingStore
 import com.max.reel.data.PlaybackDesiredState
-import com.max.reel.data.PlaybackIntentResponse
 import com.max.reel.data.PlaybackObservationState
 import com.max.reel.data.PlaybackObservationState.Buffering
 import com.max.reel.data.PlaybackObservationState.Ended
@@ -58,7 +57,7 @@ class PlaybackViewModel(
     private val stream =
         StreamPlayer(context, apiClient, onSubtitleUnavailable = {
             _state.update {
-                it.copy(subtitleIndex = null, notice = SUBTITLES_UNAVAILABLE)
+                it.copy(subtitleIndex = null, notice = SUBTITLE_NOT_SHOWABLE)
             }
             reportObservation()
         })
@@ -74,6 +73,17 @@ class PlaybackViewModel(
     private var applied = AppliedIntent()
     private var needsReapply = false
     private var loadJob: Job? = null
+
+    // Set while the activity is stopped; nothing new is loaded until polling starts again.
+    private var backgrounded = false
+
+    // The session whose load already failed once on the network, so the next failure plays without info.
+    private var unreachableLoadSessionId: String? = null
+
+    // Skips not yet answered, and where they lead, so repeated presses add up.
+    private var skipsInFlight = 0
+    private var skipDestinationSeconds = 0.0
+
     private var lastReportedState = Idle
     private var observationSequence = 0L
     private val observations = MutableStateFlow<ReportPlaybackObservationRequest?>(null)
@@ -108,6 +118,7 @@ class PlaybackViewModel(
 
     // Runs while the app is started; polling follows pairing, and losing it stops playback.
     suspend fun poll() {
+        backgrounded = false
         pairing.server.map { it != null }.distinctUntilChanged().collectLatest { paired ->
             if (paired) pollLoop() else stopCurrentPlayback()
         }
@@ -129,12 +140,22 @@ class PlaybackViewModel(
         }
     }
 
+    // Skips queue behind each other on the command mutex; any other pending control drops them.
     fun skip(seconds: Double) {
-        if (_state.value.controlPending) return
-        val target = skipTarget(stream.positionSeconds, seconds, stream.durationSeconds)
+        if (_state.value.controlPending && skipsInFlight == 0) return
+        val from = if (skipsInFlight > 0) skipDestinationSeconds else stream.positionSeconds
+        val target = skipTarget(from, seconds, stream.durationSeconds)
+        skipDestinationSeconds = target
+        skipsInFlight++
         val desired =
             if (player.playWhenReady) PlaybackDesiredState.Playing else PlaybackDesiredState.Paused
-        viewModelScope.launch { submitLocalIntent(desired, seekPositionSeconds = target) }
+        viewModelScope.launch {
+            try {
+                submitLocalIntent(desired, seekPositionSeconds = target)
+            } finally {
+                skipsInFlight--
+            }
+        }
     }
 
     fun playNext() {
@@ -156,6 +177,7 @@ class PlaybackViewModel(
     }
 
     fun pauseForBackground() {
+        backgrounded = true
         loadJob?.cancel()
         player.pause()
         reportProgress()
@@ -180,7 +202,9 @@ class PlaybackViewModel(
                 }
             val failure = result as? ApiResult.Failure
             failures = if (failure == null) 0 else failures + 1
-            unreachable = if (failure != null && failure.statusCode == null) unreachable + 1 else 0
+            // A success that can't be decoded is something else answering on the old address.
+            val lost = failure != null && (failure.statusCode == null || failure.statusCode in 200..299)
+            unreachable = if (lost) unreachable + 1 else 0
             val connection = if (failure == null) Connected else Disconnected
             val refusal = failure?.takeIf { it.statusCode != null }?.message
             _state.update { it.copy(connection = connection, connectionError = refusal) }
@@ -220,23 +244,23 @@ class PlaybackViewModel(
     // heartbeat, and it must carry the revision and seek just applied.
     private suspend fun applySession(session: PlaybackSessionResponse) {
         val decision = reconcile(session, applied, reapply = needsReapply)
-        needsReapply = false
         if (session.sessionId != activeSession?.sessionId) observationSequence = 0
         activeSession = session
-        if (decision != ReconciliationDecision()) applyDecision(session, decision)
+        if (decision == ReconciliationDecision() || applyDecision(session, decision)) needsReapply = false
         reportObservation()
     }
 
-    // `applied` only records what reached the player, so an interrupted load is decided again later.
-    // A player stopped by an error stays stopped until it is prepared again.
-    private suspend fun applyDecision(session: PlaybackSessionResponse, decision: ReconciliationDecision) {
+    // `applied` only records what reached the player, so an interrupted or deferred load is decided
+    // again later; returns whether it did. A player stopped by an error stays stopped until it is
+    // prepared again. A backgrounded app opens no stream: the next poll after it starts loads it.
+    private suspend fun applyDecision(session: PlaybackSessionResponse, decision: ReconciliationDecision): Boolean {
         val seek = decision.seekPositionSeconds
         if (decision.desiredState != PlaybackDesiredState.Stopped) {
             val rebuild =
                 decision.loadPath != null || decision.subtitleChanged || stream.error != null ||
                     (seek != null && stream.timeline.transcoded)
             val start = seek ?: if (decision.loadPath != null) 0.0 else stream.positionSeconds
-            if (rebuild && !loadMedia(session.intent, start)) return
+            if (rebuild && (backgrounded || !loadMedia(session, start))) return false
             if (!rebuild && seek != null) stream.seekTo(seek)
             if (seek != null) _state.update { it.copy(seekDestinationSeconds = seek) }
         }
@@ -268,6 +292,7 @@ class PlaybackViewModel(
                 Unit
             }
         }
+        return true
     }
 
     // Clearing applied.relativePath makes any newer revision of this session reload the media.
@@ -327,8 +352,10 @@ class PlaybackViewModel(
     }
 
     // Fetches before touching the player, so a stop or background during the fetch leaves it as it was.
-    // A file without info or subtitles plays as it is; an unreachable server is tried again next poll.
-    private suspend fun loadMedia(intent: PlaybackIntentResponse, startSeconds: Double): Boolean {
+    // A file without info or subtitles plays as it is. A network failure (e.g. a slow probe timing out)
+    // is tried again on the next poll once; failing again, the file plays without them.
+    private suspend fun loadMedia(session: PlaybackSessionResponse, startSeconds: Double): Boolean {
+        val intent = session.intent
         val path = intent.relativePath
         val (infoResult, tracksResult) =
             try {
@@ -342,7 +369,12 @@ class PlaybackViewModel(
                 currentCoroutineContext().ensureActive()
                 return false
             }
-        if (listOf(infoResult, tracksResult).any { it is ApiResult.Failure && it.statusCode == null }) return false
+        val unreachable = listOf(infoResult, tracksResult).any { it is ApiResult.Failure && it.statusCode == null }
+        if (unreachable && unreachableLoadSessionId != session.sessionId) {
+            unreachableLoadSessionId = session.sessionId
+            return false
+        }
+        unreachableLoadSessionId = null
         val server = pairing.server.value ?: return false
         val info = (infoResult as? ApiResult.Success)?.value
         val tracks = (tracksResult as? ApiResult.Success)?.value.orEmpty()
@@ -448,5 +480,6 @@ class PlaybackViewModel(
 }
 
 private const val SUBTITLES_UNAVAILABLE = "Subtitles aren't available for this file"
+private const val SUBTITLE_NOT_SHOWABLE = "This subtitle track can't be shown"
 
 private fun controlFailed(failure: ApiResult.Failure) = "Control failed: ${failure.message}"

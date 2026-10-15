@@ -56,7 +56,7 @@ public sealed class PlaybackSessionService(
         var now = timeProvider.GetUtcNow();
         var pendingSeek =
             request.StartPositionSeconds > 0
-                ? new SeekRequestResponse(1, request.StartPositionSeconds, 1)
+                ? new SeekRequestResponse(1, request.StartPositionSeconds)
                 : null;
         var session = new Session(
             Guid.NewGuid(),
@@ -132,18 +132,14 @@ public sealed class PlaybackSessionService(
                 var position = duration is > 0
                     ? Math.Min(requestedSeek, duration.Value)
                     : requestedSeek;
-                pendingSeek = new SeekRequestResponse(
-                    ++lastSeekId,
-                    position,
-                    _session.Revision + 1
-                );
+                pendingSeek = new SeekRequestResponse(++lastSeekId, position);
             }
 
             _session = _session with
             {
                 Revision = _session.Revision + 1,
                 LastSeekId = lastSeekId,
-                UpdatedAtUtc = now,
+                ChangedAtUtc = now,
                 Intent = _session.Intent with
                 {
                     DesiredState = request.DesiredState,
@@ -266,18 +262,16 @@ public sealed class PlaybackSessionService(
             }
 
             var pendingSeek = _session.Intent.PendingSeek;
-            if (
-                pendingSeek is not null
-                && request.AppliedSeekId == pendingSeek.SeekId
-                && request.AppliedRevision >= pendingSeek.IntroducedRevision
-            )
+            if (pendingSeek is not null && request.AppliedSeekId == pendingSeek.SeekId)
             {
                 pendingSeek = null;
             }
 
             _session = _session with
             {
-                UpdatedAtUtc = now,
+                // The TV reports every second, so only a new state restarts the expiry clock.
+                ChangedAtUtc =
+                    request.State != _session.Observation?.State ? now : _session.ChangedAtUtc,
                 Intent = _session.Intent with { PendingSeek = pendingSeek },
                 Observation = new PlaybackObservationResponse(
                     request.ObservationSequence,
@@ -308,7 +302,7 @@ public sealed class PlaybackSessionService(
             _session.Intent.DesiredState == PlaybackDesiredStateDto.Stopped
             || _session.Observation?.State == PlaybackObservationStateDto.Ended;
         var lastObservation = _session.Observation?.UpdatedAtUtc ?? _session.CreatedAtUtc;
-        var expiryBase = terminal ? _session.UpdatedAtUtc : lastObservation;
+        var expiryBase = terminal ? _session.ChangedAtUtc : lastObservation;
         var expiry = terminal ? TerminalExpiry : NonterminalExpiry;
         if (now - expiryBase > expiry)
         {
@@ -322,8 +316,6 @@ public sealed class PlaybackSessionService(
         new(
             session.SessionId,
             session.Revision,
-            session.CreatedAtUtc,
-            session.UpdatedAtUtc,
             session.Intent,
             session.Observation,
             TvConnected: session.Observation is { } observation
@@ -364,7 +356,8 @@ public sealed class PlaybackSessionService(
         Guid SessionId,
         long Revision,
         DateTimeOffset CreatedAtUtc,
-        DateTimeOffset UpdatedAtUtc,
+        // Last intent change or change of observed state; terminal sessions expire from here.
+        DateTimeOffset ChangedAtUtc,
         PlaybackIntentResponse Intent,
         PlaybackObservationResponse? Observation,
         long LastSeekId

@@ -18,7 +18,10 @@ public sealed class TrickplayEndpointTests : IDisposable
     public TrickplayEndpointTests()
     {
         _media.Write("Films/movie.mp4", new byte[100]);
-        _media.Write("Music/song.mp3", new byte[100]);
+        // A real video under an audio name: only the audio rule can keep it from being previewed.
+        var video = _media.Write("Music/song.mp4");
+        TestMedia.CreateVideo(video, seconds: 3);
+        File.Move(video, Path.ChangeExtension(video, ".mp3"));
         _factory = _media.CreateFactory();
         _client = _factory.CreateAuthenticatedClient();
     }

@@ -40,24 +40,12 @@ const hrefs = async (route: string) => {
   return page.findAll("a").map((link) => link.attributes("href"));
 };
 
-let server = fakeServer();
-
-const pullDown = (): void => {
-  for (const [type, touches] of [
-    ["touchstart", [{ clientY: 100 }]],
-    ["touchmove", [{ clientY: 200 }]],
-    ["touchend", []],
-  ] as const) {
-    const event = new Event(type, { cancelable: true, bubbles: true });
-    Object.defineProperty(event, "touches", { value: touches });
-    document.body.dispatchEvent(event);
-  }
-};
+let server: ReturnType<typeof fakeServer>;
 
 describe("library folders", () => {
   beforeEach(() => {
     pairingKey.value = "key";
-    server = fakeServer({
+    fakeServer({
       "GET /api/library": () => Response.json(tree),
       "GET /api/favourites": () => Response.json([]),
       "GET /api/tags": () => Response.json({}),
@@ -98,12 +86,14 @@ describe("folder tags", () => {
     });
   });
 
-  it("pulling down retries tags that couldn't load", async () => {
+  it("retries tags that couldn't load", async () => {
     const page = await mountSuspended(InLayout, { route: "/library/TV" });
     await vi.waitFor(() => expect(page.text()).toContain("Tags couldn't load"));
     server.routes["GET /api/tags"] = () => Response.json({ TV: ["drama"] });
 
-    pullDown();
+    const retry = page.findAll("button").find((button) => button.text() === "Try again");
+    expect(retry).toBeDefined();
+    await retry?.trigger("click");
 
     await vi.waitFor(() => expect(page.text()).toContain("#drama"));
     expect(page.text()).not.toContain("Tags couldn't load");

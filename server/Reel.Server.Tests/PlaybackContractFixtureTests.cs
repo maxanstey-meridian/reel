@@ -17,19 +17,17 @@ public sealed class PlaybackContractFixtureTests : IDisposable
     {
         using var factory = _media.CreateFactory();
         var options = new JsonSerializerOptions(factory.JsonOptions()) { WriteIndented = true };
-        var created = new DateTimeOffset(2026, 8, 11, 12, 0, 0, TimeSpan.Zero);
+        var observedAt = new DateTimeOffset(2026, 8, 11, 12, 0, 0, TimeSpan.Zero);
         var envelope = new PlaybackSessionEnvelope(
             new PlaybackSessionResponse(
                 Guid.Parse("7d3f7a8e-2b1c-4d5e-9f60-1a2b3c4d5e6f"),
                 4,
-                created,
-                created.AddSeconds(42),
                 new PlaybackIntentResponse(
                     "Shows/Series/Series.S01E02.mkv",
                     "Series S01E02",
                     PlaybackDesiredStateDto.Paused,
                     1,
-                    new SeekRequestResponse(2, 612.5, 4)
+                    new SeekRequestResponse(2, 612.5)
                 ),
                 new PlaybackObservationResponse(
                     9,
@@ -42,7 +40,7 @@ public sealed class PlaybackContractFixtureTests : IDisposable
                     1,
                     null,
                     null,
-                    created.AddSeconds(41)
+                    observedAt
                 ),
                 TvConnected: true
             )

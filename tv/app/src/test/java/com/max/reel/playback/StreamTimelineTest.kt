@@ -10,7 +10,7 @@ import org.junit.Test
 class StreamTimelineTest {
     @Test
     fun `a direct stream is the file, so its clock is the player's`() {
-        val timeline = StreamTimeline.of(StreamInfo(durationSeconds = 0.0), startSeconds = 300.0)
+        val timeline = StreamTimeline.of(StreamInfo(durationSeconds = null), startSeconds = 300.0)
 
         assertFalse(timeline.transcoded)
         assertEquals(0.0, timeline.offsetSeconds, 0.0)
@@ -35,7 +35,7 @@ class StreamTimelineTest {
     fun `unknown or unset player values never produce negative or bogus times`() {
         val timeline =
             StreamTimeline.of(
-                StreamInfo(durationSeconds = 0.0, transcodeHeight = 720),
+                StreamInfo(durationSeconds = null, transcodeHeight = 720),
                 startSeconds = -5.0,
             )
 

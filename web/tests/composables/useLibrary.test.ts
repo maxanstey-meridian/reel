@@ -17,10 +17,12 @@ const libraryServer = () =>
     "POST /api/library/rescan": () => Response.json({ mediaCount: 0 }),
   });
 
+const build = useRuntimeConfig().app.buildId;
+
 describe("useLibrary", () => {
   it("shows the saved library while refreshing, then replaces and saves it", async () => {
     const server = libraryServer();
-    writeBrowseCache("library", saved);
+    writeBrowseCache(build, "library", saved);
     const loaded = deferred<Response>();
     server.routes["GET /api/library"] = () => loaded.promise;
     const { tree, loading } = useLibrary();
@@ -29,12 +31,12 @@ describe("useLibrary", () => {
     expect(loading.value).toBe(false);
     loaded.resolve(Response.json(fresh));
     await vi.waitFor(() => expect(tree.value).toEqual(fresh));
-    await vi.waitFor(() => expect(readBrowseCache("library")).toEqual(fresh));
+    await vi.waitFor(() => expect(readBrowseCache(build, "library")).toEqual(fresh));
   });
 
   it("keeps showing the saved library when the server is unreachable", async () => {
     fakeServer({ "GET /api/library": unreachable });
-    writeBrowseCache("library", saved);
+    writeBrowseCache(build, "library", saved);
     const { tree, error } = useLibrary();
 
     await vi.waitFor(() => expect(error.value?.message).toBe("Can't reach the Reel server"));

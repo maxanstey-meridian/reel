@@ -18,7 +18,7 @@ public sealed class ReelOptions
     public string SecretKey { get; set; } = "";
 
     [Range(1, 65535)]
-    public int Port { get; set; }
+    public int Port { get; set; } = 8080;
 
     /// <summary>The phone app's origin; pairing links redirect there.</summary>
     [Required, Url]

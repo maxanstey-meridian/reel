@@ -49,7 +49,7 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         var second = await Start(15);
 
         second.SessionId.Should().NotBe(first.SessionId);
-        second.Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 15, 1));
+        second.Intent.PendingSeek.Should().Be(new SeekRequestResponse(1, 15));
         second.TvConnected.Should().BeFalse();
     }
 

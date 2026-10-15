@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using Reel.Server.Common;
@@ -102,10 +103,8 @@ public static partial class SubtitleEndpoints
                 }
 
                 var content = await File.ReadAllTextAsync(vtt, ct);
-                return Results.Content(
-                    ShiftVtt(content, Transcoding.StartSeconds(request.Start)),
-                    "text/vtt"
-                );
+                var shifted = ShiftVtt(content, Transcoding.StartSeconds(request.Start));
+                return endpoint.File(Encoding.UTF8.GetBytes(shifted)).ToResult();
             }
         );
 

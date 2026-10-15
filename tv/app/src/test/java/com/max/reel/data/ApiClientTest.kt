@@ -43,7 +43,7 @@ class ApiClientTest {
         val api =
             client {
                 respondJson(
-                    """{"session":{"sessionId":"session-1","revision":7,"intent":{"relativePath":"Films/movie.mp4","title":"Movie","desiredState":"playing","subtitleIndex":2,"pendingSeek":{"seekId":4,"positionSeconds":12.5,"introducedRevision":7}},"observation":null,"tvConnected":false,"futureField":true}}""",
+                    """{"session":{"sessionId":"session-1","revision":7,"intent":{"relativePath":"Films/movie.mp4","title":"Movie","desiredState":"playing","subtitleIndex":2,"pendingSeek":{"seekId":4,"positionSeconds":12.5}},"observation":null,"tvConnected":false,"futureField":true}}""",
                 )
             }
 
@@ -52,7 +52,6 @@ class ApiClientTest {
         assertEquals("Movie", session?.intent?.title)
         assertEquals(PlaybackDesiredState.Playing, session?.intent?.desiredState)
         assertEquals(4L, session?.intent?.pendingSeek?.seekId)
-        assertEquals(7L, session?.intent?.pendingSeek?.introducedRevision)
     }
 
     @Test

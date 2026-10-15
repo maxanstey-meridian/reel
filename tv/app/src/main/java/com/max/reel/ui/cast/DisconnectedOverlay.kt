@@ -29,7 +29,7 @@ import androidx.tv.material3.Text
 import com.max.reel.ui.theme.ReelColors
 
 @Composable
-fun DisconnectedOverlay(visible: Boolean) {
+fun DisconnectedOverlay(visible: Boolean, error: String?) {
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(500)),
@@ -75,7 +75,7 @@ fun DisconnectedOverlay(visible: Boolean) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Can't reach the Reel server",
+                    text = error ?: "Can't reach the Reel server",
                     fontSize = 16.sp,
                     color = ReelColors.textSecondary,
                 )

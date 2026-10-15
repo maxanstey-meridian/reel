@@ -61,13 +61,12 @@ public sealed class FfmpegSubtitleTests : IDisposable
         using var request = new CancellationTokenSource();
 
         var abandoned = extractor.ExtractAsync(_fullPath, 0, request.Token);
+        // Joins the run the abandoned caller started, so a cancelled run would fail it.
+        var patient = extractor.ExtractAsync(_fullPath, 0, CancellationToken.None);
         await request.CancelAsync();
 
         await abandoned.Invoking(task => task).Should().ThrowAsync<OperationCanceledException>();
-        // A patient caller joins the run the abandoned one started.
-        (await extractor.ExtractAsync(_fullPath, 0, CancellationToken.None))
-            .Should()
-            .NotBeNull();
+        (await patient).Should().NotBeNull();
 
         CachedFiles()
             .Should()

@@ -36,9 +36,9 @@ public sealed class SubtitleDiscoveryTests : IDisposable
         tracks
             .Should()
             .Equal(
-                new Subtitle(0, "External", "en", "ass", "Films/movie.en.ass"),
-                new Subtitle(1, "External", "fr", "vtt", "Films/movie.fr.vtt"),
-                new Subtitle(2, "External", "", "srt", "Films/movie.srt")
+                new Subtitle(0, "External ASS", "en", "ass", "Films/movie.en.ass"),
+                new Subtitle(1, "External VTT", "fr", "vtt", "Films/movie.fr.vtt"),
+                new Subtitle(2, "External SRT", "", "srt", "Films/movie.srt")
             );
     }
 
@@ -55,13 +55,13 @@ public sealed class SubtitleDiscoveryTests : IDisposable
             .Should()
             .Equal(
                 new Subtitle(0, "Track 1", "", "subrip", null),
-                new Subtitle(1, "External", "", "srt", "Films/real.srt")
+                new Subtitle(1, "External SRT", "", "srt", "Films/real.srt")
             );
     }
 
     [Theory]
     [InlineData("Commentary", "eng", "Commentary")]
-    [InlineData(null, "eng", "eng")]
+    [InlineData(null, "eng", "Track 1")]
     public async Task EmbeddedTrackLabel_IsItsTitleElseItsLanguage(
         string? title,
         string language,

@@ -143,7 +143,7 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
 
     // Only 401 means the key is wrong, and it unpairs only if the TV still holds that key;
     // 403 is the server's private-network check and must not cost the pairing. A success that
-    // can't be decoded keeps its status: something answered, so it is not a lost server.
+    // can't be decoded keeps its status, so callers can tell it from a dropped connection.
     private suspend inline fun <reified T> request(
         pairedKey: String?,
         crossinline send: suspend () -> HttpResponse,
@@ -151,11 +151,13 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
         val response = send()
         val status = response.status.value
         if (status in 200..299) {
+            val unexpected = ApiResult.Failure("Unexpected response from the server", status)
             try {
                 ApiResult.Success(response.body())
-            } catch (e: Exception) {
-                if (e !is ContentConvertException && e !is NoTransformationFoundException) throw e
-                ApiResult.Failure("Unexpected response from the server", status)
+            } catch (e: ContentConvertException) {
+                unexpected
+            } catch (e: NoTransformationFoundException) {
+                unexpected
             }
         } else {
             if (status == 401 && pairedKey != null && pairing.server.value?.key == pairedKey) {

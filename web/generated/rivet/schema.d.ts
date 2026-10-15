@@ -321,8 +321,6 @@ export interface components {
             seekId: number;
             /** Format: double */
             positionSeconds: number;
-            /** Format: int64 */
-            introducedRevision: number;
         };
         PlaybackIntentResponse: {
             relativePath: string;
@@ -357,10 +355,6 @@ export interface components {
             sessionId: string;
             /** Format: int64 */
             revision: number;
-            /** Format: date-time */
-            createdAtUtc: string;
-            /** Format: date-time */
-            updatedAtUtc: string;
             intent: components["schemas"]["PlaybackIntentResponse"];
             observation?: components["schemas"]["PlaybackObservationResponse"] | null;
             tvConnected: boolean;
@@ -466,7 +460,7 @@ export interface components {
         };
         StreamInfoResponse: {
             /** Format: double */
-            durationSeconds: number;
+            durationSeconds?: number | null;
             /** Format: int32 */
             transcodeHeight?: number | null;
         };

@@ -22,7 +22,7 @@ class PlaybackStateTest {
             relativePath = "Films/movie.mp4",
             title = "Movie",
             desiredState = PlaybackDesiredState.Playing,
-            pendingSeek = seekId?.let { SeekRequestResponse(it, 42.0, revision) },
+            pendingSeek = seekId?.let { SeekRequestResponse(it, 42.0) },
         ),
     )
 
@@ -39,26 +39,6 @@ class PlaybackStateTest {
         assertNull(stale.seekPositionSeconds)
         assertEquals(42.0, newer.seekPositionSeconds)
         assertEquals(9L, newer.seekId)
-    }
-
-    @Test
-    fun `seek is acknowledged only at its introducing revision`() {
-        val futureSeek =
-            session(4, 9).copy(
-                intent =
-                session(4, 9).intent.copy(
-                    pendingSeek = SeekRequestResponse(9, 42.0, introducedRevision = 5),
-                ),
-            )
-
-        assertNull(reconcile(futureSeek, AppliedIntent("session-1", revision = 3)).seekId)
-        assertEquals(
-            9L,
-            reconcile(
-                futureSeek.copy(revision = 5),
-                AppliedIntent("session-1", revision = 4),
-            ).seekId,
-        )
     }
 
     @Test

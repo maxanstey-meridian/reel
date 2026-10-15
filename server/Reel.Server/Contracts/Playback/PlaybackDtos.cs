@@ -34,8 +34,6 @@ public sealed record PlaybackSessionEnvelope(PlaybackSessionResponse? Session);
 public sealed record PlaybackSessionResponse(
     Guid SessionId,
     long Revision,
-    DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc,
     PlaybackIntentResponse Intent,
     PlaybackObservationResponse? Observation,
     bool TvConnected
@@ -50,11 +48,7 @@ public sealed record PlaybackIntentResponse(
     SeekRequestResponse? PendingSeek
 );
 
-public sealed record SeekRequestResponse(
-    long SeekId,
-    double PositionSeconds,
-    long IntroducedRevision
-);
+public sealed record SeekRequestResponse(long SeekId, double PositionSeconds);
 
 public sealed record PlaybackObservationResponse(
     long ObservationSequence,

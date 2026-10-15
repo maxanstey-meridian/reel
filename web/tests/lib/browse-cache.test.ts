@@ -7,32 +7,27 @@ describe("browse snapshots", () => {
   });
   it("expires after one day", () => {
     vi.useFakeTimers();
-    writeBrowseCache("library", { name: "saved" });
+    writeBrowseCache("build", "library", { name: "saved" });
     vi.advanceTimersByTime(86_399_999);
-    expect(readBrowseCache("library")).toEqual({ name: "saved" });
+    expect(readBrowseCache("build", "library")).toEqual({ name: "saved" });
     vi.advanceTimersByTime(1);
-    expect(readBrowseCache("library")).toBeNull();
+    expect(readBrowseCache("build", "library")).toBeNull();
     vi.useRealTimers();
   });
   it("ignores malformed saved data", () => {
-    writeBrowseCache("library", { name: "saved" });
+    writeBrowseCache("build", "library", { name: "saved" });
     const key = Object.keys(localStorage).find((name) => name.endsWith(":library"))!;
     for (const malformed of ["broken", "null", '{"data":{}}', '{"savedAt":"soon","data":{}}']) {
       localStorage.setItem(key, malformed);
-      expect(readBrowseCache("library")).toBeNull();
+      expect(readBrowseCache("build", "library")).toBeNull();
     }
   });
   it("starts afresh after a deploy, discarding the previous build's snapshots", () => {
-    const config = useRuntimeConfig().app;
-    const build = config.buildId;
-    writeBrowseCache("library", { name: "old build" });
-    try {
-      config.buildId = "next-build";
-      expect(readBrowseCache("library")).toBeNull();
-      writeBrowseCache("favourites", []);
-    } finally {
-      config.buildId = build;
-    }
-    expect(readBrowseCache("library")).toBeNull();
+    writeBrowseCache("build", "library", { name: "old build" });
+
+    expect(readBrowseCache("next-build", "library")).toBeNull();
+    writeBrowseCache("next-build", "favourites", []);
+
+    expect(readBrowseCache("build", "library")).toBeNull();
   });
 });

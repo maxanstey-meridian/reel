@@ -2,11 +2,11 @@
 const MAX_AGE = 24 * 60 * 60 * 1000;
 const ROOT = "reel:browse:";
 // Keyed by build, so a deploy never reads a snapshot shaped by older code.
-const prefix = (): string => `${ROOT}${useRuntimeConfig().app.buildId}:`;
+const prefix = (build: string): string => `${ROOT}${build}:`;
 
-export function readBrowseCache<T>(name: string): T | null {
+export function readBrowseCache<T>(build: string, name: string): T | null {
   try {
-    const raw = localStorage.getItem(prefix() + name);
+    const raw = localStorage.getItem(prefix(build) + name);
     if (!raw) {
       return null;
     }
@@ -18,7 +18,7 @@ export function readBrowseCache<T>(name: string): T | null {
       typeof saved.savedAt !== "number" ||
       Date.now() - saved.savedAt >= MAX_AGE
     ) {
-      localStorage.removeItem(prefix() + name);
+      localStorage.removeItem(prefix(build) + name);
       return null;
     }
     // This build wrote it from a T.
@@ -28,9 +28,9 @@ export function readBrowseCache<T>(name: string): T | null {
   }
 }
 
-export function writeBrowseCache<T>(name: string, data: T): void {
+export function writeBrowseCache<T>(build: string, name: string, data: T): void {
   try {
-    const current = prefix();
+    const current = prefix(build);
     // Earlier builds' snapshots are never read again; drop them so they don't fill storage.
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith(ROOT) && !key.startsWith(current)) {

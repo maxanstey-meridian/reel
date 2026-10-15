@@ -41,9 +41,8 @@ public sealed class FfprobeSubtitleDiscovery(
                     var language = stream.Tags?.GetValueOrDefault("language") ?? "";
                     return new Subtitle(
                         index,
-                        !string.IsNullOrWhiteSpace(title) ? title
-                            : language.Length > 0 ? language
-                            : $"Track {index + 1}",
+                        // Clients show the language beside the label, e.g. "Track 2 (eng)".
+                        !string.IsNullOrWhiteSpace(title) ? title : $"Track {index + 1}",
                         language,
                         stream.CodecName ?? "",
                         null
@@ -69,10 +68,10 @@ public sealed class FfprobeSubtitleDiscovery(
                 (sidecar, index) =>
                 {
                     var language = sidecar.Suffix[stem.Length..].TrimStart('.');
-                    // Clients show the language beside the label, e.g. "External (en)".
+                    // The format tells sidecars of one language apart, e.g. "External SRT (en)".
                     return new Subtitle(
                         embedded.Count + index,
-                        "External",
+                        $"External {sidecar.File.Extension[1..].ToUpperInvariant()}",
                         language,
                         sidecar.File.Extension[1..],
                         Path.Join(relativeDirectory, sidecar.File.Name)

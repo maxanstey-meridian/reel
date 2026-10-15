@@ -36,7 +36,7 @@ data class PlaybackIntentResponse(
 )
 
 @Serializable
-data class SeekRequestResponse(val seekId: Long, val positionSeconds: Double, val introducedRevision: Long)
+data class SeekRequestResponse(val seekId: Long, val positionSeconds: Double)
 
 @Serializable
 data class PlaybackObservationResponse(val observationSequence: Long)
@@ -111,7 +111,8 @@ data class StartPlaybackRequest(val relativePath: String)
 data class ProgressRequest(val relativePath: String, val positionSeconds: Double, val durationSeconds: Double)
 
 @Serializable
-data class StreamInfo(val durationSeconds: Double, val transcodeHeight: Int? = null)
+// durationSeconds is null when the server can't tell.
+data class StreamInfo(val durationSeconds: Double? = null, val transcodeHeight: Int? = null)
 
 @Serializable
 data class SubtitleTrack(val index: Int, val source: String, val imageBased: Boolean)

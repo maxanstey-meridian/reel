@@ -10,8 +10,6 @@ const pending = (promise: Promise<object>) => () => promise.then((body) => Respo
 const activeSession: PlaybackSession = {
   sessionId: "6767fab3-64de-47de-ae53-b0e2981646c0",
   revision: 1,
-  createdAtUtc: "2026-08-11T00:00:00Z",
-  updatedAtUtc: "2026-08-11T00:00:00Z",
   tvConnected: true,
   intent: { relativePath: "Films/Test.mp4", title: "Test", desiredState: "playing" },
   observation: null,
@@ -24,7 +22,7 @@ const observation = (state: "playing" | "paused" | "ended") => ({
   relativePath: activeSession.intent.relativePath,
   positionSeconds: 10,
   durationSeconds: 100,
-  updatedAtUtc: activeSession.updatedAtUtc,
+  updatedAtUtc: "2026-08-11T00:00:00Z",
 });
 
 const setHidden = (hidden: boolean): void => {

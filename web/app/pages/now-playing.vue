@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { findNodeByPath } from "~~/app/features/library/logic/library";
 import PlaybackScrubber from "~~/app/features/playback/components/PlaybackScrubber.vue";
-import { clampPosition, describeTvState } from "~~/app/features/playback/logic/playback";
+import { clampPosition, describeTvState, isTvLost } from "~~/app/features/playback/logic/playback";
 import { trickplayFrameAt, type TrickplayFrame } from "~~/app/features/playback/logic/trickplay";
 import { injectPlayback } from "~~/app/features/playback/ports/playback";
 import { useNowPlayingDetails } from "~~/app/features/playback/useNowPlayingDetails";
@@ -13,9 +14,12 @@ const path = computed(() => session.value?.intent.relativePath);
 const completedPath = computed(() => completed.value?.relativePath);
 const preview = ref<TrickplayFrame | null>(null);
 
+const { tree } = useLibrary();
+const previewable = computed(() => findNodeByPath(tree.value, path.value ?? "")?.kind !== "audio");
 const { nextEpisode, subtitles, subtitlesStatus, trickplay, trickplayError } = useNowPlayingDetails(
   path,
   completedPath,
+  previewable,
 );
 
 const observation = computed(() => session.value?.observation ?? null);
@@ -120,7 +124,7 @@ const subtitleChoices = computed(() => [
           <p
             aria-live="polite"
             class="text-sm"
-            :class="session.tvConnected ? 'text-neutral-300' : 'text-amber-400'"
+            :class="isTvLost(session) ? 'text-amber-400' : 'text-neutral-300'"
           >
             {{ describeTvState(session, pending) }}
           </p>

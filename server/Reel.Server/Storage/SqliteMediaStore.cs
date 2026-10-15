@@ -105,7 +105,7 @@ public sealed class SqliteMediaStore(DatabaseService db, TimeProvider time)
     public async Task<MediaRecord[]> SearchAsync(string? query)
     {
         using var connection = db.GetConnection();
-        // Untagged media carries the implicit tag "media", but only for explicit #tag searches.
+        // Plain text searches titles and paths; "#tag" searches tags, where untagged media counts as #media.
         var rows = string.IsNullOrWhiteSpace(query)
             ? await connection.QueryAsync<Row>($"SELECT {Columns} FROM media;")
             : await connection.QueryAsync<Row>(
@@ -115,15 +115,14 @@ public sealed class SqliteMediaStore(DatabaseService db, TimeProvider time)
                 WHERE (@tagsOnly = 0 AND (
                     parsed_title LIKE '%' || @like || '%' ESCAPE '\'
                     OR relative_path LIKE '%' || @like || '%' ESCAPE '\'))
-                   OR EXISTS (
-                       SELECT 1 FROM item_tags t, json_each(t.tags_json) tag
-                       WHERE (t.relative_path = media.relative_path
-                           OR substr(media.relative_path, 1, length(t.relative_path) + 1) = t.relative_path || '/')
-                         AND instr(lower(tag.value), lower(@tag)) > 0
-                   )
-                   OR (@tagsOnly = 1 AND substr('media', 1, length(@tag)) = lower(@tag) AND NOT EXISTS (
-                       SELECT 1 FROM item_tags t WHERE t.relative_path = media.relative_path
-                   ));
+                   OR (@tagsOnly = 1 AND (
+                       EXISTS (
+                           SELECT 1 FROM item_tags t, json_each(t.tags_json) tag
+                           WHERE (t.relative_path = media.relative_path
+                               OR substr(media.relative_path, 1, length(t.relative_path) + 1) = t.relative_path || '/')
+                             AND instr(lower(tag.value), lower(@tag)) > 0)
+                       OR (instr('media', lower(@tag)) > 0 AND NOT EXISTS (
+                           SELECT 1 FROM item_tags t WHERE t.relative_path = media.relative_path))));
                 """,
                 new
                 {

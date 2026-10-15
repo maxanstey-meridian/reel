@@ -22,8 +22,6 @@ const session = (
 ): PlaybackSession => ({
   sessionId: "6767fab3-64de-47de-ae53-b0e2981646c0",
   revision: 3,
-  createdAtUtc: "2026-08-11T00:00:00Z",
-  updatedAtUtc: "2026-08-11T00:00:00Z",
   tvConnected: true,
   intent: {
     relativePath: "Films/Test.mp4",
@@ -65,7 +63,7 @@ describe("playback logic", () => {
   });
 
   it("keeps accepted revisions and seeks pending until TV observation applies them", () => {
-    const seek = { seekId: 7, positionSeconds: 42, introducedRevision: 3 };
+    const seek = { seekId: 7, positionSeconds: 42 };
     expect(isPlaybackPending(session(2))).toBe(true);
     // The server holds a seek until the TV reports applying it, then clears it.
     expect(isPlaybackPending(session(3, "paused", "paused", seek))).toBe(true);
@@ -85,14 +83,14 @@ describe("playback logic", () => {
     expect(describeTvState(session(3, "idle", "stopped"), false)).toBe("Stopped");
     expect(describeTvState(session(3, "error", "playing"), false)).toBe("Couldn't play on the TV");
     expect(describeTvState(session(3, "playing", "paused"), true)).toBe("Waiting for the TV…");
-    expect(describeTvState({ tvConnected: true, observation: null }, false)).toBe(
+    expect(describeTvState({ tvConnected: false, observation: null }, false)).toBe(
       "Waiting for the TV…",
     );
     expect(describeTvState({ ...session(3), tvConnected: false }, false)).toBe("TV disconnected");
   });
 
   it("formats a running time in hours and minutes", () => {
-    expect(formatDuration(59)).toBe("0m");
+    expect(formatDuration(59)).toBe("<1m");
     expect(formatDuration(25 * 60)).toBe("25m");
     expect(formatDuration(2 * 3600 + 5 * 60)).toBe("2h 5m");
   });
