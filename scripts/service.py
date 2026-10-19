@@ -80,7 +80,7 @@ def install(args):
     config_path.chmod(0o600)
     # Console output goes to macOS's logger, which owns retention. No log worker.
     runner = SUPPORT / "run.sh"
-    # The content root is SUPPORT, so the server reads (and live-reloads) the appsettings.json above, not a copy.
+    # The content root is SUPPORT, so the server reads the appsettings.json above, not a copy.
     command = " ".join(shlex.quote(part) for part in (
         executables["dotnet"], str(build / "Reel.Server.dll"),
         "--contentRoot", str(SUPPORT), "--webroot", str(build / "wwwroot")))

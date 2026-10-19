@@ -5,13 +5,17 @@ import com.max.reel.data.StreamInfo
 import com.max.reel.data.StreamMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StreamTimelineTest {
     @Test
     fun `a direct stream is the file, so its clock is the player's`() {
-        val timeline = StreamTimeline.of(StreamInfo(durationSeconds = null), startSeconds = 300.0)
+        val timeline = StreamTimeline.of(
+            StreamInfo(durationSeconds = null, mode = StreamMode.Direct),
+            startSeconds = 300.0,
+        )
 
         assertFalse(timeline.live)
         assertEquals(0.0, timeline.offsetSeconds, 0.0)
@@ -31,6 +35,25 @@ class StreamTimelineTest {
             assertEquals(312.5, timeline.positionSeconds(playerPositionMs = 12_500), 0.0)
             assertEquals(1_440.0, timeline.durationSeconds(playerDurationMs = 15_000), 0.0)
         }
+    }
+
+    @Test
+    fun `a transcode without a height plays the file as it is`() {
+        val timeline =
+            StreamTimeline.of(StreamInfo(durationSeconds = 1_440.0, mode = StreamMode.Transcode), startSeconds = 300.0)
+
+        assertEquals(StreamTimeline(), timeline)
+    }
+
+    @Test
+    fun `an embedded subtitle maps to its container track only when both list the same number`() {
+        val embedded = listOf(2, 3, 5)
+
+        assertEquals(1, containerTrackPosition(embedded, index = 3, containerTextTracks = 3))
+        assertNull(containerTrackPosition(embedded, index = 4, containerTextTracks = 3))
+        // Media3 skipped a track ffprobe listed, or added captions of its own.
+        assertNull(containerTrackPosition(embedded, index = 3, containerTextTracks = 2))
+        assertNull(containerTrackPosition(embedded, index = 3, containerTextTracks = 4))
     }
 
     @Test

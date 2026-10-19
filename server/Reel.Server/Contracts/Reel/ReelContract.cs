@@ -77,8 +77,8 @@ public static class ReelContract
         .Accepts<FileRequest>()
         .Status(200);
 
-    // Ranged file bytes, or with Height (transcode) or Remux a live MP4 starting at Start seconds. StreamInfo picks
-    // the mode once per load, so a settings edit never changes a stream mid-playback.
+    // Ranged file bytes, or with Height (transcode) or Remux a live MP4 starting at Start seconds, in the mode
+    // StreamInfo planned for the session's MaxHeight.
     public static readonly FileRouteDefinition<StreamRequest> Stream = Define
         .File<StreamRequest>(StreamRoute)
         .ProducesFile("video/*")
@@ -90,6 +90,7 @@ public static class ReelContract
     public static readonly RouteDefinition<PlaybackFileRequest, StreamInfoResponse> StreamInfo =
         Define
             .Get<PlaybackFileRequest, StreamInfoResponse>(StreamInfoRoute)
+            .Returns<ErrorResponse>(400)
             .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<FileRequest> Thumbnail = Define
@@ -107,6 +108,7 @@ public static class ReelContract
     public static readonly RouteDefinition<PlaybackFileRequest, SubtitleTrack[]> SubtitlesList =
         Define
             .Get<PlaybackFileRequest, SubtitleTrack[]>(SubtitlesRoute)
+            .Returns<ErrorResponse>(400)
             .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<SubtitleContentRequest> SubtitlesContent = Define
@@ -173,7 +175,7 @@ public sealed record StreamInfoResponse(
     int? TranscodeHeight
 );
 
-// Start shifts cues back to match a transcoded stream that began at that second.
+// Start shifts cues back to match a live stream that began at that second.
 public sealed record SubtitleContentRequest(string Path, int Index, double? Start);
 
 public sealed record TrickplaySpriteRequest(string Path, int? Sheet);

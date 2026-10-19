@@ -56,7 +56,7 @@ class ApiClientTest {
     }
 
     @Test
-    fun `stream urls pin the transcode height so a settings edit cannot change a playing stream`() {
+    fun `stream urls carry the mode the server planned`() {
         val api = client { respondJson("{}") }
 
         assertEquals(
@@ -171,17 +171,20 @@ class ApiClientTest {
     }
 
     @Test
-    fun `intent encodes expected revision only when present`() {
+    fun `intent always encodes subtitle and quality, and expected revision only when present`() {
         val guarded =
             UpdatePlaybackIntentRequest(
                 "session-1",
                 PlaybackDesiredState.Paused,
+                subtitleIndex = 2,
+                maxHeight = 480,
                 expectedRevision = 3,
             )
-        val unguarded = UpdatePlaybackIntentRequest("session-1", PlaybackDesiredState.Stopped)
+        val unguarded = UpdatePlaybackIntentRequest("session-1", PlaybackDesiredState.Stopped, null, null)
 
         assertTrue(json.encodeToString(guarded).contains("\"expectedRevision\":3"))
         assertTrue(!json.encodeToString(unguarded).contains("expectedRevision"))
+        assertTrue(json.encodeToString(unguarded).contains("\"subtitleIndex\":null,\"maxHeight\":null"))
     }
 
     @Test

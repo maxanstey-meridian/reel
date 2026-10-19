@@ -31,10 +31,10 @@ internal static class Transcoding
     ];
 
     /// <summary>
-    /// How this file reaches the TV. Video taller than maxHeight (or of unknown height) is transcoded down to it;
-    /// otherwise only what the TV cannot play is touched: unplayable video is transcoded at its own height, and a
-    /// playable video in an unplayable container or with unplayable audio is remuxed with the video kept as it is.
-    /// Audio files and files ffprobe cannot read are otherwise served as they are.
+    /// How this file reaches the TV. Audio files and files ffprobe cannot read are served as they are. Video taller
+    /// than maxHeight (or of unknown height) is transcoded down to it; otherwise only what the TV cannot play is
+    /// touched: unplayable video is transcoded at its own height, and a playable video in an unplayable container or
+    /// with unplayable audio is remuxed with the video kept as it is.
     /// </summary>
     public static async Task<StreamInfoResponse> PlanAsync(
         int? maxHeight,
@@ -45,21 +45,16 @@ internal static class Transcoding
     {
         var probe = await Ffmpeg.ProbeAsync(fullPath, streams: null, logger, ct);
         var duration = probe?.Format?.Duration;
-        var video = probe?.Streams?.FirstOrDefault(stream => stream.CodecType == "video");
+        var video = probe?.Streams?.FirstOrDefault(stream => stream.IsMovingVideo);
         var audio = probe?.Streams?.FirstOrDefault(stream => stream.CodecType == "audio");
-        if (MediaPathResolver.IsAudio(fullPath))
+        if (MediaPathResolver.IsAudio(fullPath) || probe is null)
         {
             return new StreamInfoResponse(duration, StreamMode.Direct, null);
         }
 
-        if (maxHeight is { } cap && !(video?.Height <= cap))
+        if (maxHeight is { } cap && video is not null && !(video.Height <= cap))
         {
             return new StreamInfoResponse(duration, StreamMode.Transcode, cap);
-        }
-
-        if (probe is null)
-        {
-            return new StreamInfoResponse(duration, StreamMode.Direct, null);
         }
 
         if (video is not null && !IsDirectVideo(video))
@@ -85,11 +80,12 @@ internal static class Transcoding
     public static double StartSeconds(double? start) =>
         start is > 0 and < double.PositiveInfinity ? start.Value : 0;
 
-    // The TV decodes only 8-bit H.264 in hardware; 10-bit (Hi10P) is common in anime releases.
+    // The TV decodes only 8-bit 4:2:0 H.264 in hardware; 10-bit (Hi10P) is common in anime releases, and 4:2:2 or
+    // 4:4:4 turn up in camera and screen recordings.
     private static bool IsDirectVideo(ProbeStream video) =>
         video.CodecName is { } codec
         && DirectVideo.Contains(codec)
-        && !(codec == "h264" && video.PixFmt?.Contains("10") == true);
+        && !(codec == "h264" && video.PixFmt is { } format and not ("yuv420p" or "yuvj420p"));
 
     private static bool IsDirectAudio(ProbeStream audio) =>
         audio.CodecName is { } codec && (DirectAudio.Contains(codec) || codec.StartsWith("pcm_"));

@@ -95,13 +95,9 @@ export const usePlaybackSession = () => {
             body: {
               sessionId: current.sessionId,
               desiredState,
-              subtitleIndex: Object.hasOwn(options, "subtitleIndex")
-                ? options.subtitleIndex
-                : current.intent.subtitleIndex,
-              maxHeight: Object.hasOwn(options, "maxHeight")
-                ? options.maxHeight
-                : current.intent.maxHeight,
-              seekPositionSeconds: options.seekPositionSeconds,
+              subtitleIndex: current.intent.subtitleIndex,
+              maxHeight: current.intent.maxHeight,
+              ...options,
             },
           }),
         ),

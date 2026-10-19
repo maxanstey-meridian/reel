@@ -57,15 +57,10 @@ public static class PlaybackSessionEndpoints
             ) =>
             {
                 var endpoint = PlaybackContract.UpdateIntent.Bind(request);
-                var before = service.GetCurrent();
                 var outcome = service.UpdateIntent(request);
-                if (outcome is PlaybackSessionOutcome.Ok updated)
+                if (outcome is PlaybackSessionOutcome.Ok { Previous: { } previous } updated)
                 {
-                    await preferences.RememberAsync(
-                        before?.SessionId == request.SessionId ? before.Intent : null,
-                        updated.Session.Intent,
-                        ct
-                    );
+                    await preferences.RememberAsync(previous, updated.Session.Intent, ct);
                 }
 
                 return outcome switch

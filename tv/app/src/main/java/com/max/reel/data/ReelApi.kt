@@ -98,8 +98,9 @@ data class ReportPlaybackObservationRequest(
 data class UpdatePlaybackIntentRequest(
     val sessionId: String,
     val desiredState: PlaybackDesiredState,
-    val subtitleIndex: Int? = null,
-    val maxHeight: Int? = null,
+    // Required by the server even when null, so they carry no default: kotlinx omits default values.
+    val subtitleIndex: Int?,
+    val maxHeight: Int?,
     val seekPositionSeconds: Double? = null,
     val expectedRevision: Long? = null,
 )
@@ -127,14 +128,19 @@ enum class StreamMode {
 }
 
 @Serializable
-data class StreamInfo(
-    val durationSeconds: Double? = null,
-    val mode: StreamMode = StreamMode.Direct,
-    val transcodeHeight: Int? = null,
-)
+data class StreamInfo(val durationSeconds: Double? = null, val mode: StreamMode, val transcodeHeight: Int? = null)
 
 @Serializable
-data class SubtitleTrack(val index: Int, val source: String, val imageBased: Boolean)
+enum class SubtitleSource {
+    @SerialName("embedded")
+    Embedded,
+
+    @SerialName("external")
+    External,
+}
+
+@Serializable
+data class SubtitleTrack(val index: Int, val source: SubtitleSource, val imageBased: Boolean)
 
 @Serializable
 data class ErrorResponse(val code: String, val message: String)

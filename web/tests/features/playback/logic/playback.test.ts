@@ -52,6 +52,7 @@ describe("playback logic", () => {
     expect(shownSubtitleIndex(requested(2, null))).toBe(2);
     expect(shownSubtitleIndex(requested(3, 2))).toBe(2);
     expect(shownSubtitleIndex(requested(3, null))).toBeNull();
+    expect(shownSubtitleIndex({ ...requested(3, null), observation: null })).toBe(2);
   });
 
   it("clamps invalid and out-of-range positions", () => {

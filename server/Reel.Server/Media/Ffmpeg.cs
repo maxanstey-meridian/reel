@@ -39,7 +39,7 @@ internal static class Ffmpeg
                 .ExecuteBufferedAsync(ct);
             return JsonSerializer.Deserialize<Probe>(result.StandardOutput, ProbeJson);
         }
-        catch (CommandExecutionException ex)
+        catch (Exception ex) when (ex is CommandExecutionException or JsonException)
         {
             logger.LogWarning("ffprobe could not read {Path}: {Error}", path, ex.Message);
             return null;
@@ -89,5 +89,12 @@ internal sealed record ProbeStream(
     string? CodecType,
     string? PixFmt,
     int? Height,
-    Dictionary<string, string>? Tags
-);
+    Dictionary<string, string>? Tags,
+    ProbeDisposition? Disposition
+)
+{
+    /// <summary>Video that is a picture: MP4 and MKV cover art is listed as a video stream.</summary>
+    public bool IsMovingVideo => CodecType == "video" && Disposition?.AttachedPic != 1;
+}
+
+internal sealed record ProbeDisposition(int AttachedPic);

@@ -16,19 +16,13 @@ const router = useRouter();
 const playback = injectPlayback();
 const { session, completed, loading, error, commandError, pending, sending } = playback;
 const path = computed(() => session.value?.intent.relativePath);
-const completedPath = computed(() => completed.value?.relativePath);
 const preview = ref<TrickplayFrame | null>(null);
 
 const { tree } = useLibrary();
-// Only video has frames; a file the library hasn't shown yet waits until it does.
-const previewable = computed(() => findNodeByPath(tree.value, path.value ?? "")?.kind === "video");
-const maxHeight = computed(() => session.value?.intent.maxHeight);
-const { nextEpisode, subtitles, subtitlesStatus, trickplay, trickplayError } = useNowPlayingDetails(
-  path,
-  maxHeight,
-  completedPath,
-  previewable,
-);
+// Only video has frames or a quality; a file the library hasn't shown yet waits until it does.
+const isVideo = computed(() => findNodeByPath(tree.value, path.value ?? "")?.kind === "video");
+const { nextEpisode, subtitles, subtitlesStatus, trickplay, trickplayError } =
+  useNowPlayingDetails(isVideo);
 
 const observation = computed(() => session.value?.observation ?? null);
 const actualState = computed(() => observation.value?.state);
@@ -65,19 +59,19 @@ const subtitleTrack = computed({
       subtitleIndex: track === OFF ? null : track,
     }),
 });
-// Remembered by the server, so the next file starts at the same quality. Lower caps suit weak wifi.
+// Remembered by the server, so the next file starts at the same quality.
 const FULL = "full";
 const qualityChoices = [
   { value: FULL, label: "Full quality" },
-  { value: "1080", label: "1080p" },
-  { value: "720", label: "720p" },
-  { value: "480", label: "480p" },
+  { value: 1080, label: "1080p" },
+  { value: 720, label: "720p" },
+  { value: 480, label: "480p" },
 ];
 const quality = computed({
-  get: () => (maxHeight.value ? String(maxHeight.value) : FULL),
-  set: (choice: string) =>
+  get: () => session.value?.intent.maxHeight ?? FULL,
+  set: (choice: number | typeof FULL) =>
     void playback.updateIntent(desiredState.value, {
-      maxHeight: choice === FULL ? null : Number(choice),
+      maxHeight: choice === FULL ? null : choice,
     }),
 });
 
@@ -216,7 +210,11 @@ const subtitleChoices = computed(() => [
         >
       </div>
 
-      <UFormField label="Quality">
+      <UFormField
+        v-if="isVideo"
+        label="Quality"
+        help="Lower it if the TV keeps buffering. Later files start at this quality too, and some subtitles show only at Full quality."
+      >
         <USelect v-model="quality" :items="qualityChoices" :disabled="sending" class="w-full" />
       </UFormField>
 

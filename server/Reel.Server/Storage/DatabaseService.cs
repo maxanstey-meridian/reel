@@ -109,7 +109,7 @@ public sealed class DatabaseService
             ALTER TABLE media ADD COLUMN size_bytes INTEGER;
             ALTER TABLE media ADD COLUMN indexed_at TEXT;
             """,
-        // Playback preferences replace the Compression setting: one row, chosen from the phone.
+        // The quality and subtitle language last chosen on the phone: one row.
         """
             CREATE TABLE preferences (
                 id                INTEGER PRIMARY KEY CHECK (id = 1),

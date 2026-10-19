@@ -20,6 +20,7 @@ import com.max.reel.data.ApiClient
 import com.max.reel.data.PairedServer
 import com.max.reel.data.StreamInfo
 import com.max.reel.data.StreamMode
+import com.max.reel.data.SubtitleSource
 import com.max.reel.data.SubtitleTrack
 
 private const val SIDELOADED_SUBTITLE = "reel-subtitle"
@@ -41,13 +42,21 @@ data class StreamTimeline(
         ?: 0.0
 
     companion object {
+        // A transcode without a height can't be requested, so that answer counts as no info: play the file.
         fun of(info: StreamInfo?, startSeconds: Double): StreamTimeline {
-            val mode = info?.mode ?: StreamMode.Direct
+            val usable = info?.takeUnless { it.mode == StreamMode.Transcode && it.transcodeHeight == null }
+            val mode = usable?.mode ?: StreamMode.Direct
             val offset = if (mode != StreamMode.Direct) startSeconds.coerceAtLeast(0.0) else 0.0
-            return StreamTimeline(mode, info?.transcodeHeight, offset, info?.durationSeconds)
+            return StreamTimeline(mode, usable?.transcodeHeight, offset, usable?.durationSeconds)
         }
     }
 }
+
+// Where the server's embedded subtitle [index] sits among the container's text tracks. Media3 and ffprobe
+// can disagree on those (Media3 skips some formats and can add captions of its own), so the position is
+// trusted only when both count the same tracks; otherwise null.
+fun containerTrackPosition(embedded: List<Int>, index: Int, containerTextTracks: Int): Int? =
+    embedded.indexOf(index).takeIf { it >= 0 && embedded.size == containerTextTracks }
 
 // Owns the ExoPlayer and how a Reel stream becomes a media item; it knows nothing of sessions.
 @OptIn(UnstableApi::class)
@@ -106,9 +115,13 @@ class StreamPlayer(context: Context, private val api: ApiClient, private val onS
         // the server) are sideloaded up front. Extracting an embedded track reads the whole video, so on a
         // live stream, which carries no subtitles of its own, only the chosen one is; a direct stream shows
         // its embedded tracks straight from the container.
-        containerTracks = if (timeline.live) emptyList() else tracks.filter { it.source == "embedded" }.map { it.index }
+        containerTracks =
+            if (timeline.live) emptyList() else tracks.filter { it.source == SubtitleSource.Embedded }.map { it.index }
         val files =
-            tracks.filter { !it.imageBased && (it.source == "external" || (timeline.live && it == subtitle)) }
+            tracks.filter {
+                !it.imageBased &&
+                    (it.source == SubtitleSource.External || (timeline.live && it == subtitle))
+            }
         sideloaded = files.map { it.index }.toSet()
         wantedSubtitle = subtitle?.index
 
@@ -130,7 +143,7 @@ class StreamPlayer(context: Context, private val api: ApiClient, private val onS
                 ).build(),
             if (timeline.live) 0L else (startSeconds * 1_000).toLong(),
         )
-        hideSubtitles(disabled = subtitle == null)
+        setSubtitlesEnabled(subtitle != null)
         player.prepare()
     }
 
@@ -139,13 +152,13 @@ class StreamPlayer(context: Context, private val api: ApiClient, private val onS
 
     fun showSubtitle(index: Int?) {
         wantedSubtitle = index
-        if (index == null) hideSubtitles(disabled = true) else pinSubtitle(player.currentTracks)
+        if (index == null) setSubtitlesEnabled(false) else pinSubtitle(player.currentTracks)
     }
 
     fun seekTo(seconds: Double) = player.seekTo(((seconds - timeline.offsetSeconds) * 1_000).toLong())
 
     // Embedded tracks can carry their own default flag, so the wanted track is pinned: its sideloaded
-    // file, or the container track in the same position among the embedded ones.
+    // file, or the container track in the same position among the embedded ones when that can be trusted.
     private fun pinSubtitle(tracks: Tracks) {
         val index = wantedSubtitle ?: return
         if (tracks.isEmpty) return
@@ -155,10 +168,10 @@ class StreamPlayer(context: Context, private val api: ApiClient, private val onS
                 .partition { it.getTrackFormat(0).id?.contains(SIDELOADED_SUBTITLE) == true }
         val group =
             files.firstOrNull { it.getTrackFormat(0).id?.endsWith("$SIDELOADED_SUBTITLE-$index") == true }
-                ?: containerTracks.indexOf(index).takeIf { it >= 0 }?.let(container::getOrNull)
+                ?: containerTrackPosition(containerTracks, index, container.size)?.let(container::getOrNull)
         if (group?.isSupported != true) {
             wantedSubtitle = null
-            hideSubtitles(disabled = true)
+            setSubtitlesEnabled(false)
             onSubtitleUnavailable()
         } else if (!group.isSelected) {
             player.trackSelectionParameters =
@@ -170,12 +183,12 @@ class StreamPlayer(context: Context, private val api: ApiClient, private val onS
         }
     }
 
-    private fun hideSubtitles(disabled: Boolean) {
+    private fun setSubtitlesEnabled(enabled: Boolean) {
         player.trackSelectionParameters =
             player.trackSelectionParameters
                 .buildUpon()
                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disabled)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
                 .build()
     }
 }

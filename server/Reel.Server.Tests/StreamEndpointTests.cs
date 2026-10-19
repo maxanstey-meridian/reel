@@ -13,7 +13,7 @@ namespace Reel.Server.Tests;
 public sealed class StreamEndpointTests : IDisposable
 {
     private readonly TempMediaRoot _media = new();
-    private readonly WebApplicationFactory<Program> _direct;
+    private readonly WebApplicationFactory<Program> _factory;
 
     public StreamEndpointTests()
     {
@@ -21,12 +21,12 @@ public sealed class StreamEndpointTests : IDisposable
         _media.Write("Films/movie.mkv", "fake-mkv-content"u8.ToArray());
         _media.Write("song.mp3", "fake-mp3-content"u8.ToArray());
         _media.Write("track.ogg", "fake-ogg-content"u8.ToArray());
-        _direct = _media.CreateFactory();
+        _factory = _media.CreateFactory();
     }
 
     public void Dispose()
     {
-        _direct.Dispose();
+        _factory.Dispose();
         _media.Dispose();
     }
 
@@ -41,7 +41,7 @@ public sealed class StreamEndpointTests : IDisposable
         string body
     )
     {
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync($"/api/files/stream?path={query}");
 
@@ -54,7 +54,7 @@ public sealed class StreamEndpointTests : IDisposable
     [Fact]
     public async Task DirectMode_RangeRequest_Returns206WithContentRange()
     {
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
         var request = new HttpRequestMessage(
             HttpMethod.Get,
             "/api/files/stream?path=Films/test.mp4"
@@ -72,7 +72,7 @@ public sealed class StreamEndpointTests : IDisposable
     [Fact]
     public async Task MissingPath_Returns400()
     {
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
 
         (await client.GetAsync("/api/files/stream"))
             .StatusCode.Should()
@@ -86,7 +86,7 @@ public sealed class StreamEndpointTests : IDisposable
     [InlineData("Films/../../etc/passwd")]
     public async Task NotAPlayableLibraryFile_Returns404(string path)
     {
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
 
         (await client.GetAsync($"/api/files/stream?path={path}"))
             .StatusCode.Should()
@@ -101,7 +101,7 @@ public sealed class StreamEndpointTests : IDisposable
     public async Task TranscodeMode_TranscodesVideoToFragmentedMp4NoTallerThanTheSource()
     {
         TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync(
             "/api/files/stream?path=Films/real.mp4&start=1&height=240"
@@ -125,7 +125,7 @@ public sealed class StreamEndpointTests : IDisposable
     [Fact]
     public async Task TranscodeMode_ServesAudioDirectlyWithRanges()
     {
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
         var request = new HttpRequestMessage(
             HttpMethod.Get,
             "/api/files/stream?path=song.mp3&height=480"
@@ -144,7 +144,7 @@ public sealed class StreamEndpointTests : IDisposable
     [InlineData("remux=true&height=480")]
     public async Task InvalidHeightOrRemuxWithHeight_Returns400(string query)
     {
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync($"/api/files/stream?path=Films/test.mp4&{query}");
 
@@ -155,8 +155,8 @@ public sealed class StreamEndpointTests : IDisposable
     [Fact]
     public async Task RemuxMode_CopiesTheVideoAndReencodesTheAudioToAc3()
     {
-        TestMedia.CreateVideo(_media.Write("Films/old.avi"), "mpeg4", "libmp3lame");
-        using var client = _direct.CreateAuthenticatedClient();
+        TestMedia.CreateVideo(_media.Write("Films/old.avi"), audioCodec: "libmp3lame");
+        using var client = _factory.CreateAuthenticatedClient();
 
         var response = await client.GetAsync(
             "/api/files/stream?path=Films/old.avi&start=1&remux=true"
@@ -178,11 +178,13 @@ public sealed class StreamEndpointTests : IDisposable
     }
 
     // The source is 36 pixels tall: a cap at or above that leaves it alone, one below transcodes down to the cap.
+    // Audio, and a file ffprobe can't read (the fake test.mp4), are served as they are whatever the cap.
     [Theory]
     [InlineData("Films/real.mp4", StreamMode.Direct, null)]
     [InlineData("Films/real.mp4&maxHeight=480", StreamMode.Direct, null)]
     [InlineData("Films/real.mp4&maxHeight=24", StreamMode.Transcode, 24)]
     [InlineData("song.mp3&maxHeight=24", StreamMode.Direct, null)]
+    [InlineData("Films/test.mp4&maxHeight=24", StreamMode.Direct, null)]
     public async Task StreamInfo_ReportsDurationAndHowToStream(
         string query,
         StreamMode mode,
@@ -190,16 +192,16 @@ public sealed class StreamEndpointTests : IDisposable
     )
     {
         TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
-        using var client = _direct.CreateAuthenticatedClient();
+        using var client = _factory.CreateAuthenticatedClient();
 
         var info = await client.GetFromJsonAsync<StreamInfoResponse>(
             $"/api/files/stream/info?path={query}",
-            _direct.JsonOptions()
+            _factory.JsonOptions()
         );
 
         info!.Mode.Should().Be(mode);
         info.TranscodeHeight.Should().Be(transcodeHeight);
-        if (query.StartsWith("Films/"))
+        if (query.StartsWith("Films/real"))
         {
             info.DurationSeconds.Should().BeApproximately(3, 0.5);
         }
@@ -210,29 +212,52 @@ public sealed class StreamEndpointTests : IDisposable
     }
 
     // Without a cap only what the TV cannot play is touched: MPEG-4 Part 2 and MP3 are fine in MKV, AVI is
-    // remuxed, MP2 audio is remuxed, and WMV video is transcoded at its own height.
+    // remuxed, MP2 audio is remuxed, and WMV and H.264 other than 8-bit 4:2:0 are transcoded at their own height.
     [Theory]
     [InlineData("Films/fine.mkv", "mpeg4", "libmp3lame", StreamMode.Direct, null)]
     [InlineData("Films/old.avi", "mpeg4", "libmp3lame", StreamMode.Remux, null)]
     [InlineData("Films/mp2.mkv", "mpeg4", "mp2", StreamMode.Remux, null)]
     [InlineData("Films/wmv.mkv", "wmv2", "libmp3lame", StreamMode.Transcode, 36)]
+    [InlineData("Films/h264.mkv", "libx264", "libmp3lame", StreamMode.Direct, null, "yuv420p")]
+    [InlineData("Films/hi10.mkv", "libx264", "libmp3lame", StreamMode.Transcode, 36, "yuv420p10le")]
+    [InlineData("Films/422.mkv", "libx264", "libmp3lame", StreamMode.Transcode, 36, "yuv422p")]
     public async Task StreamInfo_TouchesOnlyWhatTheTvCannotPlay(
         string path,
         string videoCodec,
         string audioCodec,
         StreamMode mode,
-        int? transcodeHeight
+        int? transcodeHeight,
+        string? pixelFormat = null
     )
     {
-        TestMedia.CreateVideo(_media.Write(path), videoCodec, audioCodec);
-        using var client = _direct.CreateAuthenticatedClient();
+        TestMedia.CreateVideo(
+            _media.Write(path),
+            videoCodec: videoCodec,
+            audioCodec: audioCodec,
+            pixelFormat: pixelFormat
+        );
+        using var client = _factory.CreateAuthenticatedClient();
 
         var info = await client.GetFromJsonAsync<StreamInfoResponse>(
             $"/api/files/stream/info?path={path}",
-            _direct.JsonOptions()
+            _factory.JsonOptions()
         );
 
         info!.Mode.Should().Be(mode);
         info.TranscodeHeight.Should().Be(transcodeHeight);
+    }
+
+    [Theory]
+    [InlineData("stream/info")]
+    [InlineData("subtitles")]
+    public async Task AMaxHeightThatIsNotAPositiveEvenNumber_IsRejected(string route)
+    {
+        using var client = _factory.CreateAuthenticatedClient();
+
+        var response = await client.GetAsync(
+            $"/api/files/{route}?path=Films/test.mp4&maxHeight=721"
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

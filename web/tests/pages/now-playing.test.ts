@@ -75,3 +75,55 @@ describe("now playing previews", () => {
     await vi.waitFor(() => expect(server.requests("GET /api/files/trickplay")).toHaveLength(1));
   });
 });
+
+describe("now playing quality", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("offers a quality only for video", async () => {
+    const { mounted } = showNowPlaying(playing("song.flac"), () =>
+      Response.json(library({ path: "song.flac", kind: "audio" })),
+    );
+    const page = await mounted;
+
+    await vi.waitFor(() => expect(page.text()).toContain("Playing on the TV"));
+    await flushPromises();
+    expect(page.text()).not.toContain("Quality");
+  });
+
+  it("sends the picked quality and lists the subtitles a stream at it can carry", async () => {
+    const session = playing("film.mkv");
+    const { server, mounted } = showNowPlaying(session, () =>
+      Response.json(library({ path: "film.mkv", kind: "video" })),
+    );
+    server.routes["PUT /api/playback/session/intent"] = () =>
+      Response.json({
+        ...session,
+        revision: 2,
+        intent: { ...session.intent, maxHeight: 720 },
+      });
+    const page = await mounted;
+    await vi.waitFor(() => expect(page.text()).toContain("Quality"));
+
+    const quality = page
+      .findAllComponents({ name: "USelect" })
+      .find((select) =>
+        select.props("items")?.some((item: { label?: string }) => item.label === "720p"),
+      );
+    quality!.vm.$emit("update:modelValue", 720);
+
+    await vi.waitFor(() =>
+      expect(server.requests("PUT /api/playback/session/intent")).toHaveLength(1),
+    );
+    const body = await server.requests("PUT /api/playback/session/intent")[0]!.clone().json();
+    expect(body).toMatchObject({ maxHeight: 720, subtitleIndex: null, desiredState: "playing" });
+    await vi.waitFor(() =>
+      expect(
+        server
+          .requests("GET /api/files/subtitles")
+          .some((request) => new URL(request.url).searchParams.get("maxHeight") === "720"),
+      ).toBe(true),
+    );
+  });
+});

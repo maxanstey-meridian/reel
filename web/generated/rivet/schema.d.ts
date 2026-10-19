@@ -374,9 +374,9 @@ export interface components {
             sessionId: string;
             desiredState: components["schemas"]["PlaybackDesiredStateDto"];
             /** Format: int32 */
-            subtitleIndex?: number | null;
+            subtitleIndex: number | null;
             /** Format: int32 */
-            maxHeight?: number | null;
+            maxHeight: number | null;
             /** Format: double */
             seekPositionSeconds?: number | null;
             /** Format: int64 */
@@ -1051,6 +1051,15 @@ export interface operations {
                     "application/json": components["schemas"]["StreamInfoResponse"];
                 };
             };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -1144,6 +1153,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SubtitleTrack"][];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not Found */

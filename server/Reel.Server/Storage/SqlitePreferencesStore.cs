@@ -17,15 +17,21 @@ public sealed class SqlitePreferencesStore(DatabaseService db)
         return new PlaybackPreferences((int?)row.MaxHeight, row.Language);
     }
 
-    public async Task SaveAsync(PlaybackPreferences preferences)
+    // One column per write, so a quality change and a subtitle change saved together cannot undo each other.
+    public Task SaveMaxHeightAsync(int? maxHeight) => UpsertAsync("max_height", maxHeight);
+
+    public Task SaveSubtitleLanguageAsync(string? language) =>
+        UpsertAsync("subtitle_language", language);
+
+    private async Task UpsertAsync(string column, object? value)
     {
         using var connection = db.GetConnection();
         await connection.ExecuteAsync(
-            """
-            INSERT OR REPLACE INTO preferences (id, max_height, subtitle_language)
-            VALUES (1, @MaxHeight, @SubtitleLanguage);
+            $"""
+            INSERT INTO preferences (id, {column}) VALUES (1, @value)
+            ON CONFLICT (id) DO UPDATE SET {column} = excluded.{column};
             """,
-            preferences
+            new { value }
         );
     }
 }

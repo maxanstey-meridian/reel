@@ -23,12 +23,16 @@ export const formatPlaybackTime = (seconds: number): string => {
     : `${minutes}:${remainder.toString().padStart(2, "0")}`;
 };
 
+/** Whether the TV has reported applying the latest request. */
+const tvCaughtUp = (session: PlaybackSession): boolean =>
+  !!session.observation && session.observation.appliedRevision >= session.revision;
+
 export const isPlaybackPending = (session: PlaybackSession | null): boolean => {
   if (!session) {
     return false;
   }
   const observation = session.observation;
-  if (!observation || observation.appliedRevision < session.revision) {
+  if (!observation || !tvCaughtUp(session)) {
     return true;
   }
   // The server clears a seek once the TV reports applying it.
@@ -50,12 +54,8 @@ export const isPlaybackPending = (session: PlaybackSession | null): boolean => {
  * The subtitle to show as chosen: the requested one until the TV has applied that request, then the one the TV
  * reports (null when it couldn't show the request), so a pick never appears to snap back while it travels.
  */
-export const shownSubtitleIndex = (session: PlaybackSession): number | null => {
-  const observation = session.observation;
-  return !observation || observation.appliedRevision < session.revision
-    ? session.intent.subtitleIndex
-    : observation.subtitleIndex;
-};
+export const shownSubtitleIndex = (session: PlaybackSession): number | null =>
+  tvCaughtUp(session) ? session.observation!.subtitleIndex : session.intent.subtitleIndex;
 
 const tvStateLabels: Record<TvState, string> = {
   playing: "Playing on the TV",

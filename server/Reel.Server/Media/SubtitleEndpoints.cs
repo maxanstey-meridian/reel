@@ -18,36 +18,34 @@ public static partial class SubtitleEndpoints
                 [AsParameters] PlaybackFileRequest request,
                 FfprobeSubtitleDiscovery discovery,
                 MediaPathResolver paths,
-                ILogger<Program> logger,
                 CancellationToken ct
             ) =>
             {
                 var endpoint = ReelContract.SubtitlesList.Bind(request);
+                if (request.MaxHeight is { } height && !Transcoding.IsHeight(height))
+                {
+                    return endpoint.Error(400, EndpointErrors.InvalidMaxHeight).ToResult();
+                }
+
                 var fullPath = paths.ResolvePlayableFile(request.Path);
                 if (fullPath is null)
                 {
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                // A live stream carries no subtitle streams (-sn), and image-based tracks cannot become WebVTT.
-                var tracks = await discovery.DiscoverAsync(fullPath, ct);
-                var live =
-                    (await Transcoding.PlanAsync(request.MaxHeight, fullPath, logger, ct)).Mode
-                    != StreamMode.Direct;
+                var tracks = await discovery.OfferedAsync(fullPath, request.MaxHeight, ct);
                 return endpoint
                     .Success([
-                        .. tracks
-                            .Select(track => new SubtitleTrack(
-                                track.Index,
-                                track.Label,
-                                track.Language,
-                                track.Format,
-                                track.ExternalPath is null
-                                    ? SubtitleSource.Embedded
-                                    : SubtitleSource.External,
-                                FfprobeSubtitleDiscovery.IsImageBased(track)
-                            ))
-                            .Where(track => !live || !track.ImageBased),
+                        .. tracks.Select(track => new SubtitleTrack(
+                            track.Index,
+                            track.Label,
+                            track.Language,
+                            track.Format,
+                            track.ExternalPath is null
+                                ? SubtitleSource.Embedded
+                                : SubtitleSource.External,
+                            FfprobeSubtitleDiscovery.IsImageBased(track)
+                        )),
                     ])
                     .ToResult();
             }
@@ -112,7 +110,7 @@ public static partial class SubtitleEndpoints
         return endpoints;
     }
 
-    // ffmpeg's own seeking (-ss) shifts sparse subtitle streams by the wrong amount, so a transcoded stream that
+    // ffmpeg's own seeking (-ss) shifts sparse subtitle streams by the wrong amount, so a live stream that
     // restarted at ?start= gets its cues moved back here; cues that already ended are dropped.
     private static string ShiftVtt(string vtt, double startSeconds)
     {

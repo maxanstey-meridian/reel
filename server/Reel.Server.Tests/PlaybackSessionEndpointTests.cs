@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Dapper;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Reel.Server.Common;
@@ -247,7 +248,7 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         _media.Write("Films/movie.srt");
 
         var session = await ChangeIntent(await Start(), subtitleIndex: 0, maxHeight: null);
-        session = await ChangeIntent(session, subtitleIndex: 1, maxHeight: null);
+        await ChangeIntent(session, subtitleIndex: 1, maxHeight: null);
         (await Start()).Intent.SubtitleIndex.Should().Be(0);
 
         await ChangeIntent(await Start(), subtitleIndex: null, maxHeight: 720);
@@ -255,6 +256,24 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
 
         off.Intent.SubtitleIndex.Should().BeNull();
         off.Intent.MaxHeight.Should().Be(720);
+    }
+
+    [Fact]
+    public async Task PreferencesThatCannotBeReadOrSaved_NeverStopPlayback()
+    {
+        _media.Write("Films/movie.en.srt");
+        await Start();
+        using (var connection = _media.Database.GetConnection())
+        {
+            connection.Execute("DROP TABLE preferences;");
+        }
+
+        var session = await Start();
+        var changed = await ChangeIntent(session, subtitleIndex: 0, maxHeight: 720);
+
+        session.Intent.MaxHeight.Should().BeNull();
+        changed.Intent.SubtitleIndex.Should().Be(0);
+        changed.Intent.MaxHeight.Should().Be(720);
     }
 
     private async Task<PlaybackSessionResponse> ChangeIntent(

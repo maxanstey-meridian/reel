@@ -21,7 +21,7 @@ export interface Playback {
   sending: Readonly<Ref<boolean>>;
   pending: ComputedRef<boolean>;
   start: (relativePath: string, startPositionSeconds?: number) => Promise<boolean>;
-  /** Subtitle and quality changes are remembered by the server and start the next session too. */
+  /** Quality and subtitle language are remembered by the server and start the next session too. */
   updateIntent: (desiredState: PlaybackDesiredState, options?: IntentChange) => Promise<boolean>;
 }
 

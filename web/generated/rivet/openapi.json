@@ -725,6 +725,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -880,6 +890,16 @@
                   "items": {
                     "$ref": "#/components/schemas/SubtitleTrack"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1356,7 +1376,9 @@
         },
         "required": [
           "sessionId",
-          "desiredState"
+          "desiredState",
+          "subtitleIndex",
+          "maxHeight"
         ]
       },
       "ReportPlaybackObservationRequest": {

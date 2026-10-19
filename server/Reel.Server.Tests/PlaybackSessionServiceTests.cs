@@ -110,6 +110,28 @@ public sealed class PlaybackSessionServiceTests : IDisposable
         result.Session().Intent.SubtitleIndex.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-2)]
+    [InlineData(721)]
+    public void UpdateIntent_RejectsAMaxHeightThatIsNotAPositiveEvenNumber(int maxHeight)
+    {
+        var session = Start();
+
+        var result = _service.UpdateIntent(
+            new UpdatePlaybackIntentRequest(
+                session.SessionId,
+                PlaybackDesiredStateDto.Playing,
+                null,
+                maxHeight,
+                null
+            )
+        );
+
+        result.Error().Should().Be(PlaybackSessionError.InvalidRequest);
+        _service.GetCurrent()!.Revision.Should().Be(session.Revision);
+    }
+
     [Fact]
     public void UpdateIntent_RejectsSeekWhenDesiredStateIsStopped()
     {

@@ -15,21 +15,33 @@ public sealed class PlaybackPreferenceService(
     ILogger<PlaybackPreferenceService> logger
 )
 {
-    /// <summary>The remembered quality, and the file's track in the remembered language if it has one.</summary>
+    /// <summary>
+    /// The remembered quality, and the file's track in the remembered language among those a stream at that quality
+    /// can carry. Preferences never stop playback starting, so a failure here starts at full quality without
+    /// subtitles.
+    /// </summary>
     public async Task<(int? MaxHeight, int? SubtitleIndex)> StartingChoicesAsync(
         string relativePath,
         CancellationToken ct
     )
     {
-        var preferences = await store.GetAsync();
-        var fullPath = paths.ResolvePlayableFile(relativePath);
-        if (preferences.SubtitleLanguage is not { } language || fullPath is null)
+        try
         {
-            return (preferences.MaxHeight, null);
-        }
+            var preferences = await store.GetAsync();
+            var fullPath = paths.ResolvePlayableFile(relativePath);
+            if (preferences.SubtitleLanguage is not { } language || fullPath is null)
+            {
+                return (preferences.MaxHeight, null);
+            }
 
-        var track = SubtitleLanguage.Match(await discovery.DiscoverAsync(fullPath, ct), language);
-        return (preferences.MaxHeight, track?.Index);
+            var offered = await discovery.OfferedAsync(fullPath, preferences.MaxHeight, ct);
+            return (preferences.MaxHeight, SubtitleLanguage.Match(offered, language)?.Index);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not read playback preferences");
+            return (null, null);
+        }
     }
 
     /// <summary>
@@ -37,37 +49,31 @@ public sealed class PlaybackPreferenceService(
     /// the remembered language as it was. The intent is already applied, so a failure here is only logged.
     /// </summary>
     public async Task RememberAsync(
-        PlaybackIntentResponse? before,
+        PlaybackIntentResponse before,
         PlaybackIntentResponse after,
         CancellationToken ct
     )
     {
-        if (
-            before is null
-            || before.RelativePath != after.RelativePath
-            || (before.MaxHeight == after.MaxHeight && before.SubtitleIndex == after.SubtitleIndex)
-        )
-        {
-            return;
-        }
-
         try
         {
-            var preferences = await store.GetAsync();
-            if (before.SubtitleIndex != after.SubtitleIndex && after.SubtitleIndex is null)
+            if (before.MaxHeight != after.MaxHeight)
             {
-                preferences = preferences with { SubtitleLanguage = null };
-            }
-            else if (
-                before.SubtitleIndex != after.SubtitleIndex
-                && await LanguageOfAsync(after.RelativePath, after.SubtitleIndex!.Value, ct)
-                    is { } language
-            )
-            {
-                preferences = preferences with { SubtitleLanguage = language };
+                await store.SaveMaxHeightAsync(after.MaxHeight);
             }
 
-            await store.SaveAsync(preferences with { MaxHeight = after.MaxHeight });
+            if (before.SubtitleIndex == after.SubtitleIndex)
+            {
+                return;
+            }
+
+            if (after.SubtitleIndex is not { } index)
+            {
+                await store.SaveSubtitleLanguageAsync(null);
+            }
+            else if (await LanguageOfAsync(after.RelativePath, index, ct) is { } language)
+            {
+                await store.SaveSubtitleLanguageAsync(language);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

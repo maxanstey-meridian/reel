@@ -16,7 +16,11 @@ public abstract record PlaybackSessionOutcome
 {
     private PlaybackSessionOutcome() { }
 
-    public sealed record Ok(PlaybackSessionResponse Session) : PlaybackSessionOutcome;
+    /// <summary>Previous is the intent an intent update replaced, read under the same lock.</summary>
+    public sealed record Ok(
+        PlaybackSessionResponse Session,
+        PlaybackIntentResponse? Previous = null
+    ) : PlaybackSessionOutcome;
 
     public sealed record Failed(PlaybackSessionError Error, string Message)
         : PlaybackSessionOutcome;
@@ -36,7 +40,7 @@ public sealed class PlaybackSessionService(
     private readonly Lock _lock = new();
     private Session? _session;
 
-    /// <summary>Starts with the remembered quality and the subtitle track matched to the remembered language.</summary>
+    /// <summary>Starts with the given quality cap and subtitle track.</summary>
     public PlaybackSessionOutcome Start(
         StartPlaybackSessionRequest request,
         int? maxHeight,
@@ -131,6 +135,7 @@ public sealed class PlaybackSessionService(
                 return Conflict("Playback session changed since it was last read.");
             }
 
+            var previous = _session.Intent;
             var pendingSeek = _session.Intent.PendingSeek;
             var lastSeekId = _session.LastSeekId;
             if (request.SeekPositionSeconds is { } requestedSeek)
@@ -155,7 +160,7 @@ public sealed class PlaybackSessionService(
                     PendingSeek = pendingSeek,
                 },
             };
-            return Success(_session);
+            return Success(_session) with { Previous = previous };
         }
     }
 
@@ -269,6 +274,7 @@ public sealed class PlaybackSessionService(
                 return Invalid("Non-error observations cannot include error details.");
             }
 
+            var previous = _session.Intent;
             var pendingSeek = _session.Intent.PendingSeek;
             if (pendingSeek is not null && request.AppliedSeekId == pendingSeek.SeekId)
             {

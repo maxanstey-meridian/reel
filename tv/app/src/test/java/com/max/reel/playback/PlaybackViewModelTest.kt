@@ -77,7 +77,9 @@ class PlaybackViewModelTest {
     private var progressStatus = HttpStatusCode.OK
     private var unreachablePath: String? = null
     private var streamInfoGate: CompletableDeferred<Unit>? = null
-    private var streamInfoRequests = 0
+
+    // The maxHeight each stream info request carried.
+    private val streamInfoRequests = mutableListOf<String?>()
     private var subtitles = "[]"
     private var intentGate: CompletableDeferred<Unit>? = null
     private var observationGate: CompletableDeferred<Unit>? = null
@@ -102,6 +104,7 @@ class PlaybackViewModelTest {
         path: String = "Films/movie.mp4",
         desiredState: PlaybackDesiredState = PlaybackDesiredState.Playing,
         subtitleIndex: Int? = null,
+        maxHeight: Int? = null,
         seekSeconds: Double? = null,
     ) = PlaybackSessionResponse(
         id,
@@ -111,6 +114,7 @@ class PlaybackViewModelTest {
             title = "Movie",
             desiredState = desiredState,
             subtitleIndex = subtitleIndex,
+            maxHeight = maxHeight,
             pendingSeek = seekSeconds?.let { SeekRequestResponse(revision, it) },
         ),
     )
@@ -139,6 +143,12 @@ class PlaybackViewModelTest {
                             json.decodeFromString<UpdatePlaybackIntentRequest>((request.body as TextContent).text)
                         intents += intent
                         intentGate?.await()
+                        if (intent.expectedRevision != null && intent.expectedRevision != session.revision) {
+                            return@MockEngine respondJson(
+                                """{"code":"revision_conflict","message":"Playback session changed"}""",
+                                HttpStatusCode.Conflict,
+                            )
+                        }
                         session =
                             session(
                                 id = session.sessionId,
@@ -146,6 +156,7 @@ class PlaybackViewModelTest {
                                 path = session.intent.relativePath,
                                 desiredState = intent.desiredState,
                                 subtitleIndex = intent.subtitleIndex,
+                                maxHeight = intent.maxHeight,
                                 seekSeconds = intent.seekPositionSeconds,
                             )
                         respondJson(json.encodeToString(session))
@@ -157,9 +168,13 @@ class PlaybackViewModelTest {
                     }
 
                     "/api/files/stream/info" -> {
-                        streamInfoRequests++
+                        val maxHeight = request.url.parameters["maxHeight"]
+                        streamInfoRequests += maxHeight
                         streamInfoGate?.await()
-                        respondJson("""{"durationSeconds":60,"mode":"direct","transcodeHeight":null}""")
+                        val plan =
+                            maxHeight?.let { "\"mode\":\"transcode\",\"transcodeHeight\":$it" }
+                                ?: "\"mode\":\"direct\",\"transcodeHeight\":null"
+                        respondJson("{\"durationSeconds\":60,$plan}")
                     }
 
                     "/api/files/subtitles" -> {
@@ -293,13 +308,46 @@ class PlaybackViewModelTest {
         subtitles =
             """[{"index":0,"source":"external","imageBased":false},{"index":1,"source":"external","imageBased":false}]"""
         startPolling()
-        assertEquals(1, streamInfoRequests)
+        assertEquals(1, streamInfoRequests.size)
 
         session = session(revision = 2, subtitleIndex = 1)
         advanceTimeBy(1_001)
 
         assertEquals(1, viewModel.state.value.subtitleIndex)
-        assertEquals(1, streamInfoRequests)
+        assertEquals(1, streamInfoRequests.size)
+    }
+
+    @Test
+    fun `a new quality reloads a capped stream from where it was`() = runTest(dispatcher) {
+        startPolling()
+
+        session = session(revision = 2, maxHeight = 480)
+        advanceTimeBy(1_001)
+
+        assertEquals(listOf(null, "480"), streamInfoRequests)
+        val uri = viewModel.player.currentMediaItem?.localConfiguration?.uri.toString()
+        assertTrue(uri, "height=480" in uri && "start=" in uri)
+    }
+
+    // The phone's change landed after the TV's last poll; Back must still stop, without reverting it.
+    @Test
+    fun `back after a phone change it hasn't seen stops with the phone's subtitle and quality`() = runTest(dispatcher) {
+        startPolling()
+        session = session(revision = 2, subtitleIndex = 1, maxHeight = 480)
+
+        viewModel.stopFromTv()
+        runCurrent()
+
+        assertEquals(listOf(1L, 2L), intents.map { it.expectedRevision })
+        assertTrue(intents.all { it.desiredState == PlaybackDesiredState.Stopped })
+        assertEquals(1, intents.last().subtitleIndex)
+        assertEquals(480, intents.last().maxHeight)
+        assertEquals(PlaybackDesiredState.Stopped, session.intent.desiredState)
+        assertNull(viewModel.state.value.relativePath)
+        assertNull(viewModel.state.value.notice)
+        // The phone's session was never loaded on the way to stopping.
+        assertEquals(1, streamInfoRequests.size)
+        assertEquals(Player.STATE_IDLE, viewModel.player.playbackState)
     }
 
     @Test

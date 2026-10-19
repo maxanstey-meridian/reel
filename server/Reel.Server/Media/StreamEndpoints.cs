@@ -85,7 +85,7 @@ public static class StreamEndpoints
                 {
                     // Packed B-frames (common in DivX/XviD AVIs) must be unpacked before they can go into MP4.
                     var codec = (
-                        await Ffmpeg.ProbeAsync(fullPath, "v:0", logger, http.RequestAborted)
+                        await Ffmpeg.ProbeAsync(fullPath, "V:0", logger, http.RequestAborted)
                     )
                         ?.Streams?.FirstOrDefault()
                         ?.CodecName;
@@ -126,6 +126,11 @@ public static class StreamEndpoints
             ) =>
             {
                 var endpoint = ReelContract.StreamInfo.Bind(request);
+                if (request.MaxHeight is { } height && !Transcoding.IsHeight(height))
+                {
+                    return endpoint.Error(400, EndpointErrors.InvalidMaxHeight).ToResult();
+                }
+
                 var fullPath = paths.ResolvePlayableFile(request.Path);
                 if (fullPath is null)
                 {
@@ -152,14 +157,14 @@ public static class StreamEndpoints
     )
     {
         var errors = new StringBuilder();
-        // genpts fills the timestamps AVI leaves out, which a copied video stream needs in MP4.
+        // genpts fills the timestamps AVI leaves out, which a copied video stream needs in MP4. V (not v) skips cover art.
         // csharpier-ignore
         string[] arguments =
         [
             "-hide_banner", "-loglevel", "error", "-nostdin", "-fflags", "+genpts",
             "-ss", start.ToString("0.###", CultureInfo.InvariantCulture),
             "-i", fullPath,
-            "-map", "0:v:0", "-map", "0:a:0?",
+            "-map", "0:V:0", "-map", "0:a:0?",
             .. video,
             .. audio,
             "-sn", "-dn",

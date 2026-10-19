@@ -6,4 +6,9 @@ internal static class EndpointErrors
         "media_not_found",
         "Playable media was not found."
     );
+
+    public static readonly ErrorResponse InvalidMaxHeight = new(
+        "invalid_request",
+        "Max height must be a positive even number."
+    );
 }

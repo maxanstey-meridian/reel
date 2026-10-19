@@ -25,10 +25,12 @@ public static partial class SubtitleLanguage
         ["gre"] = "el",
         ["ice"] = "is",
         ["mac"] = "mk",
+        ["mao"] = "mi",
         ["may"] = "ms",
         ["per"] = "fa",
         ["rum"] = "ro",
         ["slo"] = "sk",
+        ["tib"] = "bo",
         ["wel"] = "cy",
     };
 

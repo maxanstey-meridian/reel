@@ -268,7 +268,7 @@ class PlaybackViewModel(
         if (decision.desiredState != PlaybackDesiredState.Stopped) {
             val subtitle = session.intent.subtitleIndex
             val rebuild =
-                decision.loadPath != null || decision.streamChanged || stream.error != null ||
+                decision.loadPath != null || decision.qualityChanged || stream.error != null ||
                     (seek != null && stream.timeline.live) ||
                     (decision.subtitleChanged && !stream.canSwitchTo(subtitle))
             val start = seek ?: if (decision.loadPath != null) 0.0 else stream.positionSeconds
@@ -345,32 +345,31 @@ class PlaybackViewModel(
             sendLocalIntent(session, desiredState, authoritative = authoritative)
         }
 
-    // Callers hold commandMutex. Key presses send expectedRevision so they cannot silently revert a
-    // newer phone change; authoritative intents (Back, backgrounding) must win regardless.
+    // Callers hold commandMutex. Every intent sends expectedRevision so it cannot silently revert a newer
+    // phone change. A key press that conflicts gives way to the newer session. Authoritative intents (Back,
+    // backgrounding) must still win, so they are sent once more on the newer revision with its subtitle and
+    // quality; that session isn't applied first, as it could restart a stream the TV just stopped.
     private suspend fun sendLocalIntent(
         session: PlaybackSessionResponse,
         desiredState: PlaybackDesiredState,
         seekPositionSeconds: Double? = null,
         authoritative: Boolean = false,
     ): Boolean {
-        val request =
-            localIntentRequest(session, desiredState, seekPositionSeconds)
-                .let { if (authoritative) it.copy(expectedRevision = null) else it }
         _state.update { it.copy(controlPending = true, notice = null) }
-        val result = apiClient.updatePlaybackIntent(request)
-        if (result is ApiResult.Success) applySession(result.value)
-        val conflict = (result as? ApiResult.Failure)?.statusCode == 409
-        if (conflict) {
-            (apiClient.getPlaybackSession() as? ApiResult.Success)?.let {
-                applyPolledSession(it.value.session)
+        var result = apiClient.updatePlaybackIntent(localIntentRequest(session, desiredState, seekPositionSeconds))
+        if (result.isConflict()) {
+            val current = apiClient.getPlaybackSession() as? ApiResult.Success
+            val latest = current?.value?.session
+            if (!authoritative) {
+                current?.let { applyPolledSession(it.value.session) }
+            } else if (latest != null && latest.sessionId == session.sessionId) {
+                result = apiClient.updatePlaybackIntent(localIntentRequest(latest, desiredState))
             }
         }
+        if (result is ApiResult.Success) applySession(result.value)
+        val failed = (result as? ApiResult.Failure)?.takeUnless { result.isConflict() }
         _state.update {
-            it.copy(
-                controlPending = false,
-                notice =
-                (result as? ApiResult.Failure)?.takeUnless { conflict }?.let(::controlFailed) ?: it.notice,
-            )
+            it.copy(controlPending = false, notice = failed?.let(::controlFailed) ?: it.notice)
         }
         return result is ApiResult.Success
     }
@@ -417,7 +416,7 @@ class PlaybackViewModel(
                 when {
                     intent.subtitleIndex == null || track != null -> null
                     tracksResult is ApiResult.Failure -> SUBTITLES_NOT_LOADED
-                    else -> SUBTITLES_UNAVAILABLE
+                    else -> SUBTITLE_NOT_OFFERED
                 },
             )
         }
@@ -508,8 +507,11 @@ class PlaybackViewModel(
     }
 }
 
-private const val SUBTITLES_UNAVAILABLE = "Subtitles aren't available for this file"
+// The chosen track isn't in this stream's list, e.g. a picture-based one once the stream is converted.
+private const val SUBTITLE_NOT_OFFERED = "That subtitle can't be shown right now"
 private const val SUBTITLES_NOT_LOADED = "Couldn't load subtitles"
 private const val SUBTITLE_NOT_SHOWABLE = "This subtitle track can't be shown"
 
 private fun controlFailed(failure: ApiResult.Failure) = "Control failed: ${failure.message}"
+
+private fun ApiResult<*>.isConflict() = (this as? ApiResult.Failure)?.statusCode == 409

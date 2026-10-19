@@ -39,9 +39,9 @@ data class AppliedIntent(
 data class ReconciliationDecision(
     val loadPath: String? = null,
     val desiredState: PlaybackDesiredState? = null,
-    // A new session or quality reloads the stream at the current position; a new subtitle on its own
-    // is switched in place when the player already has it.
-    val streamChanged: Boolean = false,
+    // Within a session (a new one always has a loadPath): a new quality reloads the stream at the
+    // current position, and a new subtitle on its own is switched in place when the player already has it.
+    val qualityChanged: Boolean = false,
     val subtitleChanged: Boolean = false,
     val seekId: Long? = null,
     val seekPositionSeconds: Double? = null,
@@ -68,7 +68,7 @@ fun reconcile(
             isNewSession || it != applied.relativePath
         },
         desiredState = session.intent.desiredState,
-        streamChanged = isNewSession || session.intent.maxHeight != applied.maxHeight,
+        qualityChanged = !isNewSession && session.intent.maxHeight != applied.maxHeight,
         subtitleChanged = !isNewSession && session.intent.subtitleIndex != applied.subtitleIndex,
         seekId = seek?.seekId,
         seekPositionSeconds = seek?.positionSeconds,

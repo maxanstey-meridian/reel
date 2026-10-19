@@ -18,6 +18,7 @@ class PlaybackContractFixtureTest {
         assertEquals("Series S01E02", session.intent.title)
         assertEquals(PlaybackDesiredState.Paused, session.intent.desiredState)
         assertEquals(1, session.intent.subtitleIndex)
+        assertEquals(480, session.intent.maxHeight)
         assertEquals(612.5, session.intent.pendingSeek!!.positionSeconds, 0.0)
         assertEquals(9L, session.observation!!.observationSequence)
     }

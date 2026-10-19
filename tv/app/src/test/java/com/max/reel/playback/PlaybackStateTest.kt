@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,7 +43,7 @@ class PlaybackStateTest {
     }
 
     @Test
-    fun `a subtitle change on its own is switched in place, not reloaded`() {
+    fun `a subtitle change alone doesn't change the stream`() {
         val decision =
             reconcile(
                 session(4),
@@ -50,16 +51,18 @@ class PlaybackStateTest {
             )
 
         assertTrue(decision.subtitleChanged)
-        assertEquals(false, decision.streamChanged)
+        assertFalse(decision.qualityChanged)
         assertNull(decision.loadPath)
     }
 
     @Test
     fun `a new session loads its stream rather than switching subtitles`() {
-        val decision = reconcile(session(1), AppliedIntent("session-0", revision = 5, subtitleIndex = 2))
+        val decision =
+            reconcile(session(1), AppliedIntent("session-0", revision = 5, subtitleIndex = 2, maxHeight = 720))
 
-        assertTrue(decision.streamChanged)
-        assertEquals(false, decision.subtitleChanged)
+        assertEquals("Films/movie.mp4", decision.loadPath)
+        assertFalse(decision.qualityChanged)
+        assertFalse(decision.subtitleChanged)
     }
 
     @Test
@@ -69,7 +72,7 @@ class PlaybackStateTest {
 
         val decision = reconcile(current, applied)
 
-        assertTrue(decision.streamChanged)
+        assertTrue(decision.qualityChanged)
         assertNull(decision.loadPath)
     }
 
@@ -109,7 +112,7 @@ class PlaybackStateTest {
         val decision = reconcile(session(3), applied, reapply = true)
         assertEquals(PlaybackDesiredState.Playing, decision.desiredState)
         assertNull(decision.loadPath)
-        assertEquals(false, decision.streamChanged)
+        assertFalse(decision.qualityChanged)
     }
 
     @Test

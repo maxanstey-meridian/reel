@@ -6,41 +6,38 @@ namespace Reel.Server.Tests;
 // Real, tiny media made with ffmpeg so FFmpeg-backed code is tested against the actual tools.
 internal static class TestMedia
 {
-    public static void CreateVideo(string path, int seconds) =>
+    /// <summary>
+    /// Gray video in the given codec (and pixel format, if set), with a stereo tone in the given audio codec if one
+    /// is set.
+    /// </summary>
+    public static void CreateVideo(
+        string path,
+        int seconds = 2,
+        string videoCodec = "mpeg4",
+        string? audioCodec = null,
+        string? pixelFormat = null
+    ) =>
         Ffmpeg([
             "-f",
             "lavfi",
             "-i",
             $"color=c=gray:s=64x36:r=2:d={seconds}",
-            "-c:v",
-            "mpeg4",
-            path,
-        ]);
-
-    /// <summary>Two seconds of video in the given codec, with a stereo tone in the given audio codec if one is set.</summary>
-    public static void CreateVideo(string path, string videoCodec, string? audioCodec) =>
-        Ffmpeg(
-        // csharpier-ignore
-        [
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=gray:s=64x36:r=10:d=2",
             .. audioCodec is null
-                ? new[] { "-c:v", videoCodec }
+                ? Array.Empty<string>()
                 :
                 [
                     "-f",
                     "lavfi",
                     "-i",
-                    "sine=d=2:sample_rate=48000",
+                    $"sine=d={seconds}:sample_rate=48000",
                     "-ac",
                     "2",
-                    "-c:v",
-                    videoCodec,
                     "-c:a",
                     audioCodec,
                 ],
+            "-c:v",
+            videoCodec,
+            .. pixelFormat is null ? Array.Empty<string>() : ["-pix_fmt", pixelFormat],
             path,
         ]);
 
