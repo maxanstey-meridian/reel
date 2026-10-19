@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { findNodeByPath } from "~~/app/features/library/logic/library";
 import PlaybackScrubber from "~~/app/features/playback/components/PlaybackScrubber.vue";
-import { clampPosition, describeTvState, isTvLost } from "~~/app/features/playback/logic/playback";
+import {
+  clampPosition,
+  describeTvState,
+  isTvLost,
+  shownSubtitleIndex,
+} from "~~/app/features/playback/logic/playback";
 import { trickplayFrameAt, type TrickplayFrame } from "~~/app/features/playback/logic/trickplay";
 import { injectPlayback } from "~~/app/features/playback/ports/playback";
 import { useNowPlayingDetails } from "~~/app/features/playback/useNowPlayingDetails";
@@ -17,8 +22,10 @@ const preview = ref<TrickplayFrame | null>(null);
 const { tree } = useLibrary();
 // Only video has frames; a file the library hasn't shown yet waits until it does.
 const previewable = computed(() => findNodeByPath(tree.value, path.value ?? "")?.kind === "video");
+const maxHeight = computed(() => session.value?.intent.maxHeight);
 const { nextEpisode, subtitles, subtitlesStatus, trickplay, trickplayError } = useNowPlayingDetails(
   path,
+  maxHeight,
   completedPath,
   previewable,
 );
@@ -52,12 +59,28 @@ const skip = (seconds: number): void =>
 
 const OFF = "off";
 const subtitleTrack = computed({
-  get: () => observation.value?.subtitleIndex ?? OFF,
+  get: () => (session.value ? shownSubtitleIndex(session.value) : null) ?? OFF,
   set: (track: number | typeof OFF) =>
     void playback.updateIntent(desiredState.value, {
       subtitleIndex: track === OFF ? null : track,
     }),
 });
+// Remembered by the server, so the next file starts at the same quality. Lower caps suit weak wifi.
+const FULL = "full";
+const qualityChoices = [
+  { value: FULL, label: "Full quality" },
+  { value: "1080", label: "1080p" },
+  { value: "720", label: "720p" },
+  { value: "480", label: "480p" },
+];
+const quality = computed({
+  get: () => (maxHeight.value ? String(maxHeight.value) : FULL),
+  set: (choice: string) =>
+    void playback.updateIntent(desiredState.value, {
+      maxHeight: choice === FULL ? null : Number(choice),
+    }),
+});
+
 const subtitleChoices = computed(() => [
   {
     value: OFF,
@@ -192,6 +215,10 @@ const subtitleChoices = computed(() => [
           >+10s</UButton
         >
       </div>
+
+      <UFormField label="Quality">
+        <USelect v-model="quality" :items="qualityChoices" :disabled="sending" class="w-full" />
+      </UFormField>
 
       <UFormField label="Subtitles">
         <USelect

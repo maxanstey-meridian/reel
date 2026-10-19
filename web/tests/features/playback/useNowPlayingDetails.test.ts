@@ -10,11 +10,11 @@ describe("useNowPlayingDetails", () => {
       "GET /api/files/trickplay": () => Response.json({}),
     });
 
-    useNowPlayingDetails("Music/song.flac", undefined, false);
+    useNowPlayingDetails("Music/song.flac", null, undefined, false);
     await flushPromises();
     expect(server.requests("GET /api/files/trickplay")).toHaveLength(0);
 
-    useNowPlayingDetails("Films/film.mkv", undefined, true);
+    useNowPlayingDetails("Films/film.mkv", null, undefined, true);
     await flushPromises();
     expect(server.requests("GET /api/files/trickplay")).toHaveLength(1);
   });

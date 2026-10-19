@@ -77,8 +77,8 @@ public static class ReelContract
         .Accepts<FileRequest>()
         .Status(200);
 
-    // Ranged file bytes, or with Height a live MP4 transcode of video starting at Start seconds. StreamInfo picks
-    // Height from Reel:Compression once per load, so a settings edit never changes a stream mid-playback.
+    // Ranged file bytes, or with Height (transcode) or Remux a live MP4 starting at Start seconds. StreamInfo picks
+    // the mode once per load, so a settings edit never changes a stream mid-playback.
     public static readonly FileRouteDefinition<StreamRequest> Stream = Define
         .File<StreamRequest>(StreamRoute)
         .ProducesFile("video/*")
@@ -87,9 +87,10 @@ public static class ReelContract
         .Returns<ErrorResponse>(404)
         .QueryAuth();
 
-    public static readonly RouteDefinition<FileRequest, StreamInfoResponse> StreamInfo = Define
-        .Get<FileRequest, StreamInfoResponse>(StreamInfoRoute)
-        .Returns<ErrorResponse>(404);
+    public static readonly RouteDefinition<PlaybackFileRequest, StreamInfoResponse> StreamInfo =
+        Define
+            .Get<PlaybackFileRequest, StreamInfoResponse>(StreamInfoRoute)
+            .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<FileRequest> Thumbnail = Define
         .File<FileRequest>(ThumbnailRoute)
@@ -103,9 +104,10 @@ public static class ReelContract
         FileNode[]
     >(SearchRoute);
 
-    public static readonly RouteDefinition<FileRequest, SubtitleTrack[]> SubtitlesList = Define
-        .Get<FileRequest, SubtitleTrack[]>(SubtitlesRoute)
-        .Returns<ErrorResponse>(404);
+    public static readonly RouteDefinition<PlaybackFileRequest, SubtitleTrack[]> SubtitlesList =
+        Define
+            .Get<PlaybackFileRequest, SubtitleTrack[]>(SubtitlesRoute)
+            .Returns<ErrorResponse>(404);
 
     public static readonly FileRouteDefinition<SubtitleContentRequest> SubtitlesContent = Define
         .File<SubtitleContentRequest>(SubtitlesContentRoute)
@@ -133,6 +135,9 @@ public sealed record HealthResponse(string Status);
 
 public sealed record FileRequest(string Path);
 
+// A file as the playback session's MaxHeight would stream it: that decides whether the stream is live.
+public sealed record PlaybackFileRequest(string Path, int? MaxHeight);
+
 public sealed record SearchRequest(string? Q);
 
 public sealed record ProgressRequest(
@@ -145,10 +150,28 @@ public sealed record FavouriteRequest(string RelativePath);
 
 public sealed record TagUpdateRequest(string Path, string[] Tags);
 
-public sealed record StreamRequest(string Path, double? Start, int? Height);
+// Height transcodes to that height; Remux keeps the video and re-encodes the audio. They cannot be combined.
+public sealed record StreamRequest(string Path, double? Start, int? Height, bool? Remux);
 
-// DurationSeconds is null when ffprobe can't tell.
-public sealed record StreamInfoResponse(double? DurationSeconds, int? TranscodeHeight);
+/// <summary>
+/// Direct serves the file. Remux and transcode are live MP4s that seek by reloading from a new Start: remux keeps
+/// the video and re-encodes the audio, transcode re-encodes both to TranscodeHeight (the session's MaxHeight, or the
+/// source's own height for video the TV cannot decode).
+/// </summary>
+[JsonConverter(typeof(RivetCamelCaseEnumConverter<StreamMode>))]
+public enum StreamMode
+{
+    Direct,
+    Remux,
+    Transcode,
+}
+
+// DurationSeconds is null when ffprobe can't tell; TranscodeHeight is set only for Mode transcode.
+public sealed record StreamInfoResponse(
+    double? DurationSeconds,
+    StreamMode Mode,
+    int? TranscodeHeight
+);
 
 // Start shifts cues back to match a transcoded stream that began at that second.
 public sealed record SubtitleContentRequest(string Path, int Index, double? Start);

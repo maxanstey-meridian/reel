@@ -621,6 +621,17 @@
             }
           },
           {
+            "name": "remux",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "token",
             "in": "query",
             "required": true,
@@ -688,6 +699,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "maxHeight",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
             }
           }
         ],
@@ -832,6 +855,18 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "maxHeight",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32"
             }
           }
         ],
@@ -1109,6 +1144,13 @@
             ],
             "format": "int32"
           },
+          "maxHeight": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
           "pendingSeek": {
             "oneOf": [
               {
@@ -1125,6 +1167,7 @@
           "title",
           "desiredState",
           "subtitleIndex",
+          "maxHeight",
           "pendingSeek"
         ]
       },
@@ -1247,13 +1290,6 @@
           "startPositionSeconds": {
             "type": "number",
             "format": "double"
-          },
-          "subtitleIndex": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
           }
         },
         "required": [
@@ -1290,6 +1326,13 @@
             "$ref": "#/components/schemas/PlaybackDesiredStateDto"
           },
           "subtitleIndex": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "maxHeight": {
             "type": [
               "integer",
               "null"
@@ -1622,6 +1665,9 @@
             ],
             "format": "double"
           },
+          "mode": {
+            "$ref": "#/components/schemas/StreamMode"
+          },
           "transcodeHeight": {
             "type": [
               "integer",
@@ -1632,6 +1678,7 @@
         },
         "required": [
           "durationSeconds",
+          "mode",
           "transcodeHeight"
         ]
       },
@@ -1739,6 +1786,15 @@
         "enum": [
           "video",
           "audio"
+        ],
+        "x-rivet-enum-naming-policy": "camelCase"
+      },
+      "StreamMode": {
+        "type": "string",
+        "enum": [
+          "direct",
+          "remux",
+          "transcode"
         ],
         "x-rivet-enum-naming-policy": "camelCase"
       },

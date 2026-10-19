@@ -32,6 +32,8 @@ data class PlaybackIntentResponse(
     val title: String,
     val desiredState: PlaybackDesiredState,
     val subtitleIndex: Int? = null,
+    // Caps the video's height; null plays it at its own.
+    val maxHeight: Int? = null,
     val pendingSeek: SeekRequestResponse? = null,
 )
 
@@ -97,6 +99,7 @@ data class UpdatePlaybackIntentRequest(
     val sessionId: String,
     val desiredState: PlaybackDesiredState,
     val subtitleIndex: Int? = null,
+    val maxHeight: Int? = null,
     val seekPositionSeconds: Double? = null,
     val expectedRevision: Long? = null,
 )
@@ -110,8 +113,25 @@ data class StartPlaybackRequest(val relativePath: String)
 @Serializable
 data class ProgressRequest(val relativePath: String, val positionSeconds: Double, val durationSeconds: Double)
 
+// Direct is the file itself; remux and transcode are live MP4s that seek by reloading from a new start.
 @Serializable
-data class StreamInfo(val durationSeconds: Double? = null, val transcodeHeight: Int? = null)
+enum class StreamMode {
+    @SerialName("direct")
+    Direct,
+
+    @SerialName("remux")
+    Remux,
+
+    @SerialName("transcode")
+    Transcode,
+}
+
+@Serializable
+data class StreamInfo(
+    val durationSeconds: Double? = null,
+    val mode: StreamMode = StreamMode.Direct,
+    val transcodeHeight: Int? = null,
+)
 
 @Serializable
 data class SubtitleTrack(val index: Int, val source: String, val imageBased: Boolean)

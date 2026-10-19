@@ -46,6 +46,17 @@ export const isPlaybackPending = (session: PlaybackSession | null): boolean => {
   return observation.state !== confirmedState[session.intent.desiredState];
 };
 
+/**
+ * The subtitle to show as chosen: the requested one until the TV has applied that request, then the one the TV
+ * reports (null when it couldn't show the request), so a pick never appears to snap back while it travels.
+ */
+export const shownSubtitleIndex = (session: PlaybackSession): number | null => {
+  const observation = session.observation;
+  return !observation || observation.appliedRevision < session.revision
+    ? session.intent.subtitleIndex
+    : observation.subtitleIndex;
+};
+
 const tvStateLabels: Record<TvState, string> = {
   playing: "Playing on the TV",
   paused: "Paused",

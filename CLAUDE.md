@@ -3,8 +3,8 @@
 Personal LAN media player on one Studio, with one phone remote and one Fire TV.
 See README.md for operation and ACTION_PLAN.md for delivery/verification status.
 
-- server/: .NET 10 minimal API, SQLite, direct range streaming (optional live
-  transcode via `Reel:Compression`) and FFmpeg.
+- server/: .NET 10 minimal API, SQLite, direct range streaming (live remux or
+  transcode when the TV can't play a file or the phone caps quality) and FFmpeg.
 - web/: Nuxt 4 SPA; generated OpenAPI types and openapi-fetch.
 - tv/: Kotlin, Compose and Media3/ExoPlayer.
 - scripts/: combined publishing and per-user launchd installation.

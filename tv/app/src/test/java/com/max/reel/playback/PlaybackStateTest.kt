@@ -42,14 +42,35 @@ class PlaybackStateTest {
     }
 
     @Test
-    fun `subtitle disabling is represented as an explicit change`() {
+    fun `a subtitle change on its own is switched in place, not reloaded`() {
         val decision =
             reconcile(
                 session(4),
-                AppliedIntent("session-1", revision = 3, subtitleIndex = 2),
+                AppliedIntent("session-1", revision = 3, relativePath = "Films/movie.mp4", subtitleIndex = 2),
             )
 
         assertTrue(decision.subtitleChanged)
+        assertEquals(false, decision.streamChanged)
+        assertNull(decision.loadPath)
+    }
+
+    @Test
+    fun `a new session loads its stream rather than switching subtitles`() {
+        val decision = reconcile(session(1), AppliedIntent("session-0", revision = 5, subtitleIndex = 2))
+
+        assertTrue(decision.streamChanged)
+        assertEquals(false, decision.subtitleChanged)
+    }
+
+    @Test
+    fun `a new quality reloads the stream`() {
+        val current = session(4).copy(intent = session(4).intent.copy(maxHeight = 480))
+        val applied = AppliedIntent("session-1", revision = 3, relativePath = "Films/movie.mp4")
+
+        val decision = reconcile(current, applied)
+
+        assertTrue(decision.streamChanged)
+        assertNull(decision.loadPath)
     }
 
     @Test
@@ -69,12 +90,13 @@ class PlaybackStateTest {
     }
 
     @Test
-    fun `local intent preserves subtitle and expects the revision it was based on`() {
-        val current = session(3).copy(intent = session(3).intent.copy(subtitleIndex = 2))
+    fun `local intent preserves subtitle and quality and expects the revision it was based on`() {
+        val current = session(3).copy(intent = session(3).intent.copy(subtitleIndex = 2, maxHeight = 720))
         val request = localIntentRequest(current, PlaybackDesiredState.Paused)
 
         assertEquals(PlaybackDesiredState.Paused, request.desiredState)
         assertEquals(2, request.subtitleIndex)
+        assertEquals(720, request.maxHeight)
         assertNull(request.seekPositionSeconds)
         assertEquals(3L, request.expectedRevision)
     }
@@ -87,7 +109,7 @@ class PlaybackStateTest {
         val decision = reconcile(session(3), applied, reapply = true)
         assertEquals(PlaybackDesiredState.Playing, decision.desiredState)
         assertNull(decision.loadPath)
-        assertEquals(false, decision.subtitleChanged)
+        assertEquals(false, decision.streamChanged)
     }
 
     @Test

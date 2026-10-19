@@ -27,6 +27,7 @@ public sealed class PlaybackContractFixtureTests : IDisposable
                     "Series S01E02",
                     PlaybackDesiredStateDto.Paused,
                     1,
+                    480,
                     new SeekRequestResponse(2, 612.5)
                 ),
                 new PlaybackObservationResponse(

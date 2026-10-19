@@ -3,17 +3,16 @@ using Rivet;
 
 namespace Reel.Server.Contracts.Playback;
 
-public sealed record StartPlaybackSessionRequest(
-    string RelativePath,
-    double StartPositionSeconds,
-    [property: RivetOptional] int? SubtitleIndex
-);
+// The session starts with the remembered quality and subtitle language (see PlaybackIntentResponse).
+public sealed record StartPlaybackSessionRequest(string RelativePath, double StartPositionSeconds);
 
-// ExpectedRevision lets a client apply a change only to the session state it last saw.
+// ExpectedRevision lets a client apply a change only to the session state it last saw. Like SubtitleIndex,
+// MaxHeight is the whole intent rather than a change, so clients send the session's current value to keep it.
 public sealed record UpdatePlaybackIntentRequest(
     Guid SessionId,
     PlaybackDesiredStateDto DesiredState,
     [property: RivetOptional] int? SubtitleIndex,
+    [property: RivetOptional] int? MaxHeight,
     [property: RivetOptional] double? SeekPositionSeconds,
     [property: RivetOptional] long? ExpectedRevision = null
 );
@@ -42,12 +41,14 @@ public sealed record PlaybackSessionResponse(
     bool TvConnected
 );
 
-// Title is the same parsed title the library shows for RelativePath.
+// Title is the same parsed title the library shows for RelativePath. MaxHeight caps the video's height (null plays
+// it at its own); changing it or SubtitleIndex is remembered and becomes the next session's starting choice.
 public sealed record PlaybackIntentResponse(
     string RelativePath,
     string Title,
     PlaybackDesiredStateDto DesiredState,
     int? SubtitleIndex,
+    int? MaxHeight,
     SeekRequestResponse? PendingSeek
 );
 

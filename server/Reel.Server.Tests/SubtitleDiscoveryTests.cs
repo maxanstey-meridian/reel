@@ -42,6 +42,62 @@ public sealed class SubtitleDiscoveryTests : IDisposable
             );
     }
 
+    // RARBG puts a show's subtitles in Subs/{episode}/ and a film's in Subs/, numbered and named by language;
+    // both come after the sidecars beside the file, together in name order.
+    [Fact]
+    public async Task SubsFolderSidecarsFollowTheOnesBesideTheFileAndKeepTheirNameAsLanguage()
+    {
+        _media.Write("Films/movie.en.srt");
+        _media.Write("Films/Subs/movie/1000_en-US.srt");
+        _media.Write("Films/Subs/movie/7_English.srt");
+        _media.Write("Films/Subs/other/7_English.srt");
+        _media.Write("Films/Subs/2_French.srt");
+
+        var tracks = await _discovery.DiscoverAsync(_movie, CancellationToken.None);
+
+        tracks
+            .Should()
+            .Equal(
+                new Subtitle(0, "External SRT", "en", "srt", "Films/movie.en.srt"),
+                new Subtitle(1, "External SRT", "2_French", "srt", "Films/Subs/2_French.srt"),
+                new Subtitle(
+                    2,
+                    "External SRT",
+                    "7_English",
+                    "srt",
+                    "Films/Subs/movie/7_English.srt"
+                ),
+                new Subtitle(
+                    3,
+                    "External SRT",
+                    "1000_en-US",
+                    "srt",
+                    "Films/Subs/movie/1000_en-US.srt"
+                )
+            );
+    }
+
+    [Fact]
+    public async Task LinkedSubsFolder_IsNotRead()
+    {
+        var outside = Directory.CreateTempSubdirectory("reel-outside-");
+        try
+        {
+            Directory.CreateDirectory(Path.Join(outside.FullName, "movie"));
+            File.WriteAllText(Path.Join(outside.FullName, "movie", "7_English.srt"), "");
+            File.WriteAllText(Path.Join(outside.FullName, "2_French.srt"), "");
+            Directory.CreateSymbolicLink(Path.Join(_media.Root, "Films", "Subs"), outside.FullName);
+
+            var tracks = await _discovery.DiscoverAsync(_movie, CancellationToken.None);
+
+            tracks.Should().BeEmpty();
+        }
+        finally
+        {
+            outside.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public async Task SidecarsAreNumberedAfterEmbeddedTracks()
     {

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Options;
 using Reel.Server.Common;
 using Reel.Server.Contracts.Reel;
 using Reel.Server.Storage;
@@ -16,10 +15,10 @@ public static partial class SubtitleEndpoints
         endpoints.MapGet(
             ReelContract.SubtitlesRoute,
             async (
-                [AsParameters] FileRequest request,
+                [AsParameters] PlaybackFileRequest request,
                 FfprobeSubtitleDiscovery discovery,
                 MediaPathResolver paths,
-                IOptionsMonitor<ReelOptions> options,
+                ILogger<Program> logger,
                 CancellationToken ct
             ) =>
             {
@@ -30,9 +29,11 @@ public static partial class SubtitleEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                // A transcoded stream carries no subtitle streams (-sn), and image-based tracks cannot become WebVTT.
+                // A live stream carries no subtitle streams (-sn), and image-based tracks cannot become WebVTT.
                 var tracks = await discovery.DiscoverAsync(fullPath, ct);
-                var transcoded = Transcoding.Height(options.CurrentValue, fullPath) is not null;
+                var live =
+                    (await Transcoding.PlanAsync(request.MaxHeight, fullPath, logger, ct)).Mode
+                    != StreamMode.Direct;
                 return endpoint
                     .Success([
                         .. tracks
@@ -46,7 +47,7 @@ public static partial class SubtitleEndpoints
                                     : SubtitleSource.External,
                                 FfprobeSubtitleDiscovery.IsImageBased(track)
                             ))
-                            .Where(track => !transcoded || !track.ImageBased),
+                            .Where(track => !live || !track.ImageBased),
                     ])
                     .ToResult();
             }

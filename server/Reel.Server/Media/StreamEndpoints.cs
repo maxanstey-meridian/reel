@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 using CliWrap;
 using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Extensions.Options;
 using Reel.Server.Common;
 using Reel.Server.Contracts.Reel;
 using Reel.Server.Storage;
@@ -27,7 +26,7 @@ public static class StreamEndpoints
     {
         endpoints.MapGet(
             ReelContract.StreamRoute,
-            (
+            async (
                 [AsParameters] StreamRequest request,
                 MediaPathResolver paths,
                 ILogger<Program> logger,
@@ -41,7 +40,10 @@ public static class StreamEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                if (request.Height is not { } height || MediaPathResolver.IsAudio(fullPath))
+                if (
+                    request is { Height: null, Remux: not true }
+                    || MediaPathResolver.IsAudio(fullPath)
+                )
                 {
                     // Rivet rejects a missing or out-of-contract type, so an unmapped extension fails loudly.
                     ContentTypes.TryGetContentType(fullPath, out var contentType);
@@ -50,27 +52,61 @@ public static class StreamEndpoints
                         .ToResult();
                 }
 
-                if (!ReelOptions.IsTranscodeHeight(height))
+                var invalid = request switch
+                {
+                    { Remux: true, Height: not null } =>
+                        "A remux keeps the video, so it takes no height.",
+                    { Height: { } h } when !Transcoding.IsHeight(h) =>
+                        "Height must be a positive even number.",
+                    _ => null,
+                };
+                if (invalid is not null)
                 {
                     return endpoint
-                        .Error(
-                            400,
-                            new ErrorResponse(
-                                "invalid_request",
-                                "Height must be a positive even number."
-                            )
-                        )
+                        .Error(400, new ErrorResponse("invalid_request", invalid))
                         .ToResult();
                 }
 
-                // The transcode has no byte ranges; the TV seeks by reloading with ?start=<seconds>. It stays a plain
+                string[] video;
+                string[] audio;
+                if (request.Height is { } height)
+                {
+                    // Smaller sources keep their own height rather than being upscaled. Bitrates scale with height
+                    // from 1200k/1500k/3000k at 480p.
+                    // csharpier-ignore
+                    video =
+                    [
+                        "-vf", $"scale=-2:'trunc(min(ih,{height})/2)*2',format=yuv420p",
+                        "-c:v", "h264_videotoolbox", "-b:v", $"{height * 5 / 2}k", "-maxrate", $"{height * 25 / 8}k", "-bufsize", $"{height * 25 / 4}k",
+                    ];
+                    audio = ["-c:a", "aac", "-ac", "2", "-b:a", "128k"];
+                }
+                else
+                {
+                    // Packed B-frames (common in DivX/XviD AVIs) must be unpacked before they can go into MP4.
+                    var codec = (
+                        await Ffmpeg.ProbeAsync(fullPath, "v:0", logger, http.RequestAborted)
+                    )
+                        ?.Streams?.FirstOrDefault()
+                        ?.CodecName;
+                    video =
+                        codec == "mpeg4"
+                            ? ["-c:v", "copy", "-bsf:v", "mpeg4_unpack_bframes"]
+                            : ["-c:v", "copy"];
+                    // AC3 keeps up to 5.1 and the TV decodes it; wider layouts are folded down to 5.1.
+                    // csharpier-ignore
+                    audio = ["-c:a", "ac3", "-af", "aformat=channel_layouts=5.1|5.1(side)|stereo|mono"];
+                }
+
+                // A live stream has no byte ranges; the TV seeks by reloading with ?start=<seconds>. It stays a plain
                 // result because Rivet's File(...) takes a finished stream, not ffmpeg writing into the response.
                 return Results.Stream(
                     output =>
-                        TranscodeAsync(
+                        StreamLiveAsync(
                             fullPath,
                             Transcoding.StartSeconds(request.Start),
-                            height,
+                            video,
+                            audio,
                             output,
                             logger,
                             http
@@ -83,9 +119,8 @@ public static class StreamEndpoints
         endpoints.MapGet(
             ReelContract.StreamInfoRoute,
             async (
-                [AsParameters] FileRequest request,
+                [AsParameters] PlaybackFileRequest request,
                 MediaPathResolver paths,
-                IOptionsMonitor<ReelOptions> options,
                 ILogger<Program> logger,
                 CancellationToken ct
             ) =>
@@ -97,16 +132,8 @@ public static class StreamEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var duration = (await Ffmpeg.ProbeAsync(fullPath, "v:0", logger, ct))
-                    ?.Format
-                    ?.Duration;
                 return endpoint
-                    .Success(
-                        new StreamInfoResponse(
-                            duration,
-                            Transcoding.Height(options.CurrentValue, fullPath)
-                        )
-                    )
+                    .Success(await Transcoding.PlanAsync(request.MaxHeight, fullPath, logger, ct))
                     .ToResult();
             }
         );
@@ -114,30 +141,29 @@ public static class StreamEndpoints
         return endpoints;
     }
 
-    private static async Task TranscodeAsync(
+    private static async Task StreamLiveAsync(
         string fullPath,
         double start,
-        int height,
+        string[] video,
+        string[] audio,
         Stream output,
         ILogger logger,
         HttpContext http
     )
     {
         var errors = new StringBuilder();
-        // Smaller sources keep their own height rather than being upscaled. Bitrates scale with height from
-        // 1200k/1500k/3000k at 480p.
+        // genpts fills the timestamps AVI leaves out, which a copied video stream needs in MP4.
         // csharpier-ignore
         string[] arguments =
         [
-            "-hide_banner", "-loglevel", "error", "-nostdin",
+            "-hide_banner", "-loglevel", "error", "-nostdin", "-fflags", "+genpts",
             "-ss", start.ToString("0.###", CultureInfo.InvariantCulture),
             "-i", fullPath,
             "-map", "0:v:0", "-map", "0:a:0?",
-            "-vf", $"scale=-2:'trunc(min(ih,{height})/2)*2',format=yuv420p",
-            "-c:v", "h264_videotoolbox", "-b:v", $"{height * 5 / 2}k", "-maxrate", $"{height * 25 / 8}k", "-bufsize", $"{height * 25 / 4}k",
-            "-c:a", "aac", "-ac", "2", "-b:a", "128k",
+            .. video,
+            .. audio,
             "-sn", "-dn",
-            "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+            "-f", "mp4", "-movflags", "frag_keyframe+empty_moov+delay_moov+default_base_moof",
             "pipe:1",
         ];
         try

@@ -63,6 +63,7 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
                 session.SessionId,
                 PlaybackDesiredStateDto.Paused,
                 2,
+                null,
                 30
             ),
             _json
@@ -72,6 +73,7 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
             new UpdatePlaybackIntentRequest(
                 Guid.NewGuid(),
                 PlaybackDesiredStateDto.Playing,
+                null,
                 null,
                 null
             ),
@@ -217,11 +219,73 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         current.Session.Intent.DesiredState.Should().Be(PlaybackDesiredStateDto.Paused);
     }
 
-    private async Task<PlaybackSessionResponse> Start(double position = 0)
+    // Sidecars sort by name, so movie's English track is 0 and next's is 1 (after "de").
+    [Fact]
+    public async Task QualityAndSubtitleLanguageChosenWhilePlaying_StartTheNextSession()
+    {
+        _media.Write("Films/movie.en.srt");
+        _media.Write("Films/movie.fr.srt");
+        _media.Write("Films/next.mp4");
+        _media.Write("Films/Subs/next/1_German.srt");
+        _media.Write("Films/Subs/next/2_English.srt");
+
+        var first = await Start();
+        first.Intent.MaxHeight.Should().BeNull();
+        first.Intent.SubtitleIndex.Should().BeNull();
+        await ChangeIntent(first, subtitleIndex: 0, maxHeight: 480);
+        var next = await Start(path: "Films/next.mp4");
+
+        next.Intent.MaxHeight.Should().Be(480);
+        next.Intent.SubtitleIndex.Should().Be(1);
+    }
+
+    // movie.srt names no language, so choosing it keeps French; turning subtitles off is remembered as off.
+    [Fact]
+    public async Task ATrackOfUnknownLanguageKeepsTheRememberedOneAndOffIsRemembered()
+    {
+        _media.Write("Films/movie.fr.srt");
+        _media.Write("Films/movie.srt");
+
+        var session = await ChangeIntent(await Start(), subtitleIndex: 0, maxHeight: null);
+        session = await ChangeIntent(session, subtitleIndex: 1, maxHeight: null);
+        (await Start()).Intent.SubtitleIndex.Should().Be(0);
+
+        await ChangeIntent(await Start(), subtitleIndex: null, maxHeight: 720);
+        var off = await Start();
+
+        off.Intent.SubtitleIndex.Should().BeNull();
+        off.Intent.MaxHeight.Should().Be(720);
+    }
+
+    private async Task<PlaybackSessionResponse> ChangeIntent(
+        PlaybackSessionResponse session,
+        int? subtitleIndex,
+        int? maxHeight
+    )
+    {
+        var response = await _client.PutAsJsonAsync(
+            PlaybackContract.UpdateIntent.Route,
+            new UpdatePlaybackIntentRequest(
+                session.SessionId,
+                PlaybackDesiredStateDto.Playing,
+                subtitleIndex,
+                maxHeight,
+                null
+            ),
+            _json
+        );
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        return (await response.Content.ReadFromJsonAsync<PlaybackSessionResponse>(_json))!;
+    }
+
+    private async Task<PlaybackSessionResponse> Start(
+        double position = 0,
+        string path = "Films/movie.mp4"
+    )
     {
         var response = await _client.PostAsJsonAsync(
             PlaybackContract.Start.Route,
-            new StartPlaybackSessionRequest("Films/movie.mp4", position, null),
+            new StartPlaybackSessionRequest(path, position),
             _json
         );
         response.StatusCode.Should().Be(HttpStatusCode.OK);

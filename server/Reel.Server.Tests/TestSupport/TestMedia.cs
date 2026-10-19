@@ -17,6 +17,33 @@ internal static class TestMedia
             path,
         ]);
 
+    /// <summary>Two seconds of video in the given codec, with a stereo tone in the given audio codec if one is set.</summary>
+    public static void CreateVideo(string path, string videoCodec, string? audioCodec) =>
+        Ffmpeg(
+        // csharpier-ignore
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=gray:s=64x36:r=10:d=2",
+            .. audioCodec is null
+                ? new[] { "-c:v", videoCodec }
+                :
+                [
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "sine=d=2:sample_rate=48000",
+                    "-ac",
+                    "2",
+                    "-c:v",
+                    videoCodec,
+                    "-c:a",
+                    audioCodec,
+                ],
+            path,
+        ]);
+
     /// <summary>Video with one SRT track; tags such as "language=eng" are set on that track.</summary>
     public static void CreateVideoWithSubtitle(
         string path,

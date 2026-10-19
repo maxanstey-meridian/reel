@@ -15,10 +15,19 @@ public static class PlaybackSessionEndpoints
     {
         endpoints.MapPost(
             PlaybackContract.SessionRoute,
-            ([FromBody] StartPlaybackSessionRequest request, PlaybackSessionService service) =>
+            async (
+                [FromBody] StartPlaybackSessionRequest request,
+                PlaybackSessionService service,
+                PlaybackPreferenceService preferences,
+                CancellationToken ct
+            ) =>
             {
                 var endpoint = PlaybackContract.Start.Bind(request);
-                return service.Start(request) switch
+                var (maxHeight, subtitleIndex) = await preferences.StartingChoicesAsync(
+                    request.RelativePath,
+                    ct
+                );
+                return service.Start(request, maxHeight, subtitleIndex) switch
                 {
                     PlaybackSessionOutcome.Ok ok => endpoint.Success(ok.Session).ToResult(),
                     PlaybackSessionOutcome.Failed failed => endpoint
@@ -40,10 +49,26 @@ public static class PlaybackSessionEndpoints
 
         endpoints.MapPut(
             PlaybackContract.IntentRoute,
-            ([FromBody] UpdatePlaybackIntentRequest request, PlaybackSessionService service) =>
+            async (
+                [FromBody] UpdatePlaybackIntentRequest request,
+                PlaybackSessionService service,
+                PlaybackPreferenceService preferences,
+                CancellationToken ct
+            ) =>
             {
                 var endpoint = PlaybackContract.UpdateIntent.Bind(request);
-                return service.UpdateIntent(request) switch
+                var before = service.GetCurrent();
+                var outcome = service.UpdateIntent(request);
+                if (outcome is PlaybackSessionOutcome.Ok updated)
+                {
+                    await preferences.RememberAsync(
+                        before?.SessionId == request.SessionId ? before.Intent : null,
+                        updated.Session.Intent,
+                        ct
+                    );
+                }
+
+                return outcome switch
                 {
                     PlaybackSessionOutcome.Ok ok => endpoint.Success(ok.Session).ToResult(),
                     PlaybackSessionOutcome.Failed failed => endpoint

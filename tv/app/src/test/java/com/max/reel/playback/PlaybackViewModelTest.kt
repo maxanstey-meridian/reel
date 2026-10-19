@@ -77,6 +77,8 @@ class PlaybackViewModelTest {
     private var progressStatus = HttpStatusCode.OK
     private var unreachablePath: String? = null
     private var streamInfoGate: CompletableDeferred<Unit>? = null
+    private var streamInfoRequests = 0
+    private var subtitles = "[]"
     private var intentGate: CompletableDeferred<Unit>? = null
     private var observationGate: CompletableDeferred<Unit>? = null
     private lateinit var viewModel: PlaybackViewModel
@@ -155,12 +157,13 @@ class PlaybackViewModelTest {
                     }
 
                     "/api/files/stream/info" -> {
+                        streamInfoRequests++
                         streamInfoGate?.await()
-                        respondJson("""{"durationSeconds":60,"transcodeHeight":null}""")
+                        respondJson("""{"durationSeconds":60,"mode":"direct","transcodeHeight":null}""")
                     }
 
                     "/api/files/subtitles" -> {
-                        respondJson("[]")
+                        respondJson(subtitles)
                     }
 
                     "/api/playback/session/observation" -> {
@@ -282,6 +285,21 @@ class PlaybackViewModelTest {
         val first = observations.first { it.sessionId == "s2" }
         assertEquals(1L, first.appliedRevision)
         assertEquals("Films/other.mp4", first.relativePath)
+    }
+
+    // Sidecars are sideloaded with the stream, so choosing one switches tracks without loading it again.
+    @Test
+    fun `a subtitle change to a sideloaded track switches in place`() = runTest(dispatcher) {
+        subtitles =
+            """[{"index":0,"source":"external","imageBased":false},{"index":1,"source":"external","imageBased":false}]"""
+        startPolling()
+        assertEquals(1, streamInfoRequests)
+
+        session = session(revision = 2, subtitleIndex = 1)
+        advanceTimeBy(1_001)
+
+        assertEquals(1, viewModel.state.value.subtitleIndex)
+        assertEquals(1, streamInfoRequests)
     }
 
     @Test

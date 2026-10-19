@@ -130,6 +130,21 @@ describe("usePlaybackSession", () => {
     expect(await bodyOf(INTENT)).toMatchObject({ subtitleIndex: null });
   });
 
+  it("keeps the session's quality unless a change names a new one", async () => {
+    const capped = {
+      ...activeSession,
+      intent: { ...activeSession.intent, subtitleIndex: 2, maxHeight: 720 },
+    };
+    await mountWithSession(capped);
+    answerCommands(INTENT, capped);
+
+    await current!().updateIntent("paused");
+    expect(await bodyOf(INTENT)).toMatchObject({ subtitleIndex: 2, maxHeight: 720 });
+
+    await current!().updateIntent("playing", { maxHeight: null });
+    expect(await bodyOf(INTENT)).toMatchObject({ subtitleIndex: 2, maxHeight: null });
+  });
+
   it("does not let an older poll overwrite a newer accepted command", async () => {
     const poll = deferred<object>();
     answerPolls(poll.promise);

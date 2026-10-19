@@ -1,7 +1,7 @@
 import { useDocumentVisibility, useTimeoutPoll } from "@vueuse/core";
 import { client, unwrap, type PlaybackDesiredState, type PlaybackSession } from "~~/app/lib/api";
 import { isPlaybackPending } from "./logic/playback";
-import type { CompletedPlayback, Playback } from "./ports/playback";
+import type { CompletedPlayback, IntentChange, Playback } from "./ports/playback";
 
 const isOlderRevision = (next: PlaybackSession, current: PlaybackSession | null): boolean =>
   !!current && next.sessionId === current.sessionId && next.revision < current.revision;
@@ -84,7 +84,7 @@ export const usePlaybackSession = () => {
 
   const updateIntent = async (
     desiredState: PlaybackDesiredState,
-    options: { subtitleIndex?: number | null; seekPositionSeconds?: number } = {},
+    options: IntentChange = {},
   ): Promise<boolean> => {
     const current = session.value;
     return (
@@ -98,6 +98,9 @@ export const usePlaybackSession = () => {
               subtitleIndex: Object.hasOwn(options, "subtitleIndex")
                 ? options.subtitleIndex
                 : current.intent.subtitleIndex,
+              maxHeight: Object.hasOwn(options, "maxHeight")
+                ? options.maxHeight
+                : current.intent.maxHeight,
               seekPositionSeconds: options.seekPositionSeconds,
             },
           }),

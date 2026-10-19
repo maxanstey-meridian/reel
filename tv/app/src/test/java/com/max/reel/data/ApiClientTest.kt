@@ -61,11 +61,15 @@ class ApiClientTest {
 
         assertEquals(
             "http://localhost:8080/api/files/stream?path=a.mkv",
-            api.streamUrl(server, "a.mkv", null, 30.0),
+            api.streamUrl(server, "a.mkv", StreamMode.Direct, null, 30.0),
+        )
+        assertEquals(
+            "http://localhost:8080/api/files/stream?path=a.avi&remux=true&start=30.0",
+            api.streamUrl(server, "a.avi", StreamMode.Remux, null, 30.0),
         )
         assertEquals(
             "http://localhost:8080/api/files/stream?path=a.mkv&height=480&start=30.0",
-            api.streamUrl(server, "a.mkv", 480, 30.0),
+            api.streamUrl(server, "a.mkv", StreamMode.Transcode, 480, 30.0),
         )
     }
 
@@ -85,14 +89,14 @@ class ApiClientTest {
         val api =
             client { request ->
                 seen = request
-                respondJson("""{"durationSeconds":60.5,"transcodeHeight":480}""")
+                respondJson("""{"durationSeconds":60.5,"mode":"transcode","transcodeHeight":480}""")
             }
 
-        val info = (api.streamInfo("Shows/A & B/ep 1.mkv") as ApiResult.Success).value
+        val info = (api.streamInfo("Shows/A & B/ep 1.mkv", maxHeight = 480) as ApiResult.Success).value
 
-        assertEquals(StreamInfo(60.5, transcodeHeight = 480), info)
+        assertEquals(StreamInfo(60.5, StreamMode.Transcode, transcodeHeight = 480), info)
         assertEquals(
-            "http://localhost:8080/api/files/stream/info?path=Shows%2FA+%26+B%2Fep+1.mkv",
+            "http://localhost:8080/api/files/stream/info?path=Shows%2FA+%26+B%2Fep+1.mkv&maxHeight=480",
             seen?.url.toString(),
         )
         assertEquals("test-key", seen?.headers?.get("X-Secret-Key"))
@@ -224,12 +228,12 @@ class ApiClientTest {
 
     @Test
     fun `stream info with an unknown duration decodes it as null`() = runTest {
-        val api = client { respondJson("""{"durationSeconds":null,"transcodeHeight":720}""") }
+        val api = client { respondJson("""{"durationSeconds":null,"mode":"remux","transcodeHeight":null}""") }
 
-        val info = (api.streamInfo("Films/movie.mp4") as ApiResult.Success).value
+        val info = (api.streamInfo("Films/movie.mp4", maxHeight = null) as ApiResult.Success).value
 
         assertNull(info.durationSeconds)
-        assertEquals(720, info.transcodeHeight)
+        assertEquals(StreamMode.Remux, info.mode)
     }
 
     @Test
@@ -241,7 +245,7 @@ class ApiClientTest {
                 respondJson("{}")
             }
 
-        api.streamInfo("Films/movie.mp4")
+        api.streamInfo("Films/movie.mp4", maxHeight = null)
         api.getPlaybackSession()
 
         assertEquals(30_000L, timeouts["/api/files/stream/info"])

@@ -1,5 +1,6 @@
 using Reel.Server.Contracts.Playback;
 using Reel.Server.Library;
+using Reel.Server.Media;
 using Reel.Server.Storage;
 
 namespace Reel.Server.Playback;
@@ -35,16 +36,16 @@ public sealed class PlaybackSessionService(
     private readonly Lock _lock = new();
     private Session? _session;
 
-    public PlaybackSessionOutcome Start(StartPlaybackSessionRequest request)
+    /// <summary>Starts with the remembered quality and the subtitle track matched to the remembered language.</summary>
+    public PlaybackSessionOutcome Start(
+        StartPlaybackSessionRequest request,
+        int? maxHeight,
+        int? subtitleIndex
+    )
     {
         if (!IsFiniteNonnegative(request.StartPositionSeconds))
         {
             return Invalid("Start position must be finite and non-negative.");
-        }
-
-        if (request.SubtitleIndex is < 0)
-        {
-            return Invalid("Subtitle index must be non-negative.");
         }
 
         var fullPath = pathResolver.ResolvePlayableFile(request.RelativePath);
@@ -67,7 +68,8 @@ public sealed class PlaybackSessionService(
                 pathResolver.ToRelativePath(fullPath),
                 FilenameParser.Parse(Path.GetFileName(fullPath)).Title,
                 PlaybackDesiredStateDto.Playing,
-                request.SubtitleIndex,
+                subtitleIndex,
+                maxHeight,
                 pendingSeek
             ),
             null,
@@ -95,6 +97,11 @@ public sealed class PlaybackSessionService(
         if (request.SubtitleIndex is < 0)
         {
             return Invalid("Subtitle index must be non-negative.");
+        }
+
+        if (request.MaxHeight is { } height && !Transcoding.IsHeight(height))
+        {
+            return Invalid("Max height must be a positive even number.");
         }
 
         if (request.SeekPositionSeconds is { } seek && !IsFiniteNonnegative(seek))
@@ -144,6 +151,7 @@ public sealed class PlaybackSessionService(
                 {
                     DesiredState = request.DesiredState,
                     SubtitleIndex = request.SubtitleIndex,
+                    MaxHeight = request.MaxHeight,
                     PendingSeek = pendingSeek,
                 },
             };

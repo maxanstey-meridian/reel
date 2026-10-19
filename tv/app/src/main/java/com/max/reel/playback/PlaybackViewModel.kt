@@ -80,7 +80,7 @@ class PlaybackViewModel(
     // The session whose load already failed once on the network, so the next failure plays without info.
     private var unreachableLoadSessionId: String? = null
 
-    // One skip request is sent at a time, since a transcoded seek restarts the stream; presses
+    // One skip request is sent at a time, since a live stream's seek restarts it; presses
     // meanwhile only move the target, which follows as a single request.
     private var skipJob: Job? = null
     private var skipTargetSeconds = 0.0
@@ -266,12 +266,18 @@ class PlaybackViewModel(
     private suspend fun applyDecision(session: PlaybackSessionResponse, decision: ReconciliationDecision): Boolean {
         val seek = decision.seekPositionSeconds
         if (decision.desiredState != PlaybackDesiredState.Stopped) {
+            val subtitle = session.intent.subtitleIndex
             val rebuild =
-                decision.loadPath != null || decision.subtitleChanged || stream.error != null ||
-                    (seek != null && stream.timeline.transcoded)
+                decision.loadPath != null || decision.streamChanged || stream.error != null ||
+                    (seek != null && stream.timeline.live) ||
+                    (decision.subtitleChanged && !stream.canSwitchTo(subtitle))
             val start = seek ?: if (decision.loadPath != null) 0.0 else stream.positionSeconds
             if (rebuild && (backgrounded || !loadMedia(session, start))) return false
             if (!rebuild && seek != null) stream.seekTo(seek)
+            if (!rebuild && decision.subtitleChanged) {
+                _state.update { it.copy(subtitleIndex = subtitle, notice = null) }
+                stream.showSubtitle(subtitle)
+            }
             if (seek != null) _state.update { it.copy(seekDestinationSeconds = seek) }
         }
 
@@ -283,6 +289,7 @@ class PlaybackViewModel(
                 decision.seekId ?: applied.seekId.takeIf { applied.sessionId == session.sessionId },
                 relativePath = session.intent.relativePath,
                 subtitleIndex = session.intent.subtitleIndex,
+                maxHeight = session.intent.maxHeight,
             )
         when (decision.desiredState) {
             PlaybackDesiredState.Playing -> {
@@ -378,8 +385,8 @@ class PlaybackViewModel(
             try {
                 coroutineScope {
                     loadJob = coroutineContext.job
-                    val info = async { apiClient.streamInfo(path) }
-                    val tracks = async { apiClient.fetchSubtitles(path) }
+                    val info = async { apiClient.streamInfo(path, intent.maxHeight) }
+                    val tracks = async { apiClient.fetchSubtitles(path, intent.maxHeight) }
                     info.await() to tracks.await()
                 }
             } catch (e: CancellationException) {

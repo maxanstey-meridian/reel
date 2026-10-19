@@ -7,7 +7,7 @@ namespace Reel.Server.Tests;
 
 public sealed class DatabaseServiceTests : IDisposable
 {
-    private const int LatestVersion = 3;
+    private const int LatestVersion = 4;
     private readonly TempMediaRoot _media = new();
 
     public void Dispose() => _media.Dispose();
@@ -24,7 +24,7 @@ public sealed class DatabaseServiceTests : IDisposable
         connection.ExecuteScalar<int>("PRAGMA user_version;").Should().Be(LatestVersion);
         TableNames(connection)
             .Should()
-            .BeEquivalentTo("media", "progress", "favourites", "item_tags");
+            .BeEquivalentTo("media", "progress", "favourites", "item_tags", "preferences");
         connection
             .Query<string>("SELECT name FROM pragma_table_info('media');")
             .Should()
@@ -102,7 +102,7 @@ public sealed class DatabaseServiceTests : IDisposable
         connection.ExecuteScalar<int>("PRAGMA user_version;").Should().Be(LatestVersion);
         TableNames(connection)
             .Should()
-            .BeEquivalentTo("media", "progress", "favourites", "item_tags");
+            .BeEquivalentTo("media", "progress", "favourites", "item_tags", "preferences");
         connection
             .QuerySingle<(string, string?, long?)>(
                 "SELECT relative_path, parsed_title, size_bytes FROM media;"

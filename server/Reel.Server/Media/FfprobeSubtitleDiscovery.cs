@@ -28,7 +28,8 @@ public sealed class FfprobeSubtitleDiscovery(
 
     /// <summary>
     /// Embedded tracks keep their subtitle-stream number as Index; sidecars ({stem}.srt or {stem}.{lang}.srt)
-    /// follow in name order, so indexes stay stable between calls.
+    /// follow in name order, then RARBG-style Subs/{stem}/{n}_{lang}.srt and Subs/{n}_{lang}.srt (a film's) together
+    /// in name order, so indexes stay stable between calls.
     /// </summary>
     public async Task<IReadOnlyList<Subtitle>> DiscoverAsync(string fullPath, CancellationToken ct)
     {
@@ -52,32 +53,54 @@ public sealed class FfprobeSubtitleDiscovery(
             .ToList();
 
         var stem = Path.GetFileNameWithoutExtension(fullPath);
-        var relativeDirectory = Path.GetDirectoryName(paths.ToRelativePath(fullPath))!;
-        var sidecars = new DirectoryInfo(Path.GetDirectoryName(fullPath)!)
-            .EnumerateFiles()
-            .Where(file =>
-                MediaPathResolver.IsLibraryEntry(file) && SidecarExtensions.Contains(file.Extension)
-            )
-            .Select(file => (File: file, Suffix: Path.GetFileNameWithoutExtension(file.Name)))
+        var directory = new DirectoryInfo(Path.GetDirectoryName(fullPath)!);
+        var beside = SidecarFiles(directory)
+            .Select(file => (File: file, Name: Path.GetFileNameWithoutExtension(file.Name)))
             .Where(sidecar =>
-                sidecar.Suffix.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
-                && (sidecar.Suffix.Length == stem.Length || sidecar.Suffix[stem.Length] == '.')
+                sidecar.Name.StartsWith(stem, StringComparison.OrdinalIgnoreCase)
+                && (sidecar.Name.Length == stem.Length || sidecar.Name[stem.Length] == '.')
             )
+            .Select(sidecar =>
+                (sidecar.File, Language: sidecar.Name[stem.Length..].TrimStart('.'))
+            );
+        // The whole file name is the language here, e.g. "7_English" or "1000_en-US".
+        // A linked Subs/ would lead out of the library, so neither it nor its episode folders are read.
+        var subs = new DirectoryInfo(Path.Join(directory.FullName, "Subs"));
+        IEnumerable<FileInfo> subsFiles =
+            subs.Exists && MediaPathResolver.IsLibraryEntry(subs)
+                ?
+                [
+                    .. SidecarFiles(new DirectoryInfo(Path.Join(subs.FullName, stem))),
+                    .. SidecarFiles(subs),
+                ]
+                : [];
+        var inSubs = subsFiles.Select(file =>
+            (File: file, Language: Path.GetFileNameWithoutExtension(file.Name))
+        );
+        var sidecars = beside
             .OrderBy(sidecar => sidecar.File.Name, MediaPathResolver.NaturalOrder)
+            .Concat(inSubs.OrderBy(sidecar => sidecar.File.Name, MediaPathResolver.NaturalOrder))
             .Select(
                 (sidecar, index) =>
-                {
-                    var language = sidecar.Suffix[stem.Length..].TrimStart('.');
                     // The format tells sidecars of one language apart, e.g. "External SRT (en)".
-                    return new Subtitle(
+                    new Subtitle(
                         embedded.Count + index,
                         $"External {sidecar.File.Extension[1..].ToUpperInvariant()}",
-                        language,
+                        sidecar.Language,
                         sidecar.File.Extension[1..],
-                        Path.Join(relativeDirectory, sidecar.File.Name)
-                    );
-                }
+                        paths.ToRelativePath(sidecar.File.FullName)
+                    )
             );
         return [.. embedded, .. sidecars];
     }
+
+    private static IEnumerable<FileInfo> SidecarFiles(DirectoryInfo directory) =>
+        directory.Exists && MediaPathResolver.IsLibraryEntry(directory)
+            ? directory
+                .EnumerateFiles()
+                .Where(file =>
+                    MediaPathResolver.IsLibraryEntry(file)
+                    && SidecarExtensions.Contains(file.Extension)
+                )
+            : [];
 }

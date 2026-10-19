@@ -328,6 +328,8 @@ export interface components {
             desiredState: components["schemas"]["PlaybackDesiredStateDto"];
             /** Format: int32 */
             subtitleIndex: number | null;
+            /** Format: int32 */
+            maxHeight: number | null;
             pendingSeek: components["schemas"]["SeekRequestResponse"] | null;
         };
         PlaybackObservationResponse: {
@@ -363,8 +365,6 @@ export interface components {
             relativePath: string;
             /** Format: double */
             startPositionSeconds: number;
-            /** Format: int32 */
-            subtitleIndex?: number | null;
         };
         PlaybackSessionEnvelope: {
             session: components["schemas"]["PlaybackSessionResponse"] | null;
@@ -375,6 +375,8 @@ export interface components {
             desiredState: components["schemas"]["PlaybackDesiredStateDto"];
             /** Format: int32 */
             subtitleIndex?: number | null;
+            /** Format: int32 */
+            maxHeight?: number | null;
             /** Format: double */
             seekPositionSeconds?: number | null;
             /** Format: int64 */
@@ -461,6 +463,7 @@ export interface components {
         StreamInfoResponse: {
             /** Format: double */
             durationSeconds: number | null;
+            mode: components["schemas"]["StreamMode"];
             /** Format: int32 */
             transcodeHeight: number | null;
         };
@@ -495,6 +498,8 @@ export interface components {
         FileNodeType: "file" | "directory";
         /** @enum {string} */
         MediaKind: "video" | "audio";
+        /** @enum {string} */
+        StreamMode: "direct" | "remux" | "transcode";
         /** @enum {string} */
         SubtitleSource: "embedded" | "external";
     };
@@ -986,6 +991,7 @@ export interface operations {
                 path: string;
                 start?: number | null;
                 height?: number | null;
+                remux?: boolean | null;
                 token: string;
             };
             header?: never;
@@ -1028,6 +1034,7 @@ export interface operations {
         parameters: {
             query: {
                 path: string;
+                maxHeight?: number | null;
             };
             header?: never;
             path?: never;
@@ -1122,6 +1129,7 @@ export interface operations {
         parameters: {
             query: {
                 path: string;
+                maxHeight?: number | null;
             };
             header?: never;
             path?: never;

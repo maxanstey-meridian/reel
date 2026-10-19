@@ -42,7 +42,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
     [Fact]
     public void Start_StoresTheCanonicalPath() =>
         _service
-            .Start(new StartPlaybackSessionRequest("Films//movie.mp4", 0, null))
+            .Start(new StartPlaybackSessionRequest("Films//movie.mp4", 0), null, null)
             .Session()
             .Intent.RelativePath.Should()
             .Be("Films/movie.mp4");
@@ -57,6 +57,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
                 session.SessionId,
                 PlaybackDesiredStateDto.Paused,
                 3,
+                null,
                 null
             )
         );
@@ -101,6 +102,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
                 session.SessionId,
                 PlaybackDesiredStateDto.Playing,
                 null,
+                null,
                 null
             )
         );
@@ -137,7 +139,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
     public void Start_RejectsInvalidPositions(double position)
     {
         _service
-            .Start(new StartPlaybackSessionRequest("Films/movie.mp4", position, null))
+            .Start(new StartPlaybackSessionRequest("Films/movie.mp4", position), null, null)
             .Error()
             .Should()
             .Be(PlaybackSessionError.InvalidRequest);
@@ -426,7 +428,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
     public void Start_RejectsInvalidMediaPaths(string path)
     {
         _service
-            .Start(new StartPlaybackSessionRequest(path, 0, null))
+            .Start(new StartPlaybackSessionRequest(path, 0), null, null)
             .Error()
             .Should()
             .Be(PlaybackSessionError.InvalidRequest);
@@ -434,14 +436,18 @@ public sealed class PlaybackSessionServiceTests : IDisposable
 
     private PlaybackSessionResponse Start(double position = 0, int? subtitleIndex = null) =>
         _service
-            .Start(new StartPlaybackSessionRequest("Films/movie.mp4", position, subtitleIndex))
+            .Start(
+                new StartPlaybackSessionRequest("Films/movie.mp4", position),
+                null,
+                subtitleIndex
+            )
             .Session();
 
     private PlaybackSessionOutcome UpdateIntent(
         Guid sessionId,
         PlaybackDesiredStateDto state = PlaybackDesiredStateDto.Playing,
         double? seek = null
-    ) => _service.UpdateIntent(new UpdatePlaybackIntentRequest(sessionId, state, null, seek));
+    ) => _service.UpdateIntent(new UpdatePlaybackIntentRequest(sessionId, state, null, null, seek));
 
     private PlaybackSessionOutcome Observe(
         PlaybackSessionResponse session,

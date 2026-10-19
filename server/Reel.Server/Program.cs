@@ -16,16 +16,14 @@ builder
     .Services.AddOptions<ReelOptions>()
     .BindConfiguration(ReelOptions.Section)
     .ValidateDataAnnotations()
-    .Validate(
-        options => options.Compression == "off" || options.TranscodeHeight is not null,
-        "Reel:Compression must be \"off\" or an even video height such as \"720p\"."
-    )
     .ValidateOnStart();
 
 builder.Services.AddSingleton<MediaPathResolver>();
 builder.Services.AddSingleton<DatabaseService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PlaybackSessionService>();
+builder.Services.AddSingleton<PlaybackPreferenceService>();
+builder.Services.AddSingleton<SqlitePreferencesStore>();
 builder.Services.AddSingleton<NextEpisodeService>();
 builder.Services.AddSingleton<FileSystemScanner>();
 builder.Services.AddSingleton<LibraryIndexReconciler>();

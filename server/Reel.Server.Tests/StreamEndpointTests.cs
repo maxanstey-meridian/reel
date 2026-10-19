@@ -30,9 +30,6 @@ public sealed class StreamEndpointTests : IDisposable
         _media.Dispose();
     }
 
-    private WebApplicationFactory<Program> CreateCompressedFactory() =>
-        _media.CreateFactory(builder => builder.UseSetting("Reel:Compression", "480p"));
-
     [Theory]
     [InlineData("Films/test.mp4&start=30", "video/mp4", "fake-mp4-content")]
     [InlineData("Films/movie.mkv", "video/x-matroska", "fake-mkv-content")]
@@ -101,7 +98,7 @@ public sealed class StreamEndpointTests : IDisposable
 
     // The source is 36 pixels tall, so asking for 240 must not upscale it.
     [Fact]
-    public async Task WithHeight_TranscodesVideoToFragmentedMp4NoTallerThanTheSource()
+    public async Task TranscodeMode_TranscodesVideoToFragmentedMp4NoTallerThanTheSource()
     {
         TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
         using var client = _direct.CreateAuthenticatedClient();
@@ -126,7 +123,7 @@ public sealed class StreamEndpointTests : IDisposable
 
     // Transcoding maps the first video stream, so audio used to come back as an empty 200.
     [Fact]
-    public async Task WithHeight_ServesAudioDirectlyWithRanges()
+    public async Task TranscodeMode_ServesAudioDirectlyWithRanges()
     {
         using var client = _direct.CreateAuthenticatedClient();
         var request = new HttpRequestMessage(
@@ -141,54 +138,68 @@ public sealed class StreamEndpointTests : IDisposable
         response.Content.Headers.ContentType!.MediaType.Should().Be("audio/mpeg");
     }
 
-    // The stream follows its URL, not the live setting, so a settings edit cannot change a playing stream.
-    [Fact]
-    public async Task CompressedMode_StreamWithoutHeight_StaysDirect()
-    {
-        using var factory = CreateCompressedFactory();
-        using var client = factory.CreateAuthenticatedClient();
-
-        var response = await client.GetAsync("/api/files/stream?path=Films/test.mp4");
-
-        response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
-        (await response.Content.ReadAsStringAsync()).Should().Be("fake-mp4-content");
-    }
-
     [Theory]
-    [InlineData(0)]
-    [InlineData(481)]
-    public async Task InvalidHeight_Returns400(int height)
+    [InlineData("height=0")]
+    [InlineData("height=481")]
+    [InlineData("remux=true&height=480")]
+    public async Task InvalidHeightOrRemuxWithHeight_Returns400(string query)
     {
         using var client = _direct.CreateAuthenticatedClient();
 
-        var response = await client.GetAsync(
-            $"/api/files/stream?path=Films/test.mp4&height={height}"
-        );
+        var response = await client.GetAsync($"/api/files/stream?path=Films/test.mp4&{query}");
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    // The TV's MP3 decoder rejects MP3 read out of AVI, so the video is copied untouched and the audio re-encoded.
+    [Fact]
+    public async Task RemuxMode_CopiesTheVideoAndReencodesTheAudioToAc3()
+    {
+        TestMedia.CreateVideo(_media.Write("Films/old.avi"), "mpeg4", "libmp3lame");
+        using var client = _direct.CreateAuthenticatedClient();
+
+        var response = await client.GetAsync(
+            "/api/files/stream?path=Films/old.avi&start=1&remux=true"
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
+        var output = _media.Write("remuxed.mp4", await response.Content.ReadAsByteArrayAsync());
+        var probe = await Ffmpeg.ProbeAsync(
+            output,
+            streams: null,
+            NullLogger.Instance,
+            CancellationToken.None
+        );
+        probe!
+            .Streams!.Select(stream => (stream.CodecType, stream.CodecName, stream.Height))
+            .Should()
+            .Equal(("video", "mpeg4", 36), ("audio", "ac3", null));
+    }
+
+    // The source is 36 pixels tall: a cap at or above that leaves it alone, one below transcodes down to the cap.
     [Theory]
-    [InlineData(false, "Films/real.mp4", null)]
-    [InlineData(true, "Films/real.mp4", 480)]
-    [InlineData(true, "song.mp3", null)]
-    public async Task StreamInfo_ReportsDurationAndTheHeightToTranscodeTo(
-        bool compressed,
-        string path,
+    [InlineData("Films/real.mp4", StreamMode.Direct, null)]
+    [InlineData("Films/real.mp4&maxHeight=480", StreamMode.Direct, null)]
+    [InlineData("Films/real.mp4&maxHeight=24", StreamMode.Transcode, 24)]
+    [InlineData("song.mp3&maxHeight=24", StreamMode.Direct, null)]
+    public async Task StreamInfo_ReportsDurationAndHowToStream(
+        string query,
+        StreamMode mode,
         int? transcodeHeight
     )
     {
         TestMedia.CreateVideo(_media.Write("Films/real.mp4"), seconds: 3);
-        using var factory = compressed ? CreateCompressedFactory() : _media.CreateFactory();
-        using var client = factory.CreateAuthenticatedClient();
+        using var client = _direct.CreateAuthenticatedClient();
 
         var info = await client.GetFromJsonAsync<StreamInfoResponse>(
-            $"/api/files/stream/info?path={path}",
-            factory.JsonOptions()
+            $"/api/files/stream/info?path={query}",
+            _direct.JsonOptions()
         );
 
-        info!.TranscodeHeight.Should().Be(transcodeHeight);
-        if (path.EndsWith(".mp4"))
+        info!.Mode.Should().Be(mode);
+        info.TranscodeHeight.Should().Be(transcodeHeight);
+        if (query.StartsWith("Films/"))
         {
             info.DurationSeconds.Should().BeApproximately(3, 0.5);
         }
@@ -196,5 +207,32 @@ public sealed class StreamEndpointTests : IDisposable
         {
             info.DurationSeconds.Should().BeNull();
         }
+    }
+
+    // Without a cap only what the TV cannot play is touched: MPEG-4 Part 2 and MP3 are fine in MKV, AVI is
+    // remuxed, MP2 audio is remuxed, and WMV video is transcoded at its own height.
+    [Theory]
+    [InlineData("Films/fine.mkv", "mpeg4", "libmp3lame", StreamMode.Direct, null)]
+    [InlineData("Films/old.avi", "mpeg4", "libmp3lame", StreamMode.Remux, null)]
+    [InlineData("Films/mp2.mkv", "mpeg4", "mp2", StreamMode.Remux, null)]
+    [InlineData("Films/wmv.mkv", "wmv2", "libmp3lame", StreamMode.Transcode, 36)]
+    public async Task StreamInfo_TouchesOnlyWhatTheTvCannotPlay(
+        string path,
+        string videoCodec,
+        string audioCodec,
+        StreamMode mode,
+        int? transcodeHeight
+    )
+    {
+        TestMedia.CreateVideo(_media.Write(path), videoCodec, audioCodec);
+        using var client = _direct.CreateAuthenticatedClient();
+
+        var info = await client.GetFromJsonAsync<StreamInfoResponse>(
+            $"/api/files/stream/info?path={path}",
+            _direct.JsonOptions()
+        );
+
+        info!.Mode.Should().Be(mode);
+        info.TranscodeHeight.Should().Be(transcodeHeight);
     }
 }

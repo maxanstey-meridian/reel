@@ -8,6 +8,7 @@ import {
   hasIncompleteProgress,
   isPlaybackPending,
   progressFraction,
+  shownSubtitleIndex,
   type TvState,
 } from "~~/app/features/playback/logic/playback";
 import type { PlaybackSession } from "~~/app/lib/api";
@@ -38,6 +39,21 @@ const session = (
 });
 
 describe("playback logic", () => {
+  it("shows a requested subtitle until the TV applies it, then what the TV shows", () => {
+    const requested = (appliedRevision: number, shown: number | null): PlaybackSession => {
+      const base = session(appliedRevision);
+      return {
+        ...base,
+        intent: { ...base.intent, subtitleIndex: 2 },
+        observation: { ...base.observation!, subtitleIndex: shown },
+      };
+    };
+
+    expect(shownSubtitleIndex(requested(2, null))).toBe(2);
+    expect(shownSubtitleIndex(requested(3, 2))).toBe(2);
+    expect(shownSubtitleIndex(requested(3, null))).toBeNull();
+  });
+
   it("clamps invalid and out-of-range positions", () => {
     expect(clampPosition(Number.NaN, 100)).toBe(0);
     expect(clampPosition(-1, 100)).toBe(0);

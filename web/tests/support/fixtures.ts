@@ -17,8 +17,8 @@ export const fileNode = (
 });
 
 export const intent = (
-  fields: Omit<Intent, "subtitleIndex" | "pendingSeek"> & Partial<Intent>,
-): Intent => ({ subtitleIndex: null, pendingSeek: null, ...fields });
+  fields: Omit<Intent, "subtitleIndex" | "maxHeight" | "pendingSeek"> & Partial<Intent>,
+): Intent => ({ subtitleIndex: null, maxHeight: null, pendingSeek: null, ...fields });
 
 export const observation = (
   fields: Omit<Observation, "appliedSeekId" | "subtitleIndex" | "errorCode" | "errorMessage"> &

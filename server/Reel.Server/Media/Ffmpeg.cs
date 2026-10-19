@@ -14,10 +14,11 @@ internal static class Ffmpeg
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
     };
 
-    /// <summary>Format and selected streams of a file, or null when ffprobe cannot read it.</summary>
+    /// <summary>Format and selected streams (all of them when <paramref name="streams"/> is null) of a file, or null
+    /// when ffprobe cannot read it.</summary>
     public static async Task<Probe?> ProbeAsync(
         string path,
-        string streams,
+        string? streams,
         ILogger logger,
         CancellationToken ct
     )
@@ -32,8 +33,7 @@ internal static class Ffmpeg
                     "json",
                     "-show_format",
                     "-show_streams",
-                    "-select_streams",
-                    streams,
+                    .. (streams is null ? Array.Empty<string>() : ["-select_streams", streams]),
                     path,
                 ])
                 .ExecuteBufferedAsync(ct);
@@ -82,10 +82,12 @@ internal static class Ffmpeg
 
 internal sealed record Probe(ProbeFormat? Format, ProbeStream[]? Streams);
 
-internal sealed record ProbeFormat(double? Duration);
+internal sealed record ProbeFormat(double? Duration, string? FormatName);
 
 internal sealed record ProbeStream(
     string? CodecName,
+    string? CodecType,
+    string? PixFmt,
     int? Height,
     Dictionary<string, string>? Tags
 );

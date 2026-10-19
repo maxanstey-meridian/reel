@@ -29,15 +29,21 @@ def loaded():
     return launchctl("print", TARGET, check=False, quiet=True).returncode == 0
 
 
+def stop():
+    # bootout returns before the old process has exited, and launchd keeps the service (and refuses to
+    # bootstrap it again, error 5) until it has, so wait for it to go.
+    launchctl("bootout", TARGET, check=False)
+    deadline = time.monotonic() + 30
+    while loaded():
+        if time.monotonic() > deadline:
+            raise SystemExit("Reel's old process did not exit within 30s; it may need kill -9 (see `status`).")
+        time.sleep(0.5)
+
+
 def bootstrap():
-    # A just-booted-out process may still be exiting; launchd then refuses (error 5).
-    for _ in range(5):
-        result = launchctl("bootstrap", f"gui/{os.getuid()}", str(PLIST), check=False, quiet=True)
-        if result.returncode == 0:
-            return
-        time.sleep(1)
-    raise SystemExit(f"launchctl bootstrap failed: {result.stderr.strip()}. "
-                     "Check `status`; a stuck old process may need kill -9.")
+    result = launchctl("bootstrap", f"gui/{os.getuid()}", str(PLIST), check=False, quiet=True)
+    if result.returncode != 0:
+        raise SystemExit(f"launchctl bootstrap failed: {result.stderr.strip()}. Check `status`.")
 
 
 def install(args):
@@ -68,7 +74,7 @@ def install(args):
     config.setdefault("Logging", {"LogLevel": {"Default": "Warning", "Microsoft.AspNetCore": "Warning"}})
     # Stop only after the replacement build succeeded.
     if PLIST.exists():
-        launchctl("bootout", TARGET, check=False)
+        stop()
     subprocess.run(["rsync", "-a", "--delete", str(staging) + "/", str(build) + "/"], check=True)
     config_path.write_text(json.dumps(config, indent=2) + "\n")
     config_path.chmod(0o600)
@@ -139,7 +145,7 @@ if args.action == "install":
 elif args.action == "status":
     raise SystemExit(status())
 elif args.action == "stop":
-    launchctl("bootout", TARGET, check=False)
+    stop()
 elif args.action == "start":
     if loaded():
         print("Reel is already running; use `status` to check health.")
@@ -148,6 +154,6 @@ elif args.action == "start":
     else:
         bootstrap()
 elif args.action == "uninstall":
-    launchctl("bootout", TARGET, check=False)
+    stop()
     PLIST.unlink(missing_ok=True)
     print("Login service removed. Configuration and media progress retained.")

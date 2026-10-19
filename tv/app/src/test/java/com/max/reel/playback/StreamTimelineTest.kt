@@ -2,6 +2,7 @@ package com.max.reel.playback
 
 import androidx.media3.common.C
 import com.max.reel.data.StreamInfo
+import com.max.reel.data.StreamMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -12,30 +13,31 @@ class StreamTimelineTest {
     fun `a direct stream is the file, so its clock is the player's`() {
         val timeline = StreamTimeline.of(StreamInfo(durationSeconds = null), startSeconds = 300.0)
 
-        assertFalse(timeline.transcoded)
+        assertFalse(timeline.live)
         assertEquals(0.0, timeline.offsetSeconds, 0.0)
         assertEquals(312.5, timeline.positionSeconds(playerPositionMs = 312_500), 0.0)
         assertEquals(1_440.0, timeline.durationSeconds(playerDurationMs = 1_440_000), 0.0)
     }
 
     @Test
-    fun `a transcoded stream starts at the requested position and takes the file's duration`() {
-        val timeline =
-            StreamTimeline.of(
-                StreamInfo(durationSeconds = 1_440.0, transcodeHeight = 720),
-                startSeconds = 300.0,
-            )
+    fun `a live stream starts at the requested position and takes the file's duration`() {
+        for (info in listOf(
+            StreamInfo(durationSeconds = 1_440.0, mode = StreamMode.Transcode, transcodeHeight = 720),
+            StreamInfo(durationSeconds = 1_440.0, mode = StreamMode.Remux),
+        )) {
+            val timeline = StreamTimeline.of(info, startSeconds = 300.0)
 
-        assertTrue(timeline.transcoded)
-        assertEquals(312.5, timeline.positionSeconds(playerPositionMs = 12_500), 0.0)
-        assertEquals(1_440.0, timeline.durationSeconds(playerDurationMs = 15_000), 0.0)
+            assertTrue(timeline.live)
+            assertEquals(312.5, timeline.positionSeconds(playerPositionMs = 12_500), 0.0)
+            assertEquals(1_440.0, timeline.durationSeconds(playerDurationMs = 15_000), 0.0)
+        }
     }
 
     @Test
     fun `unknown or unset player values never produce negative or bogus times`() {
         val timeline =
             StreamTimeline.of(
-                StreamInfo(durationSeconds = null, transcodeHeight = 720),
+                StreamInfo(durationSeconds = null, mode = StreamMode.Transcode, transcodeHeight = 720),
                 startSeconds = -5.0,
             )
 

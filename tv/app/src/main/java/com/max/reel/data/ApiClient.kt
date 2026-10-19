@@ -81,30 +81,37 @@ class ApiClient(private val pairing: PairingStore, engine: HttpClientEngine = An
             setBody(ProgressRequest(path, positionSeconds, durationSeconds))
         }
 
-    suspend fun fetchSubtitles(path: String): ApiResult<List<SubtitleTrack>> = paired("api/files/subtitles") {
-        parameter("path", path)
-    }
+    // The session's maxHeight decides whether the stream is live, which hides image-based tracks.
+    suspend fun fetchSubtitles(path: String, maxHeight: Int?): ApiResult<List<SubtitleTrack>> =
+        paired("api/files/subtitles") {
+            parameter("path", path)
+            parameter("maxHeight", maxHeight)
+        }
 
     // The server probes the file on every call, which can take far longer than an ordinary request.
-    suspend fun streamInfo(path: String): ApiResult<StreamInfo> = paired("api/files/stream/info") {
+    suspend fun streamInfo(path: String, maxHeight: Int?): ApiResult<StreamInfo> = paired("api/files/stream/info") {
         parameter("path", path)
+        parameter("maxHeight", maxHeight)
         timeout { requestTimeoutMillis = 30_000 }
     }
 
     fun pairUrl(server: PairedServer): String = url(server, "pair", "key" to server.key)
 
-    // With a height the stream is a transcode starting at `start` that cannot range-seek; without, the file itself.
-    fun streamUrl(server: PairedServer, path: String, height: Int?, start: Double): String = if (height == null) {
-        url(server, "api/files/stream", "path" to path)
-    } else {
-        url(
-            server,
-            "api/files/stream",
-            "path" to path,
-            "height" to "$height",
-            "start" to "$start",
-        )
-    }
+    // A live (remux or transcode) stream starts at `start` and cannot range-seek; a direct one is the file itself.
+    fun streamUrl(server: PairedServer, path: String, mode: StreamMode, height: Int?, start: Double): String =
+        when (mode) {
+            StreamMode.Direct -> url(server, "api/files/stream", "path" to path)
+
+            StreamMode.Remux -> url(server, "api/files/stream", "path" to path, "remux" to "true", "start" to "$start")
+
+            StreamMode.Transcode -> url(
+                server,
+                "api/files/stream",
+                "path" to path,
+                "height" to "${requireNotNull(height) { "A transcode needs a height" }}",
+                "start" to "$start",
+            )
+        }
 
     fun subtitleUrl(server: PairedServer, path: String, index: Int, start: Double): String = url(
         server,
