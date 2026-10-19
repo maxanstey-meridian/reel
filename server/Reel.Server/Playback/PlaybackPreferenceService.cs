@@ -17,30 +17,46 @@ public sealed class PlaybackPreferenceService(
 {
     /// <summary>
     /// The remembered quality, and the file's track in the remembered language among those a stream at that quality
-    /// can carry. Preferences never stop playback starting, so a failure here starts at full quality without
-    /// subtitles.
+    /// can carry. Preferences never stop playback starting: if they can't be read it starts at full quality without
+    /// subtitles, and if the file's subtitles can't be listed it starts without them.
     /// </summary>
     public async Task<(int? MaxHeight, int? SubtitleIndex)> StartingChoicesAsync(
         string relativePath,
         CancellationToken ct
     )
     {
+        PlaybackPreferences preferences;
         try
         {
-            var preferences = await store.GetAsync();
-            var fullPath = paths.ResolvePlayableFile(relativePath);
-            if (preferences.SubtitleLanguage is not { } language || fullPath is null)
-            {
-                return (preferences.MaxHeight, null);
-            }
-
-            var offered = await discovery.OfferedAsync(fullPath, preferences.MaxHeight, ct);
-            return (preferences.MaxHeight, SubtitleLanguage.Match(offered, language)?.Index);
+            preferences = await store.GetAsync();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Could not read playback preferences");
             return (null, null);
+        }
+
+        var fullPath = paths.ResolvePlayableFile(relativePath);
+        if (preferences.SubtitleLanguage is not { } language || fullPath is null)
+        {
+            return (preferences.MaxHeight, null);
+        }
+
+        try
+        {
+            var offered = await Transcoding.OfferedSubtitlesAsync(
+                discovery,
+                fullPath,
+                preferences.MaxHeight,
+                logger,
+                ct
+            );
+            return (preferences.MaxHeight, SubtitleLanguage.Match(offered, language)?.Index);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not list subtitles for {Path}", relativePath);
+            return (preferences.MaxHeight, null);
         }
     }
 

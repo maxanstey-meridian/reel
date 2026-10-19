@@ -77,6 +77,10 @@ class PlaybackViewModel(
     // Set while the activity is stopped; nothing new is loaded until polling starts again.
     private var backgrounded = false
 
+    // Back's stop request; while it is in flight an older answer can't load the stopped file again.
+    private var stopJob: Job? = null
+    private val stopping get() = stopJob?.isActive == true
+
     // The session whose load already failed once on the network, so the next failure plays without info.
     private var unreachableLoadSessionId: String? = null
 
@@ -137,9 +141,10 @@ class PlaybackViewModel(
     fun stopFromTv() {
         stopLocally()
         if (activeSession == null) return
-        viewModelScope.launch {
-            submitLocalIntent(PlaybackDesiredState.Stopped, authoritative = true)
-        }
+        stopJob =
+            viewModelScope.launch {
+                submitLocalIntent(PlaybackDesiredState.Stopped, authoritative = true)
+            }
     }
 
     // Presses add up while a skip is in flight; any other pending control drops them.
@@ -272,7 +277,7 @@ class PlaybackViewModel(
                     (seek != null && stream.timeline.live) ||
                     (decision.subtitleChanged && !stream.canSwitchTo(subtitle))
             val start = seek ?: if (decision.loadPath != null) 0.0 else stream.positionSeconds
-            if (rebuild && (backgrounded || !loadMedia(session, start))) return false
+            if (rebuild && (backgrounded || stopping || !loadMedia(session, start))) return false
             if (!rebuild && seek != null) stream.seekTo(seek)
             if (!rebuild && decision.subtitleChanged) {
                 _state.update { it.copy(subtitleIndex = subtitle, notice = null) }
@@ -346,9 +351,10 @@ class PlaybackViewModel(
         }
 
     // Callers hold commandMutex. Every intent sends expectedRevision so it cannot silently revert a newer
-    // phone change. A key press that conflicts gives way to the newer session. Authoritative intents (Back,
-    // backgrounding) must still win, so they are sent once more on the newer revision with its subtitle and
-    // quality; that session isn't applied first, as it could restart a stream the TV just stopped.
+    // phone change, and a key press that conflicts gives way to the newer session. Authoritative intents
+    // (Back, backgrounding) must still win, so they are sent again on the newer revision with its subtitle
+    // and quality, a few times at most; that session isn't applied first, as it could restart a stream the
+    // TV just stopped. A phone stop already wins for them, and applying a stopped session loads nothing.
     private suspend fun sendLocalIntent(
         session: PlaybackSessionResponse,
         desiredState: PlaybackDesiredState,
@@ -357,17 +363,25 @@ class PlaybackViewModel(
     ): Boolean {
         _state.update { it.copy(controlPending = true, notice = null) }
         var result = apiClient.updatePlaybackIntent(localIntentRequest(session, desiredState, seekPositionSeconds))
-        if (result.isConflict()) {
-            val current = apiClient.getPlaybackSession() as? ApiResult.Success
-            val latest = current?.value?.session
+        var retries = 0
+        while (result.isConflict()) {
+            val current = (apiClient.getPlaybackSession() as? ApiResult.Success)?.value ?: break
             if (!authoritative) {
-                current?.let { applyPolledSession(it.value.session) }
-            } else if (latest != null && latest.sessionId == session.sessionId) {
+                applyPolledSession(current.session)
+                break
+            }
+            val latest = current.session?.takeIf { it.sessionId == session.sessionId } ?: break
+            if (latest.intent.desiredState == PlaybackDesiredState.Stopped) {
+                result = ApiResult.Success(latest)
+            } else if (retries++ < AUTHORITATIVE_RETRIES) {
                 result = apiClient.updatePlaybackIntent(localIntentRequest(latest, desiredState))
+            } else {
+                break
             }
         }
         if (result is ApiResult.Success) applySession(result.value)
-        val failed = (result as? ApiResult.Failure)?.takeUnless { result.isConflict() }
+        // A key press that lost to the phone needs no notice; Back or backgrounding that never landed does.
+        val failed = (result as? ApiResult.Failure)?.takeUnless { !authoritative && it.isConflict() }
         _state.update {
             it.copy(controlPending = false, notice = failed?.let(::controlFailed) ?: it.notice)
         }
@@ -507,10 +521,13 @@ class PlaybackViewModel(
     }
 }
 
-// The chosen track isn't in this stream's list, e.g. a picture-based one once the stream is converted.
-private const val SUBTITLE_NOT_OFFERED = "That subtitle can't be shown right now"
+// The chosen track isn't in this stream's list: the server drops picture-based tracks from a converted stream.
+private const val SUBTITLE_NOT_OFFERED = "That subtitle can't be shown at this quality"
 private const val SUBTITLES_NOT_LOADED = "Couldn't load subtitles"
-private const val SUBTITLE_NOT_SHOWABLE = "This subtitle track can't be shown"
+
+// The player has no track it can show for the chosen subtitle (an unsupported format, or one it can't match).
+private const val SUBTITLE_NOT_SHOWABLE = "This TV can't show that subtitle"
+private const val AUTHORITATIVE_RETRIES = 3
 
 private fun controlFailed(failure: ApiResult.Failure) = "Control failed: ${failure.message}"
 

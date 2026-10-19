@@ -52,8 +52,12 @@ const skip = (seconds: number): void =>
   seek(clampPosition(requestedPosition.value + seconds, duration.value));
 
 const OFF = "off";
+// A track missing from the list (still loading, or one this quality can't carry) shows as the Off item.
 const subtitleTrack = computed({
-  get: () => (session.value ? shownSubtitleIndex(session.value) : null) ?? OFF,
+  get: () => {
+    const shown = session.value ? shownSubtitleIndex(session.value) : null;
+    return subtitles.value.find((track) => track.index === shown)?.index ?? OFF;
+  },
   set: (track: number | typeof OFF) =>
     void playback.updateIntent(desiredState.value, {
       subtitleIndex: track === OFF ? null : track,
@@ -213,7 +217,7 @@ const subtitleChoices = computed(() => [
       <UFormField
         v-if="isVideo"
         label="Quality"
-        help="Lower it if the TV keeps buffering. Later files start at this quality too, and some subtitles show only at Full quality."
+        help="Lower it if the TV keeps buffering. Later files start at this quality too, and some subtitles may not be offered at a lower one."
       >
         <USelect v-model="quality" :items="qualityChoices" :disabled="sending" class="w-full" />
       </UFormField>

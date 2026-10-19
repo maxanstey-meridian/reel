@@ -98,11 +98,12 @@ data class ReportPlaybackObservationRequest(
 data class UpdatePlaybackIntentRequest(
     val sessionId: String,
     val desiredState: PlaybackDesiredState,
-    // Required by the server even when null, so they carry no default: kotlinx omits default values.
+    // The intent is the whole choice and a missing value clears it, so every request states both; they
+    // carry no default because kotlinx omits values left at their default.
     val subtitleIndex: Int?,
     val maxHeight: Int?,
     val seekPositionSeconds: Double? = null,
-    val expectedRevision: Long? = null,
+    val expectedRevision: Long,
 )
 
 @Serializable

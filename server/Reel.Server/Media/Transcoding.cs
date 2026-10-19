@@ -73,6 +73,32 @@ internal static class Transcoding
             : new StreamInfoResponse(duration, StreamMode.Remux, null);
     }
 
+    /// <summary>
+    /// Whether a stream in this mode can carry the track: a live stream carries no subtitle streams (-sn), so the TV
+    /// gets each track as WebVTT, which image-based tracks cannot become.
+    /// </summary>
+    public static bool Carries(StreamMode mode, Subtitle track) =>
+        mode == StreamMode.Direct || !FfprobeSubtitleDiscovery.IsImageBased(track);
+
+    /// <summary>The file's subtitles that a stream of it at maxHeight can carry.</summary>
+    public static async Task<IReadOnlyList<Subtitle>> OfferedSubtitlesAsync(
+        FfprobeSubtitleDiscovery discovery,
+        string fullPath,
+        int? maxHeight,
+        ILogger logger,
+        CancellationToken ct
+    )
+    {
+        var tracks = await discovery.DiscoverAsync(fullPath, ct);
+        if (!tracks.Any(FfprobeSubtitleDiscovery.IsImageBased))
+        {
+            return tracks;
+        }
+
+        var mode = (await PlanAsync(maxHeight, fullPath, logger, ct)).Mode;
+        return [.. tracks.Where(track => Carries(mode, track))];
+    }
+
     /// <summary>A height video can be transcoded to: H.264 in 4:2:0 needs it even.</summary>
     public static bool IsHeight(int height) => height > 0 && height % 2 == 0;
 
@@ -85,7 +111,7 @@ internal static class Transcoding
     private static bool IsDirectVideo(ProbeStream video) =>
         video.CodecName is { } codec
         && DirectVideo.Contains(codec)
-        && !(codec == "h264" && video.PixFmt is { } format and not ("yuv420p" or "yuvj420p"));
+        && !(codec == "h264" && video.PixFmt is not (null or "yuv420p" or "yuvj420p"));
 
     private static bool IsDirectAudio(ProbeStream audio) =>
         audio.CodecName is { } codec && (DirectAudio.Contains(codec) || codec.StartsWith("pcm_"));

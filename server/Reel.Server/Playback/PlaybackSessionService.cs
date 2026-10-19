@@ -16,10 +16,12 @@ public abstract record PlaybackSessionOutcome
 {
     private PlaybackSessionOutcome() { }
 
-    /// <summary>Previous is the intent an intent update replaced, read under the same lock.</summary>
-    public sealed record Ok(
+    public sealed record Ok(PlaybackSessionResponse Session) : PlaybackSessionOutcome;
+
+    /// <summary>An applied intent update, with the intent it replaced read under the same lock.</summary>
+    public sealed record IntentUpdated(
         PlaybackSessionResponse Session,
-        PlaybackIntentResponse? Previous = null
+        PlaybackIntentResponse Previous
     ) : PlaybackSessionOutcome;
 
     public sealed record Failed(PlaybackSessionError Error, string Message)
@@ -160,7 +162,7 @@ public sealed class PlaybackSessionService(
                     PendingSeek = pendingSeek,
                 },
             };
-            return Success(_session) with { Previous = previous };
+            return new PlaybackSessionOutcome.IntentUpdated(ToResponse(_session), previous);
         }
     }
 
@@ -274,7 +276,6 @@ public sealed class PlaybackSessionService(
                 return Invalid("Non-error observations cannot include error details.");
             }
 
-            var previous = _session.Intent;
             var pendingSeek = _session.Intent.PendingSeek;
             if (pendingSeek is not null && request.AppliedSeekId == pendingSeek.SeekId)
             {

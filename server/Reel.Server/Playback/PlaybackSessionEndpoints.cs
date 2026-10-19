@@ -58,14 +58,14 @@ public static class PlaybackSessionEndpoints
             {
                 var endpoint = PlaybackContract.UpdateIntent.Bind(request);
                 var outcome = service.UpdateIntent(request);
-                if (outcome is PlaybackSessionOutcome.Ok { Previous: { } previous } updated)
+                if (outcome is PlaybackSessionOutcome.IntentUpdated updated)
                 {
-                    await preferences.RememberAsync(previous, updated.Session.Intent, ct);
+                    await preferences.RememberAsync(updated.Previous, updated.Session.Intent, ct);
+                    return endpoint.Success(updated.Session).ToResult();
                 }
 
                 return outcome switch
                 {
-                    PlaybackSessionOutcome.Ok ok => endpoint.Success(ok.Session).ToResult(),
                     PlaybackSessionOutcome.Failed failed => endpoint
                         .Error(StatusFor(failed.Error), ToErrorResponse(failed))
                         .ToResult(),

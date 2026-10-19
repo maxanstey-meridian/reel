@@ -95,9 +95,14 @@ export const usePlaybackSession = () => {
             body: {
               sessionId: current.sessionId,
               desiredState,
-              subtitleIndex: current.intent.subtitleIndex,
-              maxHeight: current.intent.maxHeight,
-              ...options,
+              // An omitted (or undefined) change keeps the session's value; null is a real choice.
+              subtitleIndex:
+                options.subtitleIndex === undefined
+                  ? current.intent.subtitleIndex
+                  : options.subtitleIndex,
+              maxHeight:
+                options.maxHeight === undefined ? current.intent.maxHeight : options.maxHeight,
+              seekPositionSeconds: options.seekPositionSeconds,
             },
           }),
         ),

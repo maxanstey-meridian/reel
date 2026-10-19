@@ -24,7 +24,7 @@
 
 ## PLAY-PREF-001 Remembered choices never stop playback
 
-**Rule:** Reading or saving the remembered quality and subtitle language never fails or undoes a start or an applied intent; a read that fails starts at full quality without subtitles, and a save that fails is logged.
+**Rule:** Reading or saving the remembered quality and subtitle language never fails or undoes a start or an applied intent; a read that fails starts at full quality without subtitles, and a save that fails leaves the intent applied.
 **Why:** Preferences are a convenience; the phone's request and the TV's playback come first.
 **Owner:** `PlaybackPreferenceService`
 **Proof:** `PreferencesThatCannotBeReadOrSaved_NeverStopPlayback`

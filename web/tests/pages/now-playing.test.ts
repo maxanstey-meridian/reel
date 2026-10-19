@@ -92,7 +92,7 @@ describe("now playing quality", () => {
     expect(page.text()).not.toContain("Quality");
   });
 
-  it("sends the picked quality and lists the subtitles a stream at it can carry", async () => {
+  it("sends the picked quality and asks for the subtitles a stream at it can carry", async () => {
     const session = playing("film.mkv");
     const { server, mounted } = showNowPlaying(session, () =>
       Response.json(library({ path: "film.mkv", kind: "video" })),

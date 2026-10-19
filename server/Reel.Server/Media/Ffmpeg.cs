@@ -93,7 +93,7 @@ internal sealed record ProbeStream(
     ProbeDisposition? Disposition
 )
 {
-    /// <summary>Video that is a picture: MP4 and MKV cover art is listed as a video stream.</summary>
+    /// <summary>Video that isn't a still picture: ffprobe lists MP4 cover art as a video stream.</summary>
     public bool IsMovingVideo => CodecType == "video" && Disposition?.AttachedPic != 1;
 }
 

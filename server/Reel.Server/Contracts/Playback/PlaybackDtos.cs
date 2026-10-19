@@ -7,12 +7,13 @@ namespace Reel.Server.Contracts.Playback;
 public sealed record StartPlaybackSessionRequest(string RelativePath, double StartPositionSeconds);
 
 // ExpectedRevision lets a client apply a change only to the session state it last saw. SubtitleIndex and MaxHeight
-// are the whole intent rather than a change, so clients always send them: the session's current value keeps it.
+// are the whole intent rather than a change, so a request without them is rejected rather than read as "off" and
+// "full quality": clients send the session's current value to keep it.
 public sealed record UpdatePlaybackIntentRequest(
     Guid SessionId,
     PlaybackDesiredStateDto DesiredState,
-    int? SubtitleIndex,
-    int? MaxHeight,
+    [property: JsonRequired] int? SubtitleIndex,
+    [property: JsonRequired] int? MaxHeight,
     [property: RivetOptional] double? SeekPositionSeconds,
     [property: RivetOptional] long? ExpectedRevision = null
 );

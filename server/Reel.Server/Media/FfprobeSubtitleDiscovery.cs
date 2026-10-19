@@ -1,4 +1,3 @@
-using Reel.Server.Contracts.Reel;
 using Reel.Server.Storage;
 
 namespace Reel.Server.Media;
@@ -26,26 +25,6 @@ public sealed class FfprobeSubtitleDiscovery(
     ];
 
     public static bool IsImageBased(Subtitle track) => ImageCodecs.Contains(track.Format);
-
-    /// <summary>
-    /// The tracks a stream of this file at maxHeight can carry. A live stream carries no subtitle streams (-sn), and
-    /// image-based tracks cannot become WebVTT, so it offers none of them.
-    /// </summary>
-    public async Task<IReadOnlyList<Subtitle>> OfferedAsync(
-        string fullPath,
-        int? maxHeight,
-        CancellationToken ct
-    )
-    {
-        var tracks = await DiscoverAsync(fullPath, ct);
-        if (!tracks.Any(IsImageBased))
-        {
-            return tracks;
-        }
-
-        var plan = await Transcoding.PlanAsync(maxHeight, fullPath, logger, ct);
-        return plan.Mode == StreamMode.Direct ? tracks : [.. tracks.Where(t => !IsImageBased(t))];
-    }
 
     /// <summary>
     /// Embedded tracks keep their subtitle-stream number as Index; sidecars ({stem}.srt or {stem}.{lang}.srt)

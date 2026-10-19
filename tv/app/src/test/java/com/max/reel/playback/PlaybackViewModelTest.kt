@@ -81,6 +81,9 @@ class PlaybackViewModelTest {
     // The maxHeight each stream info request carried.
     private val streamInfoRequests = mutableListOf<String?>()
     private var subtitles = "[]"
+
+    // The phone changes the session before every TV intent lands, so each one conflicts.
+    private var phoneAlwaysFirst = false
     private var intentGate: CompletableDeferred<Unit>? = null
     private var observationGate: CompletableDeferred<Unit>? = null
     private lateinit var viewModel: PlaybackViewModel
@@ -143,7 +146,7 @@ class PlaybackViewModelTest {
                             json.decodeFromString<UpdatePlaybackIntentRequest>((request.body as TextContent).text)
                         intents += intent
                         intentGate?.await()
-                        if (intent.expectedRevision != null && intent.expectedRevision != session.revision) {
+                        if (phoneAlwaysFirst || intent.expectedRevision != session.revision) {
                             return@MockEngine respondJson(
                                 """{"code":"revision_conflict","message":"Playback session changed"}""",
                                 HttpStatusCode.Conflict,
@@ -319,14 +322,77 @@ class PlaybackViewModelTest {
 
     @Test
     fun `a new quality reloads a capped stream from where it was`() = runTest(dispatcher) {
+        session = session(desiredState = PlaybackDesiredState.Paused, seekSeconds = 30.0)
         startPolling()
 
-        session = session(revision = 2, maxHeight = 480)
+        session = session(revision = 2, desiredState = PlaybackDesiredState.Paused, maxHeight = 480)
         advanceTimeBy(1_001)
 
         assertEquals(listOf(null, "480"), streamInfoRequests)
         val uri = viewModel.player.currentMediaItem?.localConfiguration?.uri.toString()
-        assertTrue(uri, "height=480" in uri && "start=" in uri)
+        assertTrue(uri, "height=480" in uri && "start=30.0" in uri)
+    }
+
+    @Test
+    fun `a key press that conflicts with a phone change gives way to it`() = runTest(dispatcher) {
+        startPolling()
+        session = session(revision = 2, maxHeight = 480)
+
+        viewModel.togglePlayPause()
+        runCurrent()
+
+        assertEquals(1, intents.size)
+        assertEquals(PlaybackDesiredState.Playing, session.intent.desiredState)
+        assertEquals(listOf(null, "480"), streamInfoRequests)
+        assertTrue(viewModel.player.playWhenReady)
+        assertNull(viewModel.state.value.notice)
+        assertFalse(viewModel.state.value.controlPending)
+    }
+
+    @Test
+    fun `backgrounding after a phone change it hasn't seen pauses with the phone's subtitle and quality`() =
+        runTest(dispatcher) {
+            startPolling()
+            session = session(revision = 2, subtitleIndex = 1, maxHeight = 480)
+
+            background()
+            runCurrent()
+
+            assertEquals(listOf(1L, 2L), intents.map { it.expectedRevision })
+            assertEquals(PlaybackDesiredState.Paused, session.intent.desiredState)
+            assertEquals(1, session.intent.subtitleIndex)
+            assertEquals(480, session.intent.maxHeight)
+            // The new quality loads once the app is back, not in the background.
+            assertEquals(1, streamInfoRequests.size)
+            assertFalse(viewModel.player.playWhenReady)
+        }
+
+    @Test
+    fun `backgrounding after a phone stop leaves it stopped`() = runTest(dispatcher) {
+        startPolling()
+        session = session(revision = 2, desiredState = PlaybackDesiredState.Stopped)
+
+        background()
+        runCurrent()
+
+        assertEquals(1, intents.size)
+        assertEquals(PlaybackDesiredState.Stopped, session.intent.desiredState)
+        assertNull(viewModel.state.value.relativePath)
+        assertNull(viewModel.state.value.notice)
+    }
+
+    @Test
+    fun `a stop that keeps losing to the phone gives up after a few tries and says so`() = runTest(dispatcher) {
+        startPolling()
+        phoneAlwaysFirst = true
+
+        viewModel.stopFromTv()
+        runCurrent()
+
+        assertEquals(4, intents.size)
+        assertTrue(intents.all { it.desiredState == PlaybackDesiredState.Stopped })
+        assertTrue(viewModel.state.value.notice.orEmpty().startsWith("Control failed"))
+        assertNull(viewModel.state.value.relativePath)
     }
 
     // The phone's change landed after the TV's last poll; Back must still stop, without reverting it.
@@ -488,6 +554,8 @@ class PlaybackViewModelTest {
         assertEquals(listOf(20.0, null), intents.map { it.seekPositionSeconds })
         assertEquals(PlaybackDesiredState.Stopped, intents.last().desiredState)
         assertNull(viewModel.state.value.relativePath)
+        // The skip's answer, arriving after Back, didn't load the stopped file again.
+        assertEquals(1, streamInfoRequests.size)
     }
 
     @Test

@@ -157,14 +157,14 @@ public static class StreamEndpoints
     )
     {
         var errors = new StringBuilder();
-        // genpts fills the timestamps AVI leaves out, which a copied video stream needs in MP4. V (not v) skips cover art.
+        // genpts fills the timestamps AVI leaves out, which a copied video stream needs in MP4. V (not v) skips cover art, and a file with only cover art becomes an audio-only MP4.
         // csharpier-ignore
         string[] arguments =
         [
             "-hide_banner", "-loglevel", "error", "-nostdin", "-fflags", "+genpts",
             "-ss", start.ToString("0.###", CultureInfo.InvariantCulture),
             "-i", fullPath,
-            "-map", "0:V:0", "-map", "0:a:0?",
+            "-map", "0:V:0?", "-map", "0:a:0?",
             .. video,
             .. audio,
             "-sn", "-dn",

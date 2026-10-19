@@ -260,4 +260,43 @@ public sealed class StreamEndpointTests : IDisposable
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    // Cover art is a picture, not the video: a file with only cover art is never transcoded, and when its audio needs
+    // converting it becomes an audio-only stream.
+    [Theory]
+    [InlineData("Films/cover.mp4", "aac", "&maxHeight=480", StreamMode.Direct)]
+    [InlineData("Films/cover-alac.mp4", "alac", "", StreamMode.Remux)]
+    public async Task CoverArt_IsNotTheVideo(
+        string path,
+        string audioCodec,
+        string cap,
+        StreamMode mode
+    )
+    {
+        TestMedia.CreateAudioWithCoverArt(_media.Write(path), audioCodec);
+        using var client = _factory.CreateAuthenticatedClient();
+
+        var info = await client.GetFromJsonAsync<StreamInfoResponse>(
+            $"/api/files/stream/info?path={path}{cap}",
+            _factory.JsonOptions()
+        );
+        info!.Mode.Should().Be(mode);
+        if (mode == StreamMode.Remux)
+        {
+            var response = await client.GetAsync($"/api/files/stream?path={path}&remux=true");
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            (await response.Content.ReadAsByteArrayAsync()).Should().NotBeEmpty();
+        }
+    }
+
+    [Theory]
+    [InlineData(StreamMode.Direct, "hdmv_pgs_subtitle", true)]
+    [InlineData(StreamMode.Remux, "hdmv_pgs_subtitle", false)]
+    [InlineData(StreamMode.Transcode, "dvd_subtitle", false)]
+    [InlineData(StreamMode.Transcode, "subrip", true)]
+    public void ALiveStreamCarriesOnlyTextSubtitles(StreamMode mode, string format, bool carried) =>
+        Transcoding
+            .Carries(mode, new Subtitle(0, "Track 1", "eng", format, null))
+            .Should()
+            .Be(carried);
 }

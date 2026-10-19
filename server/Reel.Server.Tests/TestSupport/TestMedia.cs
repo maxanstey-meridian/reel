@@ -41,6 +41,29 @@ internal static class TestMedia
             path,
         ]);
 
+    /// <summary>
+    /// A stereo tone in the given audio codec with a tall PNG as MP4 cover art, which ffprobe lists as a video
+    /// stream marked as an attached picture.
+    /// </summary>
+    public static void CreateAudioWithCoverArt(string path, string audioCodec)
+    {
+        var audio = $"{path}.audio.m4a";
+        var cover = $"{path}.cover.png";
+        try
+        {
+            // csharpier-ignore
+            Ffmpeg(["-f", "lavfi", "-i", "sine=d=2:sample_rate=48000", "-ac", "2", "-c:a", audioCodec, audio]);
+            Ffmpeg(["-f", "lavfi", "-i", "color=c=red:s=64x720", "-frames:v", "1", cover]);
+            // csharpier-ignore
+            Ffmpeg(["-i", audio, "-i", cover, "-map", "0", "-map", "1", "-c", "copy", "-disposition:v:0", "attached_pic", "-f", "mp4", path]);
+        }
+        finally
+        {
+            File.Delete(audio);
+            File.Delete(cover);
+        }
+    }
+
     /// <summary>Video with one SRT track; tags such as "language=eng" are set on that track.</summary>
     public static void CreateVideoWithSubtitle(
         string path,

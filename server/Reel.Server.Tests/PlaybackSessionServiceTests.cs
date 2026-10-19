@@ -435,7 +435,7 @@ public sealed class PlaybackSessionServiceTests : IDisposable
         _time.Advance(TimeSpan.FromMinutes(29));
         UpdateIntent(session.SessionId, PlaybackDesiredStateDto.Paused)
             .Should()
-            .BeOfType<PlaybackSessionOutcome.Ok>();
+            .BeOfType<PlaybackSessionOutcome.IntentUpdated>();
         _time.Advance(TimeSpan.FromMinutes(1));
         _service.GetCurrent().Should().NotBeNull();
         _time.Advance(TimeSpan.FromMilliseconds(1));
@@ -505,7 +505,12 @@ public sealed class PlaybackSessionServiceTests : IDisposable
 internal static class PlaybackSessionOutcomeAssertions
 {
     public static PlaybackSessionResponse Session(this PlaybackSessionOutcome outcome) =>
-        outcome.Should().BeOfType<PlaybackSessionOutcome.Ok>().Subject.Session;
+        outcome switch
+        {
+            PlaybackSessionOutcome.Ok ok => ok.Session,
+            PlaybackSessionOutcome.IntentUpdated updated => updated.Session,
+            _ => throw new InvalidOperationException($"Expected a session, got {outcome}."),
+        };
 
     public static PlaybackSessionError Error(this PlaybackSessionOutcome outcome) =>
         outcome.Should().BeOfType<PlaybackSessionOutcome.Failed>().Subject.Error;

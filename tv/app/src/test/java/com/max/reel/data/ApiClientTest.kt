@@ -9,10 +9,15 @@ import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -171,20 +176,28 @@ class ApiClientTest {
     }
 
     @Test
-    fun `intent always encodes subtitle and quality, and expected revision only when present`() {
-        val guarded =
+    fun `an intent states its subtitle and quality even when there are none`() = runTest {
+        var body: String? = null
+        val api =
+            client { request ->
+                body = (request.body as TextContent).text
+                respondJson("{}")
+            }
+
+        api.updatePlaybackIntent(
             UpdatePlaybackIntentRequest(
                 "session-1",
-                PlaybackDesiredState.Paused,
-                subtitleIndex = 2,
-                maxHeight = 480,
+                PlaybackDesiredState.Stopped,
+                subtitleIndex = null,
+                maxHeight = null,
                 expectedRevision = 3,
-            )
-        val unguarded = UpdatePlaybackIntentRequest("session-1", PlaybackDesiredState.Stopped, null, null)
+            ),
+        )
 
-        assertTrue(json.encodeToString(guarded).contains("\"expectedRevision\":3"))
-        assertTrue(!json.encodeToString(unguarded).contains("expectedRevision"))
-        assertTrue(json.encodeToString(unguarded).contains("\"subtitleIndex\":null,\"maxHeight\":null"))
+        val sent = json.parseToJsonElement(checkNotNull(body)).jsonObject
+        assertEquals(JsonNull, sent["subtitleIndex"])
+        assertEquals(JsonNull, sent["maxHeight"])
+        assertEquals(3L, sent["expectedRevision"]?.jsonPrimitive?.long)
     }
 
     @Test

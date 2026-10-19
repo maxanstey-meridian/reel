@@ -42,12 +42,10 @@ data class StreamTimeline(
         ?: 0.0
 
     companion object {
-        // A transcode without a height can't be requested, so that answer counts as no info: play the file.
         fun of(info: StreamInfo?, startSeconds: Double): StreamTimeline {
-            val usable = info?.takeUnless { it.mode == StreamMode.Transcode && it.transcodeHeight == null }
-            val mode = usable?.mode ?: StreamMode.Direct
+            val mode = info?.mode ?: StreamMode.Direct
             val offset = if (mode != StreamMode.Direct) startSeconds.coerceAtLeast(0.0) else 0.0
-            return StreamTimeline(mode, usable?.transcodeHeight, offset, usable?.durationSeconds)
+            return StreamTimeline(mode, info?.transcodeHeight, offset, info?.durationSeconds)
         }
     }
 }

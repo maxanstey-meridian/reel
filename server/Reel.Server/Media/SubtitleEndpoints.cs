@@ -18,6 +18,7 @@ public static partial class SubtitleEndpoints
                 [AsParameters] PlaybackFileRequest request,
                 FfprobeSubtitleDiscovery discovery,
                 MediaPathResolver paths,
+                ILogger<Program> logger,
                 CancellationToken ct
             ) =>
             {
@@ -33,7 +34,13 @@ public static partial class SubtitleEndpoints
                     return endpoint.Error(404, EndpointErrors.MediaNotFound).ToResult();
                 }
 
-                var tracks = await discovery.OfferedAsync(fullPath, request.MaxHeight, ct);
+                var tracks = await Transcoding.OfferedSubtitlesAsync(
+                    discovery,
+                    fullPath,
+                    request.MaxHeight,
+                    logger,
+                    ct
+                );
                 return endpoint
                     .Success([
                         .. tracks.Select(track => new SubtitleTrack(

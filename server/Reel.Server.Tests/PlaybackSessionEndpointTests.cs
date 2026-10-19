@@ -111,7 +111,13 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         );
         await _client.PutAsJsonAsync(
             PlaybackContract.UpdateIntent.Route,
-            new { sessionId = session.SessionId, desiredState = "paused" },
+            new
+            {
+                sessionId = session.SessionId,
+                desiredState = "paused",
+                subtitleIndex = (int?)null,
+                maxHeight = (int?)null,
+            },
             _json
         );
         var regressing = await _client.PutAsJsonAsync(
@@ -174,6 +180,7 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
                 sessionId = session.SessionId,
                 desiredState = "playing",
                 subtitleIndex = 1,
+                maxHeight = (int?)null,
                 expectedRevision = session.Revision,
             },
             _json
@@ -191,7 +198,13 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         var session = await Start();
         await _client.PutAsJsonAsync(
             PlaybackContract.UpdateIntent.Route,
-            new { sessionId = session.SessionId, desiredState = "paused" },
+            new
+            {
+                sessionId = session.SessionId,
+                desiredState = "paused",
+                subtitleIndex = (int?)null,
+                maxHeight = (int?)null,
+            },
             _json
         );
 
@@ -202,6 +215,7 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
                 sessionId = session.SessionId,
                 desiredState = "playing",
                 subtitleIndex = 1,
+                maxHeight = (int?)null,
                 expectedRevision = session.Revision,
             },
             _json
@@ -258,22 +272,44 @@ public sealed class PlaybackSessionEndpointTests : IDisposable
         off.Intent.MaxHeight.Should().Be(720);
     }
 
+    // A request that leaves the subtitle or quality out would otherwise read as "off" and "full quality", and be
+    // remembered as such.
+    [Fact]
+    public async Task Intent_WithoutSubtitleOrQuality_IsRejected()
+    {
+        var session = await Start();
+
+        var response = await _client.PutAsJsonAsync(
+            PlaybackContract.UpdateIntent.Route,
+            new
+            {
+                sessionId = session.SessionId,
+                desiredState = "paused",
+                subtitleIndex = (int?)null,
+            },
+            _json
+        );
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task PreferencesThatCannotBeReadOrSaved_NeverStopPlayback()
     {
         _media.Write("Films/movie.en.srt");
-        await Start();
+        await ChangeIntent(await Start(), subtitleIndex: 0, maxHeight: 720);
         using (var connection = _media.Database.GetConnection())
         {
             connection.Execute("DROP TABLE preferences;");
         }
 
         var session = await Start();
-        var changed = await ChangeIntent(session, subtitleIndex: 0, maxHeight: 720);
+        var changed = await ChangeIntent(session, subtitleIndex: null, maxHeight: 480);
 
         session.Intent.MaxHeight.Should().BeNull();
-        changed.Intent.SubtitleIndex.Should().Be(0);
-        changed.Intent.MaxHeight.Should().Be(720);
+        session.Intent.SubtitleIndex.Should().BeNull();
+        changed.Intent.SubtitleIndex.Should().BeNull();
+        changed.Intent.MaxHeight.Should().Be(480);
     }
 
     private async Task<PlaybackSessionResponse> ChangeIntent(

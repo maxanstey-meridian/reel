@@ -18,20 +18,27 @@ public sealed class SqlitePreferencesStore(DatabaseService db)
     }
 
     // One column per write, so a quality change and a subtitle change saved together cannot undo each other.
-    public Task SaveMaxHeightAsync(int? maxHeight) => UpsertAsync("max_height", maxHeight);
-
-    public Task SaveSubtitleLanguageAsync(string? language) =>
-        UpsertAsync("subtitle_language", language);
-
-    private async Task UpsertAsync(string column, object? value)
+    public async Task SaveMaxHeightAsync(int? maxHeight)
     {
         using var connection = db.GetConnection();
         await connection.ExecuteAsync(
-            $"""
-            INSERT INTO preferences (id, {column}) VALUES (1, @value)
-            ON CONFLICT (id) DO UPDATE SET {column} = excluded.{column};
+            """
+            INSERT INTO preferences (id, max_height) VALUES (1, @maxHeight)
+            ON CONFLICT (id) DO UPDATE SET max_height = excluded.max_height;
             """,
-            new { value }
+            new { maxHeight }
+        );
+    }
+
+    public async Task SaveSubtitleLanguageAsync(string? language)
+    {
+        using var connection = db.GetConnection();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO preferences (id, subtitle_language) VALUES (1, @language)
+            ON CONFLICT (id) DO UPDATE SET subtitle_language = excluded.subtitle_language;
+            """,
+            new { language }
         );
     }
 }

@@ -38,14 +38,6 @@ class StreamTimelineTest {
     }
 
     @Test
-    fun `a transcode without a height plays the file as it is`() {
-        val timeline =
-            StreamTimeline.of(StreamInfo(durationSeconds = 1_440.0, mode = StreamMode.Transcode), startSeconds = 300.0)
-
-        assertEquals(StreamTimeline(), timeline)
-    }
-
-    @Test
     fun `an embedded subtitle maps to its container track only when both list the same number`() {
         val embedded = listOf(2, 3, 5)
 
