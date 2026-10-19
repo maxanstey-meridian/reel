@@ -151,16 +151,20 @@ public sealed class StreamEndpointTests : IDisposable
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    // The TV's MP3 decoder rejects MP3 read out of AVI, so the video is copied untouched and the audio re-encoded.
-    [Fact]
-    public async Task RemuxMode_CopiesTheVideoAndReencodesTheAudioToAc3()
+    // The video is copied untouched. The TV plays MP3 once it's out of AVI, so it is copied too; MP2 becomes AC3.
+    [Theory]
+    [InlineData("Films/old.avi", "libmp3lame", "mp3")]
+    [InlineData("Films/mp2.mkv", "mp2", "ac3")]
+    public async Task RemuxMode_CopiesTheVideoAndConvertsOnlyAudioTheTvCannotPlay(
+        string path,
+        string sourceAudio,
+        string streamedAudio
+    )
     {
-        TestMedia.CreateVideo(_media.Write("Films/old.avi"), audioCodec: "libmp3lame");
+        TestMedia.CreateVideo(_media.Write(path), audioCodec: sourceAudio);
         using var client = _factory.CreateAuthenticatedClient();
 
-        var response = await client.GetAsync(
-            "/api/files/stream?path=Films/old.avi&start=1&remux=true"
-        );
+        var response = await client.GetAsync($"/api/files/stream?path={path}&start=1&remux=true");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.Should().Be("video/mp4");
@@ -174,7 +178,7 @@ public sealed class StreamEndpointTests : IDisposable
         probe!
             .Streams!.Select(stream => (stream.CodecType, stream.CodecName, stream.Height))
             .Should()
-            .Equal(("video", "mpeg4", 36), ("audio", "ac3", null));
+            .Equal(("video", "mpeg4", 36), ("audio", streamedAudio, null));
     }
 
     // The source is 36 pixels tall: a cap at or above that leaves it alone, one below transcodes down to the cap.

@@ -83,19 +83,23 @@ public static class StreamEndpoints
                 }
                 else
                 {
+                    var streams =
+                        (
+                            await Ffmpeg.ProbeAsync(fullPath, null, logger, http.RequestAborted)
+                        )?.Streams
+                        ?? [];
                     // Packed B-frames (common in DivX/XviD AVIs) must be unpacked before they can go into MP4.
-                    var codec = (
-                        await Ffmpeg.ProbeAsync(fullPath, "V:0", logger, http.RequestAborted)
-                    )
-                        ?.Streams?.FirstOrDefault()
-                        ?.CodecName;
                     video =
-                        codec == "mpeg4"
+                        streams.FirstOrDefault(stream => stream.IsMovingVideo)?.CodecName == "mpeg4"
                             ? ["-c:v", "copy", "-bsf:v", "mpeg4_unpack_bframes"]
                             : ["-c:v", "copy"];
-                    // AC3 keeps up to 5.1 and the TV decodes it; wider layouts are folded down to 5.1.
+                    // Audio the TV plays is copied; the rest becomes AC3, which keeps up to 5.1 (wider layouts are
+                    // folded down to it).
+                    var sourceAudio = streams.FirstOrDefault(stream => stream.CodecType == "audio");
                     // csharpier-ignore
-                    audio = ["-c:a", "ac3", "-af", "aformat=channel_layouts=5.1|5.1(side)|stereo|mono"];
+                    audio = sourceAudio is not null && Transcoding.CopiesIntoMp4(sourceAudio)
+                        ? ["-c:a", "copy"]
+                        : ["-c:a", "ac3", "-af", "aformat=channel_layouts=5.1|5.1(side)|stereo|mono"];
                 }
 
                 // A live stream has no byte ranges; the TV seeks by reloading with ?start=<seconds>. It stays a plain

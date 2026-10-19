@@ -46,6 +46,8 @@ public sealed class MediaPathResolver(IOptions<ReelOptions> options)
 
     public static bool IsAudio(string path) => AudioExtensions.Contains(Path.GetExtension(path));
 
+    public static bool IsVideo(string path) => VideoExtensions.Contains(Path.GetExtension(path));
+
     public static bool IsPlayable(string path) =>
         IsAudio(path) || VideoExtensions.Contains(Path.GetExtension(path));
 

@@ -77,8 +77,8 @@ public static class ReelContract
         .Accepts<FileRequest>()
         .Status(200);
 
-    // Ranged file bytes, or with Height (transcode) or Remux a live MP4 starting at Start seconds, in the mode
-    // StreamInfo planned for the session's MaxHeight.
+    // Ranged file bytes, or with Height (transcode) or Remux a live MP4 starting at Start seconds. StreamInfo plans
+    // the mode once per load, so a file played as it is isn't probed again for each of its byte ranges.
     public static readonly FileRouteDefinition<StreamRequest> Stream = Define
         .File<StreamRequest>(StreamRoute)
         .ProducesFile("video/*")
@@ -152,12 +152,13 @@ public sealed record FavouriteRequest(string RelativePath);
 
 public sealed record TagUpdateRequest(string Path, string[] Tags);
 
-// Height transcodes to that height; Remux keeps the video and re-encodes the audio. They cannot be combined.
+// Height transcodes to that height; Remux keeps the video and converts only audio the TV can't play. They cannot be
+// combined.
 public sealed record StreamRequest(string Path, double? Start, int? Height, bool? Remux);
 
 /// <summary>
 /// Direct serves the file. Remux and transcode are live MP4s that seek by reloading from a new Start: remux keeps
-/// the video and re-encodes the audio, transcode re-encodes both to TranscodeHeight (the session's MaxHeight, or the
+/// the video and converts only audio the TV can't play, transcode re-encodes both to TranscodeHeight (the session's MaxHeight, or the
 /// source's own height for video the TV cannot decode).
 /// </summary>
 [JsonConverter(typeof(RivetCamelCaseEnumConverter<StreamMode>))]

@@ -51,9 +51,9 @@ other setting (including hand edits and the key).
 
 Streaming: a file the Fire TV plays is served as-is with byte ranges. One it can't is
 converted live, touching as little as possible: playable video in another container
-(AVI, WMV, FLV) or with unplayable audio (DTS, TrueHD, MP2) keeps its video and gets
-AC3 audio (up to 5.1); unplayable video (WMV, 10-bit H.264) is transcoded to H.264 at
-its own height. On weak wifi pick a lower Quality (1080p, 720p, 480p) on the phone's
+(AVI, WMV, FLV) or with unplayable audio (DTS, TrueHD, MP2) keeps its video, and its
+audio too if the TV plays it, otherwise it gets AC3 audio (up to 5.1); unplayable
+video (WMV, 10-bit H.264) is transcoded to H.264 at its own height. On weak wifi pick a lower Quality (1080p, 720p, 480p) on the phone's
 Now Playing screen: video taller than that is transcoded down to it. Audio files are
 never converted. A converted stream seeks by reloading, and image-based subtitles are
 not offered with it.
@@ -61,9 +61,11 @@ not offered with it.
 Quality and subtitles chosen while something plays are remembered in the media
 database: the next file starts at that quality, with subtitles in the language last
 picked (or off). Languages are matched however a track names them: `eng`, `English`,
-`en-US`, `.en.srt`, RARBG's `Subs/<episode>/7_English.srt`. With no track in that
-language, a sidecar that names no language is used. The `Reel` settings are read at
-startup: `stop` then `start` after changing them. Runtime
+`en-US`, `.en.srt`, RARBG's `Subs/<episode>/7_English.srt`. Subtitle files loose in a
+`Subs/` folder go to the video they're named after; one named only by language
+(`Subs/2_English.srt`) goes to a video only when it's the only one in its folder. With
+no track in that language, a sidecar that names no language is used. The `Reel`
+settings are read at startup: `stop` then `start` after changing them. Runtime
 messages use macOS logging (`log show --last 1h --predicate 'process == "logger"'`).
 Media index, progress and generated assets live in the media folder's `.reel`
 directory. Do not delete that folder to update the app.

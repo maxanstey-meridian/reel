@@ -77,6 +77,24 @@ public sealed class SubtitleDiscoveryTests : IDisposable
             );
     }
 
+    // In a season folder the loose Subs/ files are named after their episodes; one named by language alone could
+    // be any episode's, so none takes it.
+    [Fact]
+    public async Task LooseSubsBesideSeveralVideos_GoOnlyToTheEpisodeTheyAreNamedAfter()
+    {
+        var episode = _media.Write("Show/Show.S01E01.mkv", new byte[100]);
+        _media.Write("Show/Show.S01E02.mkv", new byte[100]);
+        _media.Write("Show/Subs/Show.S01E01.en.srt");
+        _media.Write("Show/Subs/Show.S01E02.en.srt");
+        _media.Write("Show/Subs/2_English.srt");
+
+        var tracks = await _discovery.DiscoverAsync(episode, CancellationToken.None);
+
+        tracks
+            .Should()
+            .Equal(new Subtitle(0, "External SRT", "en", "srt", "Show/Subs/Show.S01E01.en.srt"));
+    }
+
     [Fact]
     public async Task LinkedSubsFolder_IsNotRead()
     {

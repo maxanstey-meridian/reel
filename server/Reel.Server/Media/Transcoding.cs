@@ -99,6 +99,13 @@ internal static class Transcoding
         return [.. tracks.Where(track => Carries(mode, track))];
     }
 
+    /// <summary>
+    /// Audio a remux copies into its MP4 as it is: playable on the TV and storable in MP4 by ffmpeg (Vorbis and PCM
+    /// are not), so only the rest is converted.
+    /// </summary>
+    public static bool CopiesIntoMp4(ProbeStream audio) =>
+        audio.CodecName is "aac" or "ac3" or "eac3" or "mp3" or "flac" or "opus";
+
     /// <summary>A height video can be transcoded to: H.264 in 4:2:0 needs it even.</summary>
     public static bool IsHeight(int height) => height > 0 && height % 2 == 0;
 
